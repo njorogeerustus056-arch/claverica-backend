@@ -1,0 +1,83 @@
+{
+  "info": {
+    "name": "Claverica Receipts API",
+    "_postman_id": "12345-abcde-67890-fghij",
+    "description": "Postman collection for testing receipt upload, listing, and signed URL generation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Upload Receipt",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "user_id",
+              "value": "user123",
+              "type": "text"
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": "D:\\Documents\\invoice.pdf"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/api/receipts/upload/",
+          "protocol": "http",
+          "host": ["127.0.0.1"],
+          "port": "8000",
+          "path": ["api", "receipts", "upload"]
+        }
+      }
+    },
+    {
+      "name": "List Receipts",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/api/receipts/list/?user_id=user123",
+          "protocol": "http",
+          "host": ["127.0.0.1"],
+          "port": "8000",
+          "path": ["api", "receipts", "list"],
+          "query": [
+            {
+              "key": "user_id",
+              "value": "user123"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Generate Signed URL",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/api/receipts/signed-url/?user_id=user123&file_name=invoice.pdf",
+          "protocol": "http",
+          "host": ["127.0.0.1"],
+          "port": "8000",
+          "path": ["api", "receipts", "signed-url"],
+          "query": [
+            {
+              "key": "user_id",
+              "value": "user123"
+            },
+            {
+              "key": "file_name",
+              "value": "invoice.pdf"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

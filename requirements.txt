@@ -1,0 +1,8 @@
+Django==5.2.7
+djangorestframework
+psycopg2-binary
+dj-database-url
+python-dotenv
+supabase
+gunicorn
+whitenoise
