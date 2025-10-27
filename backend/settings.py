@@ -22,10 +22,11 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "fallback-secret-key")
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
 # ✅ Include Render domain so it doesn’t cause 400 errors
-ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",
-    "claverica-backend.onrender.com,127.0.0.1,localhost"
-).split(",")
+ALLOWED_HOSTS = [
+    "claverica-backend.onrender.com",
+    "127.0.0.1",
+    "localhost",
+]
 
 # ----------------------------------------------------
 # APPLICATIONS
@@ -148,7 +149,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 # ----------------------------------------------------
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = [
-    f"https://{host.strip()}" for host in ALLOWED_HOSTS if not host.startswith("127.")
+    "https://claverica-backend.onrender.com"
 ]
 
 # ----------------------------------------------------
