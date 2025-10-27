@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import dj_database_url
 
 # ----------------------------------------------------
-# Load environment variables from .env
+# Load environment variables
 # ----------------------------------------------------
 load_dotenv()
 
@@ -20,7 +20,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "fallback-secret-key")
 DEBUG = os.getenv("DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+
+# ✅ Include Render domain so it doesn’t cause 400 errors
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS",
+    "claverica-backend.onrender.com,127.0.0.1,localhost"
+).split(",")
 
 # ----------------------------------------------------
 # APPLICATIONS
@@ -118,7 +123,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ----------------------------------------------------
-# REST FRAMEWORK
+# REST FRAMEWORK (JWT)
 # ----------------------------------------------------
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -143,8 +148,12 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 # ----------------------------------------------------
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = [
-    f"https://{host}" for host in ALLOWED_HOSTS if not host.startswith("127.")
+    f"https://{host.strip()}" for host in ALLOWED_HOSTS if not host.startswith("127.")
 ]
 
+# ----------------------------------------------------
+# DEBUGGING INFO
+# ----------------------------------------------------
 print("📂 BASE_DIR:", BASE_DIR)
 print("🗃 DATABASE PATH:", BASE_DIR / 'db.sqlite3')
+print("🌍 ALLOWED_HOSTS:", ALLOWED_HOSTS)
