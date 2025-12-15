@@ -1,7 +1,8 @@
 # accounts/urls.py
 from django.urls import path
-from . import views
+from .views import index, RegisterView
 
 urlpatterns = [
-    path('', views.index, name='accounts_index'),
+    path('', index, name='accounts_index'),  # test endpoint
+    path('auth/register/', RegisterView.as_view(), name='register'),
 ]
