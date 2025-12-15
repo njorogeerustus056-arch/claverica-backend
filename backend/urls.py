@@ -10,6 +10,8 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
+from django.conf.urls.static import static
 
 # ✅ Simple homepage view to confirm backend is live
 def home(request):
@@ -24,7 +26,6 @@ def home(request):
             "payments": "/api/payments/",
             "escrow": "/api/escrow/",
             "transactions": "/api/transactions/",
-            "receipts": "/api/receipts/",
         }
     })
 
@@ -66,5 +67,8 @@ urlpatterns = [
     path('api/payments/', include('payments.urls')),
     path('api/escrow/', include('escrow.urls')),
     path('api/transactions/', include('transactions.urls')),
-    path('api/receipts/', include('receipts.urls')),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
