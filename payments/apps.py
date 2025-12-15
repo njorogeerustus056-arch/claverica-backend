@@ -1,11 +1,13 @@
-# accounts/apps.py
+# payments/apps.py
 from django.apps import AppConfig
 
-
-class AccountsConfig(AppConfig):
+class PaymentsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'accounts'
+    name = 'payments'
 
     def ready(self):
-        # Import signals to ensure they are registered
-        import accounts.signals
+        # Import signals if you have any
+        try:
+            import payments.signals
+        except ImportError:
+            pass
