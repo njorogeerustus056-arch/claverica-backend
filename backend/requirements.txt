@@ -1,0 +1,27 @@
+# Django Core
+Django==5.2.7
+djangorestframework==3.15.2
+
+# Database
+dj-database-url==2.3.0
+psycopg2-binary==2.9.10
+
+# Authentication
+djangorestframework-simplejwt==5.4.0
+PyJWT==2.10.1
+
+# CORS Support (Critical for Frontend)
+django-cors-headers==4.6.0
+
+# Environment Variables
+python-dotenv==1.0.1
+
+# Static Files
+whitenoise==6.9.0
+
+# Supabase Storage
+supabase==2.11.1
+
+# ASGI Server for Production
+gunicorn==23.0.0
+uvicorn==0.34.0
