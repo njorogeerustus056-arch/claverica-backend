@@ -1,20 +1,20 @@
-from django.shortcuts import render
-from django.http import JsonResponse
+# accounts/views.py
 from rest_framework import generics, status
-from django.contrib.auth.models import User
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import UserSerializer
+from .models import Account
+from .serializers import AccountSerializer
 
-# ✅ Test endpoint to confirm the Accounts API is working
+# ✅ Test endpoint
+from django.http import JsonResponse
 def index(request):
     return JsonResponse({"message": "Accounts API working!"})
 
-# ✅ User registration endpoint
+# ✅ Registration endpoint
 class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
+    queryset = Account.objects.all()
+    serializer_class = AccountSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
@@ -22,9 +22,10 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
+        # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         return Response({
-            "user": UserSerializer(user).data,
+            "user": AccountSerializer(user).data,
             "refresh": str(refresh),
             "access": str(refresh.access_token),
         }, status=status.HTTP_201_CREATED)
