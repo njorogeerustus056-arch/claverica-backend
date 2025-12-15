@@ -86,13 +86,13 @@ TEMPLATES = [
 WSGI_APPLICATION = "backend.wsgi.application"
 
 # ----------------------------------------------------
-# DATABASE — PostgreSQL ONLY (Supabase)
+# DATABASE — PostgreSQL (Supabase Free)
 # ----------------------------------------------------
 DATABASES = {
     "default": dj_database_url.parse(
-        os.environ["DATABASE_URL"],
-        conn_max_age=600,
-        ssl_require=True,
+        os.environ.get("DATABASE_URL"),
+        conn_max_age=60,  # keep connections alive 60s to avoid idle connection limits
+        ssl_require=True,  # Supabase requires SSL
     )
 }
 
@@ -140,6 +140,13 @@ REST_FRAMEWORK = {
 # ----------------------------------------------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+# Initialize Supabase client (optional usage)
+try:
+    from supabase import create_client
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception:
+    supabase = None
 
 # ----------------------------------------------------
 # SECURITY (Render)
