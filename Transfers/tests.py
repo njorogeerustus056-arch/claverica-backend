@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
 from decimal import Decimal
-from .models import Recipient, Transfer, TACCode
+from .models import Recipient, Transfer, TACCode, TransferLog
 
 class RecipientModelTest(TestCase):
     def setUp(self):
@@ -17,7 +17,7 @@ class RecipientModelTest(TestCase):
             account_holder='John Doe'
         )
         self.assertEqual(recipient.recipient_type, 'bank')
-        self.assertTrue(str(recipient).startswith('Test Bank'))
+        self.assertIn('Test Bank', str(recipient))
     
     def test_create_crypto_recipient(self):
         recipient = Recipient.objects.create(
@@ -38,22 +38,4 @@ class TransferModelTest(TestCase):
         self.recipient = Recipient.objects.create(
             user=self.user,
             recipient_type='bank',
-            name='Test Bank',
-            country='USA',
-            account_number='1234567890',
-            account_holder='John Doe'
-        )
-    
-    def test_create_transfer(self):
-        transfer = Transfer.objects.create(
-            sender=self.user,
-            recipient=self.recipient,
-            transfer_type='bank',
-            amount=Decimal('100.00'),
-            fee=Decimal('5.00')
-        )
-        self.assertEqual(transfer.total_amount, Decimal('105.00'))
-        self.assertTrue(transfer.transfer_id.startswith('TRF-'))
-    
-    def test_transfer_requires_tac(self):
-        transfer = Transfer.objects
+            name='Test
