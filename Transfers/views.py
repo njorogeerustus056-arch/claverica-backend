@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Sum
 from datetime import timedelta
 import random
 
@@ -17,6 +17,9 @@ from .serializers import (
 
 
 class RecipientViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing transfer recipients
+    """
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
@@ -62,6 +65,9 @@ class RecipientViewSet(viewsets.ModelViewSet):
 
 
 class TransferViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing transfers
+    """
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
@@ -85,7 +91,7 @@ class TransferViewSet(viewsets.ModelViewSet):
         else:
             fee = amount * 0.01  # 1% for others
         
-        # Minimum fee
+        # Minimum fee of $5
         if fee < 5:
             fee = 5
         
@@ -123,7 +129,8 @@ class TransferViewSet(viewsets.ModelViewSet):
         )
         
         # TODO: Send TAC code via email/SMS
-        print(f"TAC Code generated: {code}")
+        # For now, just log it
+        print(f"TAC Code generated for transfer {transfer.transfer_id}: {code}")
     
     @action(detail=True, methods=['post'])
     def verify_tac(self, request, pk=None):
@@ -245,7 +252,9 @@ class TransferViewSet(viewsets.ModelViewSet):
         completed = queryset.filter(status='completed').count()
         failed = queryset.filter(status='failed').count()
         
-        total_sent = sum(t.amount for t in queryset.filter(status='completed'))
+        total_sent = queryset.filter(status='completed').aggregate(
+            total=Sum('amount')
+        )['total'] or 0
         
         return Response({
             'total_transfers': total_transfers,
@@ -262,5 +271,17 @@ class TransferViewSet(viewsets.ModelViewSet):
         """Get recent transfers"""
         limit = int(request.query_params.get('limit', 10))
         transfers = self.get_queryset()[:limit]
+        serializer = self.get_serializer(transfers, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def by_status(self, request):
+        """Get transfers filtered by status"""
+        transfer_status = request.query_params.get('status', None)
+        if transfer_status:
+            transfers = self.get_queryset().filter(status=transfer_status)
+        else:
+            transfers = self.get_queryset()
+        
         serializer = self.get_serializer(transfers, many=True)
         return Response(serializer.data)
