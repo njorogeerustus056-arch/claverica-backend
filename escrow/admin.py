@@ -1,6 +1,5 @@
 from django.contrib import admin
-from .models import Escrow, EscrowLog
-
+from .models import Escrow  # Only import Escrow
 
 @admin.register(Escrow)
 class EscrowAdmin(admin.ModelAdmin):
@@ -47,26 +46,5 @@ class EscrowAdmin(admin.ModelAdmin):
         ('Metadata', {
             'fields': ('metadata',),
             'classes': ('collapse',)
-        }),
-    )
-
-
-@admin.register(EscrowLog)
-class EscrowLogAdmin(admin.ModelAdmin):
-    list_display = ['escrow', 'user_name', 'action', 'timestamp', 'ip_address']
-    list_filter = ['action', 'timestamp']
-    search_fields = ['escrow__escrow_id', 'user_name', 'details']
-    readonly_fields = ['id', 'timestamp']
-    date_hierarchy = 'timestamp'
-
-    fieldsets = (
-        ('Log Information', {
-            'fields': ('id', 'escrow', 'user_id', 'user_name', 'action')
-        }),
-        ('Details', {
-            'fields': ('details', 'ip_address')
-        }),
-        ('Timestamp', {
-            'fields': ('timestamp',)
         }),
     )
