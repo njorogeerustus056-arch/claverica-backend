@@ -18,7 +18,7 @@ from .models import (
 from .serializers import (
     CryptoWalletSerializer, CryptoCurrencySerializer,
     CryptoTransactionSerializer, CryptoAddressSerializer,
-    ExchangeRateSerializer
+    #ExchangeRateSerializer
 )
 
 
