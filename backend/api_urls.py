@@ -7,7 +7,7 @@ from django.urls import path, include
 
 urlpatterns = [
     # Tasks & Rewards API
-    path('tasks/', include('tasks.urls')),
+    path('Tasks/', include('Tasks.urls')),
     
     # Accounts API
     path('accounts/', include('accounts.urls')),
