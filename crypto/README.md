@@ -50,3 +50,31 @@ API Docs: http://localhost:8000/docs
 2. Create Web Service
 3. Set environment variable: DATABASE_URL
 4. Deploy!
+
+
+===============================================================================
+                            FILE STRUCTURE
+===============================================================================
+
+crypto-backend/
+├── main.py                 # FastAPI application
+├── database.py            # Database configuration
+├── crypto_models.py       # SQLAlchemy models
+├── crypto_routes.py       # API routes
+├── seed_data.py           # Database seeding
+├── requirements.txt       # Python dependencies
+├── .env.example          # Environment template
+├── .gitignore            # Git ignore
+└── README.md             # Documentation
+
+===============================================================================
+                         DEPLOYMENT STEPS
+===============================================================================
+
+1. Copy all files above to your backend folder
+2. pip install -r requirements.txt
+3. Create .env with your DATABASE_URL
+4. python seed_data.py (to populate initial data)
+5. uvicorn main:app --reload
+
+===============================================================================
