@@ -48,7 +48,7 @@ INSTALLED_APPS = [
     'django_filters',
     
     # Claverica feature apps
-    'tasks',
+    'Tasks',
     'accounts',
     'cards',
     'compliance',
