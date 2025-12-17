@@ -16,16 +16,29 @@ djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 PyJWT==2.10.1
 
+
+# =========================
+# FastAPI (Async / Services / Gateways)
+# =========================
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-multipart==0.0.6
+
+
 # =========================
 # Database (PostgreSQL)
 # =========================
 psycopg2-binary==2.9.11
 dj-database-url==3.0.1
 
+
 # =========================
 # CORS (Frontend Integration)
 # =========================
 django-cors-headers==4.6.0
+
 
 # =========================
 # Static Files & Production Server
@@ -33,10 +46,12 @@ django-cors-headers==4.6.0
 whitenoise==6.11.0
 gunicorn==23.0.0
 
+
 # =========================
 # Environment Variables
 # =========================
 python-dotenv==1.1.1
+
 
 # =========================
 # HTTP Requests (External APIs)
@@ -47,12 +62,14 @@ idna==3.10
 charset-normalizer==3.4.3
 certifi==2025.8.3
 
+
 # =========================
 # Security & Cryptography
 # =========================
 cryptography==46.0.3
 cffi==2.0.0
 pycparser==2.23
+
 
 # =========================
 # Packaging / Typing (Safe Runtime)
