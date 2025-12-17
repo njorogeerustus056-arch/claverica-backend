@@ -422,7 +422,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
 
 # Receipt storage
 RECEIPT_STORAGE_PATH = MEDIA_ROOT / 'receipts'
-RECEIPT_STORAGE_PATH.mkdir(exist_ok=True)
+RECEIPT_STORAGE_PATH.mkdir(parents=True, exist_ok=True)
 
 # Allowed file types for receipts
 ALLOWED_RECEIPT_TYPES = [
