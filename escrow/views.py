@@ -5,12 +5,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.core.paginator import Paginator
 from django.db.models import Sum, Q, Count
-from .models import Escrow, EscrowMessage, EscrowLog
+from .models import Escrow, EscrowLog
 from .serializers import (
     EscrowSerializer, 
     EscrowCreateSerializer,
     EscrowUpdateSerializer,
-    EscrowMessageSerializer,
     EscrowLogSerializer
 )
 from datetime import datetime
@@ -33,15 +32,9 @@ def index(request):
 
 @api_view(['POST'])
 def create_escrow_view(request):
-    """
-    Create a new escrow transaction
-    """
     serializer = EscrowCreateSerializer(data=request.data)
-    
     if serializer.is_valid():
         escrow = serializer.save()
-        
-        # Create audit log
         EscrowLog.objects.create(
             escrow=escrow,
             user_id=escrow.sender_id,
@@ -50,54 +43,39 @@ def create_escrow_view(request):
             details=f"Created escrow {escrow.escrow_id}",
             ip_address=get_client_ip(request)
         )
-        
         return Response({
             "message": "Escrow created successfully",
             "escrow": EscrowSerializer(escrow).data
         }, status=status.HTTP_201_CREATED)
-    
     return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
 def list_escrows_view(request):
-    """
-    List all escrows for a user (as sender or receiver)
-    """
     user_id = request.GET.get('user_id')
     if not user_id:
         return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Get query parameters
-    role = request.GET.get('role', 'all')  # 'sender', 'receiver', or 'all'
+    role = request.GET.get('role', 'all')
     status_filter = request.GET.get('status')
     search = request.GET.get('search')
     page = int(request.GET.get('page', 1))
     page_size = int(request.GET.get('page_size', 10))
     
-    # Build query
     if role == 'sender':
         escrows = Escrow.objects.filter(sender_id=user_id)
     elif role == 'receiver':
         escrows = Escrow.objects.filter(receiver_id=user_id)
     else:
-        escrows = Escrow.objects.filter(
-            Q(sender_id=user_id) | Q(receiver_id=user_id)
-        )
+        escrows = Escrow.objects.filter(Q(sender_id=user_id) | Q(receiver_id=user_id))
     
     if status_filter:
         escrows = escrows.filter(status=status_filter)
     if search:
-        escrows = escrows.filter(
-            Q(title__icontains=search) | 
-            Q(description__icontains=search) |
-            Q(escrow_id__icontains=search)
-        )
+        escrows = escrows.filter(Q(title__icontains=search) | Q(description__icontains=search) | Q(escrow_id__icontains=search))
     
-    # Pagination
     paginator = Paginator(escrows, page_size)
     page_obj = paginator.get_page(page)
-    
     serializer = EscrowSerializer(page_obj, many=True)
     
     return Response({
@@ -115,13 +93,8 @@ def list_escrows_view(request):
 
 @api_view(['GET'])
 def get_escrow_detail_view(request, escrow_id):
-    """
-    Get details of a specific escrow
-    """
     try:
         escrow = Escrow.objects.get(id=escrow_id)
-        
-        # Create audit log
         user_id = request.GET.get('user_id', 'anonymous')
         EscrowLog.objects.create(
             escrow=escrow,
@@ -131,7 +104,6 @@ def get_escrow_detail_view(request, escrow_id):
             details=f"Viewed escrow {escrow.escrow_id}",
             ip_address=get_client_ip(request)
         )
-        
         serializer = EscrowSerializer(escrow)
         return Response({"escrow": serializer.data})
     except Escrow.DoesNotExist:
@@ -140,17 +112,11 @@ def get_escrow_detail_view(request, escrow_id):
 
 @api_view(['PATCH'])
 def update_escrow_view(request, escrow_id):
-    """
-    Update an escrow transaction
-    """
     try:
         escrow = Escrow.objects.get(id=escrow_id)
         serializer = EscrowUpdateSerializer(escrow, data=request.data, partial=True)
-        
         if serializer.is_valid():
             serializer.save()
-            
-            # Create audit log
             user_id = request.data.get('user_id', 'anonymous')
             EscrowLog.objects.create(
                 escrow=escrow,
@@ -160,37 +126,21 @@ def update_escrow_view(request, escrow_id):
                 details=f"Updated escrow {escrow.escrow_id}",
                 ip_address=get_client_ip(request)
             )
-            
-            return Response({
-                "message": "Escrow updated successfully",
-                "escrow": EscrowSerializer(escrow).data
-            })
-        
+            return Response({"message": "Escrow updated successfully", "escrow": EscrowSerializer(escrow).data})
         return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-        
     except Escrow.DoesNotExist:
         return Response({"error": "Escrow not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['POST'])
 def fund_escrow_view(request, escrow_id):
-    """
-    Fund an escrow (mark as funded)
-    """
     try:
         escrow = Escrow.objects.get(id=escrow_id)
-        
         if escrow.status != 'pending':
-            return Response(
-                {"error": "Escrow can only be funded when status is pending"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({"error": "Escrow can only be funded when status is pending"}, status=status.HTTP_400_BAD_REQUEST)
         escrow.status = 'funded'
         escrow.funded_at = datetime.now()
         escrow.save()
-        
-        # Create audit log
         user_id = request.data.get('user_id', escrow.sender_id)
         EscrowLog.objects.create(
             escrow=escrow,
@@ -200,47 +150,27 @@ def fund_escrow_view(request, escrow_id):
             details=f"Funded escrow {escrow.escrow_id} with ${escrow.total_amount}",
             ip_address=get_client_ip(request)
         )
-        
-        return Response({
-            "message": "Escrow funded successfully",
-            "escrow": EscrowSerializer(escrow).data
-        })
-        
+        return Response({"message": "Escrow funded successfully", "escrow": EscrowSerializer(escrow).data})
     except Escrow.DoesNotExist:
         return Response({"error": "Escrow not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['POST'])
 def release_escrow_view(request, escrow_id):
-    """
-    Release escrow funds to receiver
-    """
     try:
         escrow = Escrow.objects.get(id=escrow_id)
         user_id = request.data.get('user_id')
-        
         if not escrow.can_release():
-            return Response(
-                {"error": "Escrow cannot be released at this time"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Check if user is authorized to release
+            return Response({"error": "Escrow cannot be released at this time"}, status=status.HTTP_400_BAD_REQUEST)
         if user_id == escrow.sender_id:
             escrow.release_approved_by_sender = True
         elif user_id == escrow.receiver_id:
             escrow.release_approved_by_receiver = True
         else:
-            return Response(
-                {"error": "Unauthorized to release this escrow"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Release if both parties approve or sender approves
+            return Response({"error": "Unauthorized to release this escrow"}, status=status.HTTP_403_FORBIDDEN)
         if escrow.release_approved_by_sender:
             success = escrow.release()
             if success:
-                # Create audit log
                 EscrowLog.objects.create(
                     escrow=escrow,
                     user_id=user_id,
@@ -249,46 +179,28 @@ def release_escrow_view(request, escrow_id):
                     details=f"Released escrow {escrow.escrow_id}",
                     ip_address=get_client_ip(request)
                 )
-                
-                return Response({
-                    "message": "Escrow released successfully",
-                    "escrow": EscrowSerializer(escrow).data
-                })
+                return Response({"message": "Escrow released successfully", "escrow": EscrowSerializer(escrow).data})
         else:
             escrow.save()
-            return Response({
-                "message": "Release approval recorded",
-                "escrow": EscrowSerializer(escrow).data
-            })
-        
+            return Response({"message": "Release approval recorded", "escrow": EscrowSerializer(escrow).data})
     except Escrow.DoesNotExist:
         return Response({"error": "Escrow not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['POST'])
 def dispute_escrow_view(request, escrow_id):
-    """
-    Open a dispute for an escrow
-    """
     try:
         escrow = Escrow.objects.get(id=escrow_id)
         user_id = request.data.get('user_id')
         reason = request.data.get('reason', '')
-        
         if escrow.status not in ['funded', 'pending']:
-            return Response(
-                {"error": "Cannot dispute escrow with current status"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({"error": "Cannot dispute escrow with current status"}, status=status.HTTP_400_BAD_REQUEST)
         escrow.dispute_status = 'opened'
         escrow.dispute_reason = reason
         escrow.dispute_opened_by = user_id
         escrow.dispute_opened_at = datetime.now()
         escrow.status = 'disputed'
         escrow.save()
-        
-        # Create audit log
         EscrowLog.objects.create(
             escrow=escrow,
             user_id=user_id,
@@ -297,97 +209,23 @@ def dispute_escrow_view(request, escrow_id):
             details=f"Opened dispute for escrow {escrow.escrow_id}: {reason}",
             ip_address=get_client_ip(request)
         )
-        
-        return Response({
-            "message": "Dispute opened successfully",
-            "escrow": EscrowSerializer(escrow).data
-        })
-        
-    except Escrow.DoesNotExist:
-        return Response({"error": "Escrow not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['POST'])
-def send_message_view(request, escrow_id):
-    """
-    Send a message in an escrow transaction
-    """
-    try:
-        escrow = Escrow.objects.get(id=escrow_id)
-        
-        message = EscrowMessage.objects.create(
-            escrow=escrow,
-            sender_id=request.data.get('sender_id'),
-            sender_name=request.data.get('sender_name'),
-            message=request.data.get('message')
-        )
-        
-        # Create audit log
-        EscrowLog.objects.create(
-            escrow=escrow,
-            user_id=message.sender_id,
-            user_name=message.sender_name,
-            action='message_sent',
-            details=f"Sent message in escrow {escrow.escrow_id}",
-            ip_address=get_client_ip(request)
-        )
-        
-        return Response({
-            "message": "Message sent successfully",
-            "data": EscrowMessageSerializer(message).data
-        }, status=status.HTTP_201_CREATED)
-        
-    except Escrow.DoesNotExist:
-        return Response({"error": "Escrow not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['GET'])
-def get_messages_view(request, escrow_id):
-    """
-    Get all messages for an escrow
-    """
-    try:
-        escrow = Escrow.objects.get(id=escrow_id)
-        messages = escrow.messages.all()
-        serializer = EscrowMessageSerializer(messages, many=True)
-        
-        return Response({
-            "messages": serializer.data,
-            "count": messages.count()
-        })
-        
+        return Response({"message": "Dispute opened successfully", "escrow": EscrowSerializer(escrow).data})
     except Escrow.DoesNotExist:
         return Response({"error": "Escrow not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['GET'])
 def get_escrow_stats_view(request):
-    """
-    Get escrow statistics for a user
-    """
     user_id = request.GET.get('user_id')
     if not user_id:
         return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Get all escrows where user is involved
-    escrows = Escrow.objects.filter(
-        Q(sender_id=user_id) | Q(receiver_id=user_id)
-    )
-    
+    escrows = Escrow.objects.filter(Q(sender_id=user_id) | Q(receiver_id=user_id))
     total_escrows = escrows.count()
     active_escrows = escrows.filter(status__in=['pending', 'funded']).count()
     completed_escrows = escrows.filter(status='released').count()
     pending_disputes = escrows.filter(dispute_status__in=['opened', 'under_review']).count()
-    
-    # Calculate amounts
-    total_amount_in_escrow = escrows.filter(
-        status__in=['pending', 'funded']
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-    
-    total_amount_released = escrows.filter(
-        status='released'
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-    
+    total_amount_in_escrow = escrows.filter(status__in=['pending', 'funded']).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    total_amount_released = escrows.filter(status='released').aggregate(total=Sum('amount'))['total'] or Decimal('0')
     return Response({
         "total_escrows": total_escrows,
         "active_escrows": active_escrows,
@@ -400,7 +238,6 @@ def get_escrow_stats_view(request):
 
 
 def get_client_ip(request):
-    """Get the client's IP address from the request"""
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
         ip = x_forwarded_for.split(',')[0]
