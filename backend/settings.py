@@ -5,6 +5,7 @@ Production-ready configuration for Render deployment.
 
 import os
 from pathlib import Path
+from decimal import Decimal
 from datetime import timedelta
 
 # Build paths inside the project
