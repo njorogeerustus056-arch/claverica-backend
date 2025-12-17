@@ -6,6 +6,8 @@ asgiref==3.10.0
 sqlparse==0.5.3
 tzdata==2025.2
 django-filter==23.2
+SQLAlchemy>=2.0
+
 
 # =========================
 # Django REST Framework
