@@ -1,4 +1,3 @@
-# notifications/serializers.py
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
@@ -41,7 +40,7 @@ class NotificationCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = self.context.get('user')
-        if user is None:
+        if not user:
             raise serializers.ValidationError("User context is required.")
         validated_data['user'] = user
         return Notification.objects.create(**validated_data)
@@ -95,20 +94,17 @@ class NotificationDeviceSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = self.context.get('user')
-        if user is None:
+        if not user:
             raise serializers.ValidationError("User context is required.")
         validated_data['user'] = user
 
         # Deactivate old devices with same token
-        NotificationDevice.objects.filter(
-            device_token=validated_data['device_token']
-        ).update(is_active=False)
+        NotificationDevice.objects.filter(device_token=validated_data['device_token']).update(is_active=False)
 
         return NotificationDevice.objects.create(**validated_data)
 
 
 class NotificationStatsSerializer(serializers.Serializer):
-    """Serializer for notification statistics"""
     total_notifications = serializers.IntegerField()
     unread_count = serializers.IntegerField()
     read_count = serializers.IntegerField()
@@ -119,11 +115,7 @@ class NotificationStatsSerializer(serializers.Serializer):
 
 
 class BulkNotificationSerializer(serializers.Serializer):
-    """Serializer for creating bulk notifications"""
-    user_ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        help_text="List of user IDs to send notification to"
-    )
+    user_ids = serializers.ListField(child=serializers.IntegerField())
     notification_type = serializers.ChoiceField(choices=Notification.NOTIFICATION_TYPES)
     title = serializers.CharField(max_length=255)
     message = serializers.CharField()
@@ -135,10 +127,8 @@ class BulkNotificationSerializer(serializers.Serializer):
     def create_notifications(self):
         user_ids = self.validated_data.get('user_ids', [])
         users = User.objects.filter(id__in=user_ids)
-
-        notifications = []
-        for user in users:
-            notifications.append(Notification(
+        notifications = [
+            Notification(
                 user=user,
                 notification_type=self.validated_data['notification_type'],
                 title=self.validated_data['title'],
@@ -147,14 +137,10 @@ class BulkNotificationSerializer(serializers.Serializer):
                 action_url=self.validated_data.get('action_url', ''),
                 action_label=self.validated_data.get('action_label', ''),
                 metadata=self.validated_data.get('metadata', {}),
-            ))
-
+            ) for user in users
+        ]
         return Notification.objects.bulk_create(notifications)
 
 
 class MarkAsReadSerializer(serializers.Serializer):
-    """Serializer for marking notifications as read"""
-    notification_ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        help_text="List of notification IDs to mark as read"
-    )
+    notification_ids = serializers.ListField(child=serializers.IntegerField())
