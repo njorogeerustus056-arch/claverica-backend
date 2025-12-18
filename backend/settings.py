@@ -1,4 +1,4 @@
-"""
+""" 
 Django settings for Claverica fintech backend.
 Production-ready configuration for Render deployment.
 """
@@ -52,7 +52,7 @@ INSTALLED_APPS = [
 
     # Project apps
     'Tasks',
-    'accounts',
+    'accounts',         # accounts app
     'cards',
     'compliance',
     'crypto',
