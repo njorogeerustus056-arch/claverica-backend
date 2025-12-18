@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from .models import Escrow, EscrowMessage, EscrowLog
-from datetime import datetime
+from .models import Escrow, EscrowLog
 from decimal import Decimal
 
 class EscrowSerializer(serializers.ModelSerializer):
@@ -14,8 +13,10 @@ class EscrowSerializer(serializers.ModelSerializer):
             'dispute_opened_by', 'dispute_opened_at', 'expected_release_date',
             'funded_at', 'released_at', 'created_at', 'updated_at', 'metadata'
         ]
-        read_only_fields = ['id', 'escrow_id', 'total_amount', 'created_at', 'updated_at',
-                           'funded_at', 'released_at']
+        read_only_fields = [
+            'id', 'escrow_id', 'total_amount', 'created_at', 'updated_at',
+            'funded_at', 'released_at'
+        ]
 
 
 class EscrowCreateSerializer(serializers.ModelSerializer):
@@ -33,7 +34,6 @@ class EscrowCreateSerializer(serializers.ModelSerializer):
         return value
     
     def create(self, validated_data):
-        # Calculate fee (2% of amount)
         amount = validated_data['amount']
         fee = amount * Decimal('0.02')
         validated_data['fee'] = fee
@@ -47,18 +47,13 @@ class EscrowUpdateSerializer(serializers.ModelSerializer):
         fields = ['status', 'description', 'terms_and_conditions', 'expected_release_date']
 
 
-class EscrowMessageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EscrowMessage
-        fields = ['id', 'escrow', 'sender_id', 'sender_name', 'message', 'is_read', 'created_at']
-        read_only_fields = ['id', 'created_at']
-
-
 class EscrowLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = EscrowLog
-        fields = ['id', 'escrow', 'user_id', 'user_name', 'action', 'details', 
-                  'ip_address', 'timestamp']
+        fields = [
+            'id', 'escrow', 'user_id', 'user_name', 'action', 'details', 
+            'ip_address', 'timestamp'
+        ]
         read_only_fields = ['id', 'timestamp']
 
 
