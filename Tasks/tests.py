@@ -1,11 +1,22 @@
+# Tasks/tests.py
 from django.test import TestCase
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from decimal import Decimal
 from .models import Task, UserTask, UserRewardBalance
 
+Account = get_user_model()  # Use custom Account model
+
+# -------------------------
+# Task Model Tests
+# -------------------------
 class TaskModelTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='12345')
+        self.user = Account.objects.create_user(
+            email='testuser@example.com',
+            first_name='Test',
+            last_name='User',
+            password='12345'
+        )
     
     def test_create_task(self):
         task = Task.objects.create(
@@ -34,10 +45,17 @@ class TaskModelTest(TestCase):
         task.save()
         self.assertFalse(task.is_available())
 
-
+# -------------------------
+# UserTask Model Tests
+# -------------------------
 class UserTaskModelTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='12345')
+        self.user = Account.objects.create_user(
+            email='testuser@example.com',
+            first_name='Test',
+            last_name='User',
+            password='12345'
+        )
         self.task = Task.objects.create(
             title='Test Task',
             description='Test description',
@@ -66,10 +84,17 @@ class UserTaskModelTest(TestCase):
         self.assertEqual(user_task.reward_earned, Decimal('30.00'))
         self.assertIsNotNone(user_task.completed_at)
 
-
+# -------------------------
+# UserRewardBalance Tests
+# -------------------------
 class UserRewardBalanceTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='12345')
+        self.user = Account.objects.create_user(
+            email='testuser@example.com',
+            first_name='Test',
+            last_name='User',
+            password='12345'
+        )
         self.balance = UserRewardBalance.objects.create(user=self.user)
     
     def test_add_earnings(self):
