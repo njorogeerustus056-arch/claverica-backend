@@ -7,6 +7,16 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ------------------------------
+# SECRET KEY AND DEBUG
+# ------------------------------
+SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key')
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+ALLOWED_HOSTS = [
+    'claverica-backend.onrender.com',  # Replace with your Render URL
+]
+
+# ------------------------------
 # INSTALLED APPS
 # ------------------------------
 INSTALLED_APPS = [
@@ -21,6 +31,7 @@ INSTALLED_APPS = [
     # Third-party apps
     'rest_framework',
     'corsheaders',
+    'rest_framework.authtoken',
 
     # Your apps
     'receipts',
@@ -33,6 +44,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # Must be at the top
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files on Render
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -42,7 +54,7 @@ MIDDLEWARE = [
 ]
 
 # ------------------------------
-# CORS
+# CORS SETTINGS
 # ------------------------------
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -52,43 +64,15 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # ------------------------------
-# MEDIA FILES
-# ------------------------------
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# ------------------------------
-# STATIC FILES
-# ------------------------------
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # For collectstatic on Render
-
-# ------------------------------
-# REST FRAMEWORK
-# ------------------------------
-REST_FRAMEWORK = {
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10,
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',  # Optional, enable if needed
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.TokenAuthentication',
-    ),
-}
-
-# ------------------------------
 # DATABASE
 # ------------------------------
-# Example for Postgres on Render
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'your_db_name'),
-        'USER': os.environ.get('DB_USER', 'your_db_user'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'your_db_password'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'NAME': os.environ.get('DB_NAME'),
+        'USER': os.environ.get('DB_USER'),
+        'PASSWORD': os.environ.get('DB_PASSWORD'),
+        'HOST': os.environ.get('DB_HOST'),  # e.g., your Render Postgres host
         'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
@@ -102,10 +86,32 @@ USE_I18N = True
 USE_TZ = True
 
 # ------------------------------
-# SECRET KEY AND DEBUG
+# STATIC FILES
 # ------------------------------
-SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key')
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# ------------------------------
+# MEDIA FILES
+# ------------------------------
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# ------------------------------
+# REST FRAMEWORK
+# ------------------------------
+REST_FRAMEWORK = {
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ),
+}
 
 # ------------------------------
 # DEFAULT PRIMARY KEY FIELD
