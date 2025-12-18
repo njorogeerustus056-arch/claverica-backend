@@ -108,11 +108,11 @@ ASGI_APPLICATION = 'backend.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DATABASE_NAME', 'claverica_db'),
-        'USER': os.environ.get('DATABASE_USER', 'claverica_db_user'),
-        'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
-        'HOST': os.environ.get('DATABASE_HOST', 'dpg-d4vvapi4d50c738a3gu0-a.render.com'),
-        'PORT': os.environ.get('DATABASE_PORT', '5432'),
+        'NAME': os.environ.get('DB_NAME', 'claverica_db'),
+        'USER': os.environ.get('DB_USER', 'claverica_db_user'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
         'CONN_MAX_AGE': 600,
         'OPTIONS': {'connect_timeout': 10},
     }
