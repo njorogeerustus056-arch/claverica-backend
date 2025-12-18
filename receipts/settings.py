@@ -35,7 +35,6 @@ INSTALLED_APPS = [
 
     # Your apps
     'receipts',
-    # Add other apps here
 ]
 
 # ------------------------------
@@ -69,10 +68,10 @@ CORS_ALLOW_CREDENTIALS = True
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME'),
-        'USER': os.environ.get('DB_USER'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST'),  # e.g., your Render Postgres host
+        'NAME': os.environ.get('DB_NAME', 'claverica_db'),
+        'USER': os.environ.get('DB_USER', 'claverica_db_user'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),  # Set Render Postgres password here
+        'HOST': os.environ.get('DB_HOST', 'dpg-d4vvapi4d50c738a3gu0-a.render.com'),  # Render hostname
         'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
