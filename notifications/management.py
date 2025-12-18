@@ -1,13 +1,16 @@
+# notifications/management.py
 """
-Management command to create default notification templates
+Management command to create or update default notification templates.
+
 Run: python manage.py create_notification_templates
 """
+
 from django.core.management.base import BaseCommand
 from notifications.models import NotificationTemplate
 
 
 class Command(BaseCommand):
-    help = 'Create default notification templates'
+    help = 'Create or update default notification templates'
 
     def handle(self, *args, **kwargs):
         templates = [
@@ -140,17 +143,11 @@ class Command(BaseCommand):
             )
             if created:
                 created_count += 1
-                self.stdout.write(
-                    self.style.SUCCESS(f'Created template: {template.template_type}')
-                )
+                self.stdout.write(self.style.SUCCESS(f'Created template: {template.template_type}'))
             else:
                 updated_count += 1
-                self.stdout.write(
-                    self.style.WARNING(f'Updated template: {template.template_type}')
-                )
+                self.stdout.write(self.style.WARNING(f'Updated template: {template.template_type}'))
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f'\nSummary: {created_count} templates created, {updated_count} templates updated'
-            )
-        )
+        self.stdout.write(self.style.SUCCESS(
+            f'\nSummary: {created_count} templates created, {updated_count} templates updated'
+        ))
