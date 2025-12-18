@@ -1,19 +1,16 @@
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.core.paginator import Paginator
-from django.conf import settings
 from .models import Receipt
 from .serializers import ReceiptSerializer, ReceiptUploadSerializer, ReceiptUpdateSerializer
-import os
 
 # ------------------------------
 # Upload a receipt
 # ------------------------------
-@csrf_exempt
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def upload_receipt_view(request):
     """
     Handles file upload and creates a Receipt record.
@@ -22,7 +19,22 @@ def upload_receipt_view(request):
     if not serializer.is_valid():
         return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
-    receipt = serializer.save(user=request.user)
+    # Save file and create Receipt
+    receipt = Receipt.objects.create(
+        user=request.user,
+        file=serializer.validated_data['file'],
+        original_file_name=serializer.validated_data['file'].name,
+        file_size=serializer.validated_data['file'].size,
+        file_type=serializer.validated_data['file'].content_type,
+        merchant_name=serializer.validated_data.get('merchant_name', ''),
+        amount=serializer.validated_data.get('amount'),
+        currency=serializer.validated_data.get('currency', 'USD'),
+        transaction_date=serializer.validated_data.get('transaction_date'),
+        category=serializer.validated_data.get('category', 'other'),
+        notes=serializer.validated_data.get('notes', ''),
+        tags=serializer.validated_data.get('tags', []),
+    )
+
     return Response({
         "message": "Upload successful",
         "receipt": ReceiptSerializer(receipt).data
@@ -32,6 +44,7 @@ def upload_receipt_view(request):
 # List receipts with pagination
 # ------------------------------
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def list_receipts_view(request):
     user = request.user
     category = request.GET.get('category')
@@ -72,6 +85,7 @@ def list_receipts_view(request):
 # Get receipt detail
 # ------------------------------
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_receipt_detail_view(request, receipt_id):
     try:
         receipt = Receipt.objects.get(id=receipt_id, user=request.user)
@@ -84,6 +98,7 @@ def get_receipt_detail_view(request, receipt_id):
 # Update receipt metadata
 # ------------------------------
 @api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
 def update_receipt_view(request, receipt_id):
     try:
         receipt = Receipt.objects.get(id=receipt_id, user=request.user)
@@ -102,11 +117,12 @@ def update_receipt_view(request, receipt_id):
 # Delete a receipt
 # ------------------------------
 @api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
 def delete_receipt_view(request, receipt_id):
     try:
         receipt = Receipt.objects.get(id=receipt_id, user=request.user)
         if receipt.file:
-            receipt.file.delete()  # deletes the actual file
+            receipt.file.delete()  # deletes the actual file from storage
         receipt.delete()
         return Response({"message": "Receipt deleted successfully"})
     except Receipt.DoesNotExist:
@@ -116,6 +132,7 @@ def delete_receipt_view(request, receipt_id):
 # Get receipt stats
 # ------------------------------
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_receipt_stats_view(request):
     user = request.user
     receipts = Receipt.objects.filter(user=user)
