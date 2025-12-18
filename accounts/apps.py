@@ -1,3 +1,4 @@
+# accounts/apps.py
 from django.apps import AppConfig
 
 
@@ -6,4 +7,9 @@ class AccountsConfig(AppConfig):
     name = 'accounts'
 
     def ready(self):
-        import accounts.signals
+        # Import signals safely
+        try:
+            import accounts.signals
+        except ImportError as e:
+            # Log the error or pass silently in dev environment
+            print(f"Could not import accounts.signals: {e}")
