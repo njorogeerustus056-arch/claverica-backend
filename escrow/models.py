@@ -4,12 +4,10 @@ from django.utils import timezone
 import uuid
 from decimal import Decimal
 
-
 class Escrow(models.Model):
     """
     Escrow model for secure transactions between parties
     """
-
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('funded', 'Funded'),
@@ -18,7 +16,6 @@ class Escrow(models.Model):
         ('disputed', 'Disputed'),
         ('cancelled', 'Cancelled'),
     ]
-
     DISPUTE_STATUS_CHOICES = [
         ('none', 'No Dispute'),
         ('opened', 'Dispute Opened'),
@@ -26,7 +23,9 @@ class Escrow(models.Model):
         ('resolved', 'Resolved'),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Removed custom UUID PK - use default BigAutoField (integer)
+    # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # COMMENTED OUT
+
     escrow_id = models.CharField(max_length=100, unique=True, editable=False)
 
     # Parties involved
@@ -86,7 +85,6 @@ class Escrow(models.Model):
             import string
             random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
             self.escrow_id = f"ESC/{random_str}-{random.randint(1000, 9999)}"
-
         self.total_amount = self.amount + self.fee
         super().save(*args, **kwargs)
 
@@ -101,7 +99,6 @@ class Escrow(models.Model):
         """
         if not self.can_release():
             return False
-
         self.status = 'released'
         self.is_released = True
         self.released_at = timezone.now()
@@ -118,7 +115,6 @@ class EscrowLog(models.Model):
     """
     Audit log for escrow actions
     """
-
     ACTION_CHOICES = [
         ('created', 'Created'),
         ('viewed', 'Viewed'),
@@ -130,14 +126,11 @@ class EscrowLog(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     escrow = models.ForeignKey(Escrow, on_delete=models.CASCADE, related_name='logs')
-
     user_id = models.CharField(max_length=255)
     user_name = models.CharField(max_length=255)
-
     action = models.CharField(max_length=50, choices=ACTION_CHOICES)
     details = models.TextField(blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
