@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from .models import Account
 
+
 class AccountSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, min_length=8)
 
     class Meta:
         model = Account
@@ -23,17 +24,23 @@ class AccountSerializer(serializers.ModelSerializer):
             "employer",
             "income_range",
         ]
+        extra_kwargs = {
+            "email": {"required": True},
+            "document_type": {"required": True},
+            "document_number": {"required": True},
+            "street": {"required": True},
+            "city": {"required": True},
+            "state": {"required": True},
+            "zip_code": {"required": True},
+        }
 
     def create(self, validated_data):
-        # Optional fields: ensure empty strings instead of None
-        optional_fields = [
-            "phone", "document_type", "document_number",
-            "street", "city", "state", "zip_code",
-            "occupation", "employer", "income_range"
-        ]
-        for field in optional_fields:
-            validated_data[field] = validated_data.get(field, "")
+        password = validated_data.pop("password")
 
-        # Use your custom Account manager to create the user
-        user = Account.objects.create_user(**validated_data)
+        # Create user via custom manager
+        user = Account.objects.create_user(
+            password=password,
+            **validated_data
+        )
+
         return user
