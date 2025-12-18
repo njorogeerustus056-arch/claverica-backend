@@ -1,3 +1,4 @@
+# notifications/serializers.py
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
@@ -16,7 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     time_ago = serializers.ReadOnlyField()
-    
+
     class Meta:
         model = Notification
         fields = [
@@ -37,9 +38,11 @@ class NotificationCreateSerializer(serializers.ModelSerializer):
             'action_url', 'action_label', 'related_transaction_id',
             'related_account_id', 'metadata', 'expires_at'
         ]
-    
+
     def create(self, validated_data):
-        user = self.context['user']
+        user = self.context.get('user')
+        if user is None:
+            raise serializers.ValidationError("User context is required.")
         validated_data['user'] = user
         return Notification.objects.create(**validated_data)
 
@@ -71,7 +74,7 @@ class NotificationTemplateSerializer(serializers.ModelSerializer):
 
 class NotificationLogSerializer(serializers.ModelSerializer):
     notification = NotificationSerializer(read_only=True)
-    
+
     class Meta:
         model = NotificationLog
         fields = [
@@ -89,16 +92,18 @@ class NotificationDeviceSerializer(serializers.ModelSerializer):
             'is_active', 'registered_at', 'last_used_at'
         ]
         read_only_fields = ['id', 'user', 'registered_at', 'last_used_at']
-    
+
     def create(self, validated_data):
-        user = self.context['user']
+        user = self.context.get('user')
+        if user is None:
+            raise serializers.ValidationError("User context is required.")
         validated_data['user'] = user
-        
+
         # Deactivate old devices with same token
         NotificationDevice.objects.filter(
             device_token=validated_data['device_token']
         ).update(is_active=False)
-        
+
         return NotificationDevice.objects.create(**validated_data)
 
 
@@ -122,22 +127,18 @@ class BulkNotificationSerializer(serializers.Serializer):
     notification_type = serializers.ChoiceField(choices=Notification.NOTIFICATION_TYPES)
     title = serializers.CharField(max_length=255)
     message = serializers.CharField()
-    priority = serializers.ChoiceField(
-        choices=Notification.PRIORITY_LEVELS,
-        default='medium'
-    )
+    priority = serializers.ChoiceField(choices=Notification.PRIORITY_LEVELS, default='medium')
     action_url = serializers.CharField(required=False, allow_blank=True)
     action_label = serializers.CharField(required=False, allow_blank=True)
     metadata = serializers.JSONField(required=False, default=dict)
-    
+
     def create_notifications(self):
-        """Create notifications for all specified users"""
-        user_ids = self.validated_data['user_ids']
+        user_ids = self.validated_data.get('user_ids', [])
         users = User.objects.filter(id__in=user_ids)
-        
+
         notifications = []
         for user in users:
-            notification = Notification(
+            notifications.append(Notification(
                 user=user,
                 notification_type=self.validated_data['notification_type'],
                 title=self.validated_data['title'],
@@ -146,9 +147,8 @@ class BulkNotificationSerializer(serializers.Serializer):
                 action_url=self.validated_data.get('action_url', ''),
                 action_label=self.validated_data.get('action_label', ''),
                 metadata=self.validated_data.get('metadata', {}),
-            )
-            notifications.append(notification)
-        
+            ))
+
         return Notification.objects.bulk_create(notifications)
 
 
@@ -157,4 +157,4 @@ class MarkAsReadSerializer(serializers.Serializer):
     notification_ids = serializers.ListField(
         child=serializers.IntegerField(),
         help_text="List of notification IDs to mark as read"
-)
+    )
