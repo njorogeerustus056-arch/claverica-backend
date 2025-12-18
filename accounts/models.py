@@ -1,7 +1,9 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin, Group, Permission
 
+# -----------------------------
 # Custom User Manager
+# -----------------------------
 class AccountManager(BaseUserManager):
     def create_user(self, email, first_name, last_name, password=None, **extra_fields):
         if not email:
@@ -17,7 +19,9 @@ class AccountManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(email, first_name, last_name, password, **extra_fields)
 
+# -----------------------------
 # Account Model
+# -----------------------------
 class Account(AbstractBaseUser, PermissionsMixin):
     # Personal Info
     first_name = models.CharField(max_length=50)
@@ -59,8 +63,25 @@ class Account(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
 
+    # Override PermissionsMixin fields to avoid clashes
+    groups = models.ManyToManyField(
+        Group,
+        related_name='account_users',  # unique related_name
+        blank=True,
+        help_text='The groups this user belongs to.',
+        verbose_name='groups',
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        related_name='account_users',  # unique related_name
+        blank=True,
+        help_text='Specific permissions for this user.',
+        verbose_name='user permissions',
+    )
+
     objects = AccountManager()
 
+    # Authentication
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name']
 
