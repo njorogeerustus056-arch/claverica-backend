@@ -10,14 +10,14 @@ class Transaction(models.Model):
         ('credit', 'Credit'),
         ('debit', 'Debit'),
     ]
-    
+
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
         ('cancelled', 'Cancelled'),
     ]
-    
+
     CATEGORY_CHOICES = [
         ('income', 'Income'),
         ('salary', 'Salary'),
@@ -31,30 +31,32 @@ class Transaction(models.Model):
         ('other', 'Other'),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Removed custom UUID PK - use default BigAutoField (integer)
+    # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # COMMENTED OUT
+
     user_id = models.CharField(max_length=255, db_index=True)
     transaction_id = models.CharField(max_length=100, unique=True, editable=False)
-    
+
     # Transaction details
     type = models.CharField(max_length=10, choices=TRANSACTION_TYPE_CHOICES)
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     currency = models.CharField(max_length=3, default='USD')
     merchant = models.CharField(max_length=255, blank=True, null=True)
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='other')
-    
+
     # Status and metadata
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     description = models.TextField(blank=True, null=True)
     reference = models.CharField(max_length=255, blank=True, null=True)
-    
+
     # Account information
     account_number = models.CharField(max_length=50, blank=True, null=True)
-    
+
     # Timestamps
     transaction_date = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['-transaction_date']
         indexes = [
@@ -63,10 +65,10 @@ class Transaction(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['type']),
         ]
-    
+
     def __str__(self):
         return f"{self.transaction_id} - {self.merchant} - {self.amount} {self.currency}"
-    
+
     def save(self, *args, **kwargs):
         if not self.transaction_id:
             # Generate transaction ID: FIN/171KIGXE2-XXXX
@@ -75,7 +77,6 @@ class Transaction(models.Model):
             random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
             self.transaction_id = f"FIN/{random_str}-{random.randint(1000, 9999)}"
         super().save(*args, **kwargs)
-
 
 class TransactionLog(models.Model):
     """
@@ -89,7 +90,9 @@ class TransactionLog(models.Model):
         ('export', 'Exported'),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Removed custom UUID PK - use default BigAutoField (integer)
+    # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # COMMENTED OUT
+
     transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE, related_name='logs', null=True, blank=True)
     user_id = models.CharField(max_length=255, db_index=True)
     action = models.CharField(max_length=50, choices=LOG_ACTION_CHOICES)
