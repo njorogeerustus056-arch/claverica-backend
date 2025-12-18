@@ -1,4 +1,3 @@
-# notifications/views.py
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -21,19 +20,15 @@ from .serializers import (
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
-    """Manage user notifications"""
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
-        if self.action == 'create':
-            return NotificationCreateSerializer
-        return NotificationSerializer
+        return NotificationCreateSerializer if self.action == 'create' else NotificationSerializer
 
     def get_queryset(self):
         user = self.request.user
         queryset = Notification.objects.filter(user=user)
 
-        # Optional filters
         is_read = self.request.query_params.get('is_read')
         if is_read is not None:
             queryset = queryset.filter(is_read=is_read.lower() == 'true')
@@ -55,51 +50,36 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['user'] = self.request.user
-        return context
+        return {'user': self.request.user}
 
-    # ------------------------ Single notification actions ------------------------
     @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
-        notification = self.get_object()
-        notification.mark_as_read()
+        self.get_object().mark_as_read()
         return Response({'status': 'Notification marked as read'})
 
     @action(detail=True, methods=['post'])
     def mark_as_unread(self, request, pk=None):
-        notification = self.get_object()
-        notification.mark_as_unread()
+        self.get_object().mark_as_unread()
         return Response({'status': 'Notification marked as unread'})
 
     @action(detail=True, methods=['post'])
     def archive(self, request, pk=None):
-        notification = self.get_object()
-        notification.archive()
+        self.get_object().archive()
         return Response({'status': 'Notification archived'})
 
-    # ------------------------ Bulk actions ------------------------
     @action(detail=False, methods=['post'])
     def mark_all_as_read(self, request):
-        updated_count = Notification.objects.filter(
-            user=request.user,
-            is_read=False,
-            is_archived=False
-        ).update(is_read=True, read_at=timezone.now())
-
+        updated_count = Notification.objects.filter(user=request.user, is_read=False, is_archived=False).update(
+            is_read=True, read_at=timezone.now())
         return Response({'status': 'All notifications marked as read', 'count': updated_count})
 
     @action(detail=False, methods=['post'])
     def mark_multiple_as_read(self, request):
         serializer = MarkAsReadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        notification_ids = serializer.validated_data['notification_ids']
-
-        updated_count = Notification.objects.filter(
-            id__in=notification_ids,
-            user=request.user
-        ).update(is_read=True, read_at=timezone.now())
-
+        notification_ids = serializer.validated_data.get('notification_ids', [])
+        updated_count = Notification.objects.filter(id__in=notification_ids, user=request.user).update(
+            is_read=True, read_at=timezone.now())
         return Response({'status': 'Notifications marked as read', 'count': updated_count})
 
     @action(detail=False, methods=['delete'])
@@ -123,31 +103,19 @@ class NotificationViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def stats(self, request):
         queryset = Notification.objects.filter(user=request.user)
-        total_notifications = queryset.count()
-        unread_count = queryset.filter(is_read=False, is_archived=False).count()
-        read_count = queryset.filter(is_read=True, is_archived=False).count()
-        archived_count = queryset.filter(is_archived=True).count()
-
-        by_type = dict(queryset.values('notification_type').annotate(count=Count('id')).values_list('notification_type', 'count'))
-        by_priority = dict(queryset.values('priority').annotate(count=Count('id')).values_list('priority', 'count'))
-
-        recent_unread = queryset.filter(is_read=False, is_archived=False)[:5]
-
         stats_data = {
-            'total_notifications': total_notifications,
-            'unread_count': unread_count,
-            'read_count': read_count,
-            'archived_count': archived_count,
-            'by_type': by_type,
-            'by_priority': by_priority,
-            'recent_unread': NotificationSerializer(recent_unread, many=True).data
+            'total_notifications': queryset.count(),
+            'unread_count': queryset.filter(is_read=False, is_archived=False).count(),
+            'read_count': queryset.filter(is_read=True, is_archived=False).count(),
+            'archived_count': queryset.filter(is_archived=True).count(),
+            'by_type': dict(queryset.values('notification_type').annotate(count=Count('id')).values_list('notification_type', 'count')),
+            'by_priority': dict(queryset.values('priority').annotate(count=Count('id')).values_list('priority', 'count')),
+            'recent_unread': NotificationSerializer(queryset.filter(is_read=False, is_archived=False)[:5], many=True).data
         }
-
         return Response(stats_data)
 
 
 class NotificationPreferenceViewSet(viewsets.ModelViewSet):
-    """Manage user notification preferences"""
     serializer_class = NotificationPreferenceSerializer
     permission_classes = [IsAuthenticated]
 
@@ -155,7 +123,7 @@ class NotificationPreferenceViewSet(viewsets.ModelViewSet):
         return NotificationPreference.objects.filter(user=self.request.user)
 
     def get_object(self):
-        obj, created = NotificationPreference.objects.get_or_create(user=self.request.user)
+        obj, _ = NotificationPreference.objects.get_or_create(user=self.request.user)
         return obj
 
     @action(detail=False, methods=['get'])
@@ -173,7 +141,6 @@ class NotificationPreferenceViewSet(viewsets.ModelViewSet):
 
 
 class NotificationDeviceViewSet(viewsets.ModelViewSet):
-    """Manage user notification devices"""
     serializer_class = NotificationDeviceSerializer
     permission_classes = [IsAuthenticated]
 
@@ -181,9 +148,7 @@ class NotificationDeviceViewSet(viewsets.ModelViewSet):
         return NotificationDevice.objects.filter(user=self.request.user)
 
     def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['user'] = self.request.user
-        return context
+        return {'user': self.request.user}
 
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
@@ -194,13 +159,12 @@ class NotificationDeviceViewSet(viewsets.ModelViewSet):
 
 
 class NotificationTemplateViewSet(viewsets.ReadOnlyModelViewSet):
-    """View active notification templates"""
     serializer_class = NotificationTemplateSerializer
     permission_classes = [IsAuthenticated]
     queryset = NotificationTemplate.objects.filter(is_active=True)
 
 
-# ------------------------ Function-based API endpoints ------------------------
+# ------------------------ API Views ------------------------
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def send_notification(request):
@@ -215,8 +179,7 @@ def send_notification(request):
 @permission_classes([IsAuthenticated])
 def send_bulk_notifications(request):
     if not request.user.is_staff:
-        return Response({'error': 'Only staff members can send bulk notifications'}, status=status.HTTP_403_FORBIDDEN)
-
+        return Response({'error': 'Only staff can send bulk notifications'}, status=status.HTTP_403_FORBIDDEN)
     serializer = BulkNotificationSerializer(data=request.data)
     if serializer.is_valid():
         notifications = serializer.create_notifications()
@@ -232,21 +195,19 @@ def send_template_notification(request):
 
     try:
         template = NotificationTemplate.objects.get(template_type=template_type, is_active=True)
-    except NotificationTemplate.DoesNotExist:
-        return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
         rendered = template.render(context_data)
         notification = Notification.objects.create(
             user=request.user,
-            notification_type=rendered['notification_type'],
-            title=rendered['title'],
-            message=rendered['message'],
-            priority=rendered['priority'],
+            notification_type=rendered.get('notification_type', 'general'),
+            title=rendered.get('title', 'Notification'),
+            message=rendered.get('message', ''),
+            priority=rendered.get('priority', 'medium'),
             action_url=rendered.get('action_url', ''),
-            action_label=rendered.get('action_label', ''),
+            action_label=rendered.get('action_label', '')
         )
         return Response(NotificationSerializer(notification).data, status=status.HTTP_201_CREATED)
+    except NotificationTemplate.DoesNotExist:
+        return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
     except KeyError as e:
         return Response({'error': f'Missing context variable: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
