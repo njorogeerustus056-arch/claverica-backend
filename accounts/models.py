@@ -17,6 +17,10 @@ class AccountManager(BaseUserManager):
     def create_superuser(self, email, first_name, last_name, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
         return self.create_user(email, first_name, last_name, password, **extra_fields)
 
 # -----------------------------
@@ -30,33 +34,33 @@ class Account(AbstractBaseUser, PermissionsMixin):
     phone = models.CharField(max_length=20, blank=True, null=True)
 
     # Document Info
-    doc_type_choices = [
+    DOC_TYPE_CHOICES = [
         ('drivers-license', "Driver's License"),
         ('ssn', "SSN"),
         ('tfn', "TFN"),
         ('national-id', "National ID"),
         ('passport', "Passport"),
     ]
-    document_type = models.CharField(max_length=20, choices=doc_type_choices)
-    document_number = models.CharField(max_length=50)
+    document_type = models.CharField(max_length=20, choices=DOC_TYPE_CHOICES, blank=True, null=True)
+    document_number = models.CharField(max_length=50, blank=True, null=True)
 
     # Address
-    street = models.CharField(max_length=255)
-    city = models.CharField(max_length=100)
-    state = models.CharField(max_length=50)
-    zip_code = models.CharField(max_length=20)
+    street = models.CharField(max_length=255, blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    state = models.CharField(max_length=50, blank=True, null=True)
+    zip_code = models.CharField(max_length=20, blank=True, null=True)
 
     # Employment (optional)
     occupation = models.CharField(max_length=100, blank=True, null=True)
     employer = models.CharField(max_length=100, blank=True, null=True)
-    income_range_choices = [
+    INCOME_RANGE_CHOICES = [
         ('<25k', 'Below $25,000'),
         ('25k-50k', '$25,000 – $50,000'),
         ('50k-100k', '$50,000 – $100,000'),
         ('100k-200k', '$100,000 – $200,000'),
         ('>200k', 'Above $200,000'),
     ]
-    income_range = models.CharField(max_length=20, choices=income_range_choices, blank=True, null=True)
+    income_range = models.CharField(max_length=20, choices=INCOME_RANGE_CHOICES, blank=True, null=True)
 
     # Permissions / Status
     is_active = models.BooleanField(default=True)
@@ -66,14 +70,14 @@ class Account(AbstractBaseUser, PermissionsMixin):
     # Override PermissionsMixin fields to avoid clashes
     groups = models.ManyToManyField(
         Group,
-        related_name='account_users',  # unique related_name
+        related_name='account_users',
         blank=True,
         help_text='The groups this user belongs to.',
         verbose_name='groups',
     )
     user_permissions = models.ManyToManyField(
         Permission,
-        related_name='account_users',  # unique related_name
+        related_name='account_users',
         blank=True,
         help_text='Specific permissions for this user.',
         verbose_name='user permissions',
