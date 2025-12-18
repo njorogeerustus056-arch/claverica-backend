@@ -1,11 +1,17 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.conf import settings
 from .models import Account
+from profiles.models import Profile  # adjust app name if different
 
-# Example: If you still need to do something when an Account is created
+
 @receiver(post_save, sender=Account)
-def account_post_save(sender, instance, created, **kwargs):
+def create_user_profile(sender, instance, created, **kwargs):
     if created:
-        # You can put any initialization code for Account here
-        # For example, logging or setting default values
-        print(f"New Account created: {instance}")
+        Profile.objects.create(user=instance)
+
+
+@receiver(post_save, sender=Account)
+def save_user_profile(sender, instance, **kwargs):
+    if hasattr(instance, "profile"):
+        instance.profile.save()
