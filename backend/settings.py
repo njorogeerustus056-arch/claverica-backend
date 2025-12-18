@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from decimal import Decimal
 from datetime import timedelta
-import dj_database_url  # Add this import
+import dj_database_url
 
 # ------------------------------
 # BASE DIRECTORY
@@ -114,15 +114,24 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 ASGI_APPLICATION = 'backend.asgi.application'
 
 # ------------------------------
-# DATABASE (Updated: Use dj-database-url for Render)
+# DATABASE - Smart config for local SQLite and Render Postgres
 # ------------------------------
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),  # Render provides this
-        conn_max_age=600,
-        ssl_require=True,  # Enforce SSL for Render Postgres
-    )
-}
+database_url = os.environ.get('DATABASE_URL')
+
+if database_url and database_url.startswith('sqlite://'):
+    # Local development with SQLite (uses your existing db.sqlite3)
+    DATABASES = {
+        'default': dj_database_url.parse(database_url)
+    }
+else:
+    # Production on Render (Postgres with SSL)
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=database_url,
+            conn_max_age=600,
+            ssl_require=not DEBUG,  # SSL in prod, optional in debug
+        )
+    }
 
 # ------------------------------
 # AUTH PASSWORD VALIDATORS
