@@ -1,4 +1,4 @@
-""" 
+"""
 Django settings for Claverica fintech backend.
 Production-ready configuration for Render deployment.
 """
@@ -22,6 +22,11 @@ SECRET_KEY = os.environ.get(
     'django-insecure-CHANGE-THIS-IN-PRODUCTION'
 )
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+# ------------------------------
+# API VERSION (Added - fixes the 500 error on root endpoint)
+# ------------------------------
+API_VERSION = os.environ.get('API_VERSION', '1.0.0')  # You can override via env var on Render if needed
 
 # ------------------------------
 # ALLOWED HOSTS (Improved for Render)
