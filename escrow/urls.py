@@ -16,10 +16,6 @@ urlpatterns = [
     path('<uuid:escrow_id>/release/', views.release_escrow_view, name='release_escrow'),
     path('<uuid:escrow_id>/dispute/', views.dispute_escrow_view, name='dispute_escrow'),
     
-    # Messages
-    path('<uuid:escrow_id>/messages/', views.get_messages_view, name='get_messages'),
-    path('<uuid:escrow_id>/send-message/', views.send_message_view, name='send_message'),
-    
     # Stats
     path('stats/', views.get_escrow_stats_view, name='escrow_stats'),
 ]
