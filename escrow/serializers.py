@@ -18,7 +18,6 @@ class EscrowSerializer(serializers.ModelSerializer):
             'funded_at', 'released_at'
         ]
 
-
 class EscrowCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Escrow
@@ -27,12 +26,12 @@ class EscrowCreateSerializer(serializers.ModelSerializer):
             'amount', 'currency', 'title', 'description', 'terms_and_conditions',
             'expected_release_date'
         ]
-    
+
     def validate_amount(self, value):
         if value <= 0:
             raise serializers.ValidationError("Amount must be greater than 0")
         return value
-    
+
     def create(self, validated_data):
         amount = validated_data['amount']
         fee = amount * Decimal('0.02')
@@ -40,27 +39,28 @@ class EscrowCreateSerializer(serializers.ModelSerializer):
         validated_data['status'] = 'pending'
         return super().create(validated_data)
 
-
 class EscrowUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Escrow
         fields = ['status', 'description', 'terms_and_conditions', 'expected_release_date']
 
-
 class EscrowLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = EscrowLog
         fields = [
-            'id', 'escrow', 'user_id', 'user_name', 'action', 'details', 
+            'id', 'escrow', 'user_id', 'user_name', 'action', 'details',
             'ip_address', 'timestamp'
         ]
         read_only_fields = ['id', 'timestamp']
 
-
 class EscrowStatsSerializer(serializers.Serializer):
-    total_escrows = serializers.IntegerField()
-    active_escrows = serializers.IntegerField()
-    completed_escrows = serializers.IntegerField()
-    total_amount_in_escrow = serializers.DecimalField(max_digits=15, decimal_places=2)
-    total_amount_released = serializers.DecimalField(max_digits=15, decimal_places=2)
-    pending_disputes = serializers.IntegerField()
+    total_escrows = serializers.IntegerField(min_value=0)
+    active_escrows = serializers.IntegerField(min_value=0)
+    completed_escrows = serializers.IntegerField(min_value=0)
+    total_amount_in_escrow = serializers.DecimalField(
+        max_digits=15, decimal_places=2, min_value=Decimal('0')
+    )
+    total_amount_released = serializers.DecimalField(
+        max_digits=15, decimal_places=2, min_value=Decimal('0')
+    )
+    pending_disputes = serializers.IntegerField(min_value=0)
