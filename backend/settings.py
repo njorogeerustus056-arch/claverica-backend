@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from decimal import Decimal
 from datetime import timedelta
+import dj_database_url  # Add this import
 
 # ------------------------------
 # BASE DIRECTORY
@@ -23,13 +24,18 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 # ------------------------------
-# ALLOWED HOSTS
+# ALLOWED HOSTS (Improved for Render)
 # ------------------------------
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
-RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-if RENDER_EXTERNAL_HOSTNAME:
-    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+# Always include Render's external hostname
+render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if render_hostname:
+    ALLOWED_HOSTS.append(render_hostname)
+    ALLOWED_HOSTS.append(f'.{render_hostname}')  # For wildcard subdomains if needed
+
+# Optional: For quick testing (remove after fixing)
+# ALLOWED_HOSTS.append('*')
 
 # ------------------------------
 # INSTALLED APPS
@@ -52,7 +58,7 @@ INSTALLED_APPS = [
 
     # Project apps
     'Tasks',
-    'accounts',         # accounts app
+    'accounts',  # accounts app
     'cards',
     'compliance',
     'crypto',
@@ -103,19 +109,14 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 ASGI_APPLICATION = 'backend.asgi.application'
 
 # ------------------------------
-# DATABASE
+# DATABASE (Updated: Use dj-database-url for Render)
 # ------------------------------
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'claverica_db'),
-        'USER': os.environ.get('DB_USER', 'claverica_db_user'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
-        'CONN_MAX_AGE': 600,
-        'OPTIONS': {'connect_timeout': 10},
-    }
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL'),  # Render provides this
+        conn_max_age=600,
+        ssl_require=True,  # Enforce SSL for Render Postgres
+    )
 }
 
 # ------------------------------
@@ -218,8 +219,8 @@ CSRF_TRUSTED_ORIGINS = os.environ.get(
     'CSRF_TRUSTED_ORIGINS',
     'http://localhost:3000,http://localhost:5173'
 ).split(',')
-if RENDER_EXTERNAL_HOSTNAME:
-    CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
+if render_hostname:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{render_hostname}')
 
 # ------------------------------
 # RECEIPT SETTINGS
@@ -245,3 +246,9 @@ TRANSACTION_LIMITS = {
 
 KYC_VERIFICATION_REQUIRED = True
 COMPLIANCE_CHECK_ENABLED = True
+
+# ------------------------------
+# Suppress DRF min_value warning (optional, for clean logs)
+# ------------------------------
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="rest_framework.fields")
