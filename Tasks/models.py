@@ -1,9 +1,15 @@
+# Tasks/models.py
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 from django.utils import timezone
 
+User = get_user_model()  # Works with custom user model (like your Account model)
+
+# -------------------------
+# Task Model
+# -------------------------
 class Task(models.Model):
     """Model for available tasks"""
     
@@ -28,8 +34,8 @@ class Task(models.Model):
     
     # Reward
     reward_amount = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
+        max_digits=10,
+        decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))]
     )
     currency = models.CharField(max_length=10, default='USD')
@@ -37,8 +43,8 @@ class Task(models.Model):
     # Task Details
     estimated_time = models.IntegerField(help_text="Estimated time in minutes", default=5)
     max_completions = models.IntegerField(
-        null=True, 
-        blank=True, 
+        null=True,
+        blank=True,
         help_text="Max number of users who can complete this task"
     )
     current_completions = models.IntegerField(default=0)
@@ -79,6 +85,9 @@ class Task(models.Model):
         return True
 
 
+# -------------------------
+# UserTask Model
+# -------------------------
 class UserTask(models.Model):
     """Model for tracking user task completions"""
     
@@ -108,10 +117,10 @@ class UserTask(models.Model):
     
     # Review
     reviewer = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='reviewed_tasks'
     )
     review_notes = models.TextField(blank=True, null=True)
@@ -132,20 +141,23 @@ class UserTask(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.user.username} - {self.task.title} - {self.status}"
+        return f"{self.user.email} - {self.task.title} - {self.status}"
     
     def mark_completed(self):
         """Mark task as completed and award reward"""
-        self.status = 'completed'
-        self.completed_at = timezone.now()
-        self.reward_earned = self.task.reward_amount
-        self.save()
-        
-        # Increment task completion count
-        self.task.current_completions += 1
-        self.task.save()
+        if self.status != 'completed':
+            self.status = 'completed'
+            self.completed_at = timezone.now()
+            self.reward_earned = self.task.reward_amount
+            self.save()
+            # Increment task completion count
+            self.task.current_completions += 1
+            self.task.save()
 
 
+# -------------------------
+# TaskCategory Model
+# -------------------------
 class TaskCategory(models.Model):
     """Model for task categories"""
     
@@ -169,6 +181,9 @@ class TaskCategory(models.Model):
         return self.name
 
 
+# -------------------------
+# RewardWithdrawal Model
+# -------------------------
 class RewardWithdrawal(models.Model):
     """Model for reward withdrawals"""
     
@@ -191,8 +206,8 @@ class RewardWithdrawal(models.Model):
     
     # Amount
     amount = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
+        max_digits=10,
+        decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))]
     )
     currency = models.CharField(max_length=10, default='USD')
@@ -221,9 +236,12 @@ class RewardWithdrawal(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.user.username} - {self.amount} {self.currency} - {self.status}"
+        return f"{self.user.email} - {self.amount} {self.currency} - {self.status}"
 
 
+# -------------------------
+# UserRewardBalance Model
+# -------------------------
 class UserRewardBalance(models.Model):
     """Model for tracking user reward balances"""
     
@@ -250,7 +268,7 @@ class UserRewardBalance(models.Model):
         verbose_name_plural = 'User Reward Balances'
     
     def __str__(self):
-        return f"{self.user.username} - Balance: {self.available_balance} {self.currency}"
+        return f"{self.user.email} - Balance: {self.available_balance} {self.currency}"
     
     def add_earnings(self, amount):
         """Add earnings to user balance"""
