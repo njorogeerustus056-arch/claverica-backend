@@ -1,17 +1,17 @@
+# accounts/signals.py
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.conf import settings
 from .models import Account
-from profiles.models import Profile  # adjust app name if different
 
+# Remove Profile-related signals entirely
+# Add any Account-specific logic here if needed
 
 @receiver(post_save, sender=Account)
-def create_user_profile(sender, instance, created, **kwargs):
+def account_post_save(sender, instance, created, **kwargs):
+    """
+    Placeholder signal for Account post-save.
+    Add any post-save logic for Account here.
+    """
     if created:
-        Profile.objects.create(user=instance)
-
-
-@receiver(post_save, sender=Account)
-def save_user_profile(sender, instance, **kwargs):
-    if hasattr(instance, "profile"):
-        instance.profile.save()
+        # Example: you could automatically create related objects here if needed
+        pass
