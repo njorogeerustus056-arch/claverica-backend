@@ -21,26 +21,29 @@ SECRET_KEY = os.environ.get(
     'DJANGO_SECRET_KEY',
     'django-insecure-CHANGE-THIS-IN-PRODUCTION'
 )
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+# FOR LOCAL DEVELOPMENT: Force DEBUG = True so you can see errors clearly
+# In production (Render), set DEBUG=False via environment variable
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'   # Changed default to 'True' for easier local dev
 
 # ------------------------------
 # API VERSION (Added - fixes the 500 error on root endpoint)
 # ------------------------------
-API_VERSION = os.environ.get('API_VERSION', '1.0.0')  # You can override via env var on Render if needed
+API_VERSION = os.environ.get('API_VERSION', '1.0.0')
 
 # ------------------------------
-# ALLOWED HOSTS (Improved for Render)
+# ALLOWED HOSTS - Local fix + production ready
 # ------------------------------
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']  # Added '0.0.0.0' for Waitress local running
 
-# Always include Render's external hostname
+# For quick local testing you can temporarily use ['*'] instead of the line above
+# ALLOWED_HOSTS = ['*']
+
+# Always include Render's external hostname in production
 render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if render_hostname:
     ALLOWED_HOSTS.append(render_hostname)
-    ALLOWED_HOSTS.append(f'.{render_hostname}')  # For wildcard subdomains if needed
-
-# Optional: For quick testing (remove after fixing)
-# ALLOWED_HOSTS.append('*')
+    ALLOWED_HOSTS.append(f'.{render_hostname}')
 
 # ------------------------------
 # INSTALLED APPS
@@ -63,7 +66,7 @@ INSTALLED_APPS = [
 
     # Project apps
     'Tasks',
-    'accounts',  # accounts app
+    'accounts',
     'cards',
     'compliance',
     'crypto',
@@ -119,17 +122,15 @@ ASGI_APPLICATION = 'backend.asgi.application'
 database_url = os.environ.get('DATABASE_URL')
 
 if database_url and database_url.startswith('sqlite://'):
-    # Local development with SQLite (uses your existing db.sqlite3)
     DATABASES = {
         'default': dj_database_url.parse(database_url)
     }
 else:
-    # Production on Render (Postgres with SSL)
     DATABASES = {
         'default': dj_database_url.config(
             default=database_url,
             conn_max_age=600,
-            ssl_require=not DEBUG,  # SSL in prod, optional in debug
+            ssl_require=not DEBUG,
         )
     }
 
@@ -215,7 +216,7 @@ if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 
 # ------------------------------
-# SECURITY
+# SECURITY (only applied in production)
 # ------------------------------
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
@@ -262,7 +263,7 @@ KYC_VERIFICATION_REQUIRED = True
 COMPLIANCE_CHECK_ENABLED = True
 
 # ------------------------------
-# Suppress DRF min_value warning (optional, for clean logs)
+# Suppress DRF min_value warning
 # ------------------------------
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="rest_framework.fields")
