@@ -1,0 +1,138 @@
+services:
+  # Web Service
+  - type: web
+    name: claverica-backend
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      python manage.py collectstatic --no-input
+      python manage.py migrate --no-input
+    startCommand: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: claverica-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: RENDER_EXTERNAL_HOSTNAME
+        sync: false
+
+databases:
+  # PostgreSQL Database
+  - name: claverica-db
+    databaseName: claverica
+    user: claverica_user
+    plan: starter
+    region: oregon
+```
+
+---
+
+## ✅ **runtime.txt** (PYTHON VERSION)
+```
+python-3.11.7
+```
+
+---
+
+## ✅ **.gitignore** (COMPLETE VERSION)
+```
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+env.bak/
+venv.bak/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+/media
+/staticfiles
+/static
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.production
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# Uploads
+uploads/
+media/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+coverage.xml
+*.cover
+
+# Logs
+logs/
+*.log
+
+# Backup files
+*.bak
+*.tmp
+
+# Security
+*.pem
+*.key
+*.crt
