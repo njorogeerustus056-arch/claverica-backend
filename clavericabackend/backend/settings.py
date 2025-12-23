@@ -114,23 +114,22 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 ASGI_APPLICATION = 'backend.asgi.application'
 
 # ------------------------------
-# DATABASE - Smart config for local SQLite and Render Postgres
+# DATABASE - fallback to SQLite if DATABASE_URL is missing
 # ------------------------------
 database_url = os.environ.get('DATABASE_URL')
 
-if database_url and database_url.startswith('sqlite://'):
-    # Local development with SQLite (uses your existing db.sqlite3)
+if database_url:
+    # Use the URL from environment (Postgres or SQLite)
     DATABASES = {
-        'default': dj_database_url.parse(database_url)
+        'default': dj_database_url.parse(database_url, conn_max_age=600, ssl_require=not DEBUG)
     }
 else:
-    # Production on Render (Postgres with SSL)
+    # Fallback: local SQLite for development
     DATABASES = {
-        'default': dj_database_url.config(
-            default=database_url,
-            conn_max_age=600,
-            ssl_require=not DEBUG,  # SSL in prod, optional in debug
-        )
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
 
 # ------------------------------
