@@ -266,3 +266,17 @@ COMPLIANCE_CHECK_ENABLED = True
 # ------------------------------
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="rest_framework.fields")
+
+# ------------------------------
+# PUSHER CONFIG (DEVELOPMENT)
+# ------------------------------
+PUSHER_APP_ID = os.environ.get("PUSHER_APP_ID")
+PUSHER_KEY = os.environ.get("PUSHER_KEY")
+PUSHER_SECRET = os.environ.get("PUSHER_SECRET")
+PUSHER_CLUSTER = os.environ.get("PUSHER_CLUSTER")
+
+# Safety check (temporary – helps debugging on Render)
+if not all([PUSHER_APP_ID, PUSHER_KEY, PUSHER_SECRET, PUSHER_CLUSTER]):
+    print("⚠️ Pusher env vars are missing")
+else:
+    print("✅ Pusher env vars loaded successfully")
