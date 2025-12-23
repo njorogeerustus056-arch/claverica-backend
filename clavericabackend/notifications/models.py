@@ -1,6 +1,6 @@
 # notifications/models.py
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings  # Use custom Account model
 from django.utils import timezone
 import uuid
 
@@ -33,7 +33,7 @@ class Notification(models.Model):
     ]
 
     notification_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
 
     notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
     title = models.CharField(max_length=255)
@@ -64,7 +64,7 @@ class Notification(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.user.username} - {self.title}"
+        return f"{self.user.email} - {self.title}"
 
     def mark_as_read(self):
         if not self.is_read:
@@ -97,7 +97,7 @@ class NotificationPreference(models.Model):
         ('push', 'Push Notification'),
     ]
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_preferences')
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notification_preferences')
 
     in_app_enabled = models.BooleanField(default=True)
     email_enabled = models.BooleanField(default=True)
@@ -122,7 +122,7 @@ class NotificationPreference(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.username}'s Notification Preferences"
+        return f"{self.user.email}'s Notification Preferences"
 
     class Meta:
         verbose_name_plural = 'Notification Preferences'
@@ -163,8 +163,9 @@ class NotificationTemplate(models.Model):
     def __str__(self):
         return f"Template: {self.get_template_type_display()}"
 
-    def render(self, context):
+    def render(self, context=None):
         """Render template safely with context data"""
+        context = context or {}
         try:
             title = self.title_template.format(**context)
         except KeyError:
@@ -226,7 +227,7 @@ class NotificationDevice(models.Model):
         ('web', 'Web'),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notification_devices')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notification_devices')
     device_type = models.CharField(max_length=20, choices=DEVICE_TYPES)
     device_token = models.CharField(max_length=500, unique=True)
     device_name = models.CharField(max_length=255, blank=True)
@@ -236,7 +237,7 @@ class NotificationDevice(models.Model):
     last_used_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.device_type} - {self.device_name or 'Unnamed'}"
+        return f"{self.user.email} - {self.device_type} - {self.device_name or 'Unnamed'}"
 
     class Meta:
         ordering = ['-last_used_at']

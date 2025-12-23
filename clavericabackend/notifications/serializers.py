@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
+from django.conf import settings
 from .models import (
     Notification, NotificationPreference, NotificationTemplate,
     NotificationLog, NotificationDevice
@@ -8,8 +8,8 @@ from .models import (
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        model = settings.AUTH_USER_MODEL
+        fields = ['id', 'email', 'first_name', 'last_name']
         read_only_fields = ['id']
 
 
@@ -126,7 +126,7 @@ class BulkNotificationSerializer(serializers.Serializer):
 
     def create_notifications(self):
         user_ids = self.validated_data.get('user_ids', [])
-        users = User.objects.filter(id__in=user_ids)
+        users = settings.AUTH_USER_MODEL.objects.filter(id__in=user_ids)
         notifications = [
             Notification(
                 user=user,
