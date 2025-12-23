@@ -1,25 +1,36 @@
 # notifications/pusher_client.py
 
-import os
 import pusher
+from django.conf import settings
 
-# Initialize Pusher client using env vars
-pusher_client = pusher.Pusher(
-    app_id=os.environ.get("PUSHER_APP_ID"),
-    key=os.environ.get("PUSHER_KEY"),
-    secret=os.environ.get("PUSHER_SECRET"),
-    cluster=os.environ.get("PUSHER_CLUSTER"),
-    ssl=True
-)
+def get_pusher_client():
+    """
+    Lazily initialize and return a Pusher client.
+    Prevents Django startup crashes if env vars are missing.
+    """
+    if not all([
+        settings.PUSHER_APP_ID,
+        settings.PUSHER_KEY,
+        settings.PUSHER_SECRET,
+        settings.PUSHER_CLUSTER
+    ]):
+        return None
+
+    return pusher.Pusher(
+        app_id=settings.PUSHER_APP_ID,
+        key=settings.PUSHER_KEY,
+        secret=settings.PUSHER_SECRET,
+        cluster=settings.PUSHER_CLUSTER,
+        ssl=True
+    )
 
 def trigger_notification(user_id, event, data):
     """
     Trigger a Pusher event to a user-specific channel.
-    
-    Args:
-        user_id (int): ID of the user
-        event (str): Event name
-        data (dict): Payload data
     """
+    client = get_pusher_client()
+    if not client:
+        return  # Safe no-op if Pusher is not configured
+
     channel = f"user_{user_id}_notifications"
-    pusher_client.trigger(channel, event, data)
+    client.trigger(channel, event, data)

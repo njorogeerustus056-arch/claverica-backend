@@ -3,8 +3,19 @@ Django settings for Claverica fintech backend.
 Production-ready configuration for Render deployment.
 """
 
-import os
+# ------------------------------
+# Load .env file
+# ------------------------------
 from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
+
+# ------------------------------
+# Standard imports
+# ------------------------------
 from decimal import Decimal
 from datetime import timedelta
 import dj_database_url
@@ -24,29 +35,23 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 # ------------------------------
-# API VERSION (Added - fixes the 500 error on root endpoint)
+# API VERSION
 # ------------------------------
-API_VERSION = os.environ.get('API_VERSION', '1.0.0')  # You can override via env var on Render if needed
+API_VERSION = os.environ.get('API_VERSION', '1.0.0')
 
 # ------------------------------
-# ALLOWED HOSTS (Improved for Render)
+# ALLOWED HOSTS
 # ------------------------------
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-
-# Always include Render's external hostname
 render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if render_hostname:
     ALLOWED_HOSTS.append(render_hostname)
-    ALLOWED_HOSTS.append(f'.{render_hostname}')  # For wildcard subdomains if needed
-
-# Optional: For quick testing (remove after fixing)
-# ALLOWED_HOSTS.append('*')
+    ALLOWED_HOSTS.append(f'.{render_hostname}')
 
 # ------------------------------
 # INSTALLED APPS
 # ------------------------------
 INSTALLED_APPS = [
-    # Django core
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -54,16 +59,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Third-party
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
 
-    # Project apps
     'Tasks',
-    'accounts',  # accounts app
+    'accounts',
     'cards',
     'compliance',
     'crypto',
@@ -114,17 +117,14 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 ASGI_APPLICATION = 'backend.asgi.application'
 
 # ------------------------------
-# DATABASE - fallback to SQLite if DATABASE_URL is missing
+# DATABASE
 # ------------------------------
 database_url = os.environ.get('DATABASE_URL')
-
 if database_url:
-    # Use the URL from environment (Postgres or SQLite)
     DATABASES = {
         'default': dj_database_url.parse(database_url, conn_max_age=600, ssl_require=not DEBUG)
     }
 else:
-    # Fallback: local SQLite for development
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -209,7 +209,6 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
     'http://localhost:3000,http://localhost:5173'
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
-
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 
@@ -261,20 +260,20 @@ KYC_VERIFICATION_REQUIRED = True
 COMPLIANCE_CHECK_ENABLED = True
 
 # ------------------------------
-# Suppress DRF min_value warning (optional, for clean logs)
+# Suppress DRF min_value warning
 # ------------------------------
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="rest_framework.fields")
 
 # ------------------------------
-# PUSHER CONFIG (DEVELOPMENT)
+# PUSHER CONFIG
 # ------------------------------
 PUSHER_APP_ID = os.environ.get("PUSHER_APP_ID")
 PUSHER_KEY = os.environ.get("PUSHER_KEY")
 PUSHER_SECRET = os.environ.get("PUSHER_SECRET")
 PUSHER_CLUSTER = os.environ.get("PUSHER_CLUSTER")
 
-# Safety check (temporary – helps debugging on Render)
+# Safety check
 if not all([PUSHER_APP_ID, PUSHER_KEY, PUSHER_SECRET, PUSHER_CLUSTER]):
     print("⚠️ Pusher env vars are missing")
 else:
