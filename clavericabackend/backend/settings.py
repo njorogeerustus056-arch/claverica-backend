@@ -2,29 +2,24 @@
 Django settings for Claverica fintech backend.
 Production-ready configuration for Render deployment.
 """
-
 # ------------------------------
 # Load .env file
 # ------------------------------
 from pathlib import Path
 from dotenv import load_dotenv
 import os
-
 # Load environment variables from .env file
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
-
 # ------------------------------
 # Standard imports
 # ------------------------------
 from decimal import Decimal
 from datetime import timedelta
 import dj_database_url
-
 # ------------------------------
 # BASE DIRECTORY
 # ------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 # ------------------------------
 # SECRET KEY AND DEBUG
 # ------------------------------
@@ -33,12 +28,10 @@ SECRET_KEY = os.environ.get(
     'django-insecure-CHANGE-THIS-IN-PRODUCTION'
 )
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
-
 # ------------------------------
 # API VERSION
 # ------------------------------
 API_VERSION = os.environ.get('API_VERSION', '1.0.0')
-
 # ------------------------------
 # ALLOWED HOSTS
 # ------------------------------
@@ -47,7 +40,6 @@ render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if render_hostname:
     ALLOWED_HOSTS.append(render_hostname)
     ALLOWED_HOSTS.append(f'.{render_hostname}')
-
 # ------------------------------
 # INSTALLED APPS
 # ------------------------------
@@ -59,13 +51,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
     'rest_framework',
     'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',
+    # Removed token_blacklist since we're disabling it
+    # 'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
-
     'Tasks',
     'accounts',
     'cards',
@@ -77,7 +68,6 @@ INSTALLED_APPS = [
     'receipts',
     'transactions',
 ]
-
 # ------------------------------
 # MIDDLEWARE
 # ------------------------------
@@ -92,12 +82,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
 # ------------------------------
 # URLS AND TEMPLATES
 # ------------------------------
 ROOT_URLCONF = 'backend.urls'
-
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -113,10 +101,8 @@ TEMPLATES = [
         },
     },
 ]
-
 WSGI_APPLICATION = 'backend.wsgi.application'
 ASGI_APPLICATION = 'backend.asgi.application'
-
 # ------------------------------
 # DATABASE
 # ------------------------------
@@ -132,7 +118,6 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-
 # ------------------------------
 # AUTH PASSWORD VALIDATORS
 # ------------------------------
@@ -142,7 +127,6 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
-
 # ------------------------------
 # INTERNATIONALIZATION
 # ------------------------------
@@ -150,22 +134,18 @@ LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
-
 # ------------------------------
 # STATIC AND MEDIA FILES
 # ------------------------------
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-
 # ------------------------------
 # DEFAULT AUTO FIELD
 # ------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
 # ------------------------------
 # REST FRAMEWORK
 # ------------------------------
@@ -185,23 +165,23 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ],
 }
-
 # ------------------------------
 # SIMPLE JWT
 # ------------------------------
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
+    'ROTATE_REFRESH_TOKENS': False,        # ← Disabled
+    'BLACKLIST_AFTER_ROTATION': False,     # ← Disabled
     'UPDATE_LAST_LOGIN': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
+    # Kept in case it's needed elsewhere, but harmless now
+    'TOKEN_USER_CLASS': 'accounts.models.Account',
 }
-
 # ------------------------------
 # CORS
 # ------------------------------
@@ -212,7 +192,6 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 CORS_ALLOW_CREDENTIALS = True
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
-
 # ------------------------------
 # SECURITY
 # ------------------------------
@@ -227,27 +206,23 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-
 CSRF_TRUSTED_ORIGINS = os.environ.get(
     'CSRF_TRUSTED_ORIGINS',
     'http://localhost:3000,http://localhost:5173'
 ).split(',')
 if render_hostname:
     CSRF_TRUSTED_ORIGINS.append(f'https://{render_hostname}')
-
 # ------------------------------
 # RECEIPT SETTINGS
 # ------------------------------
 RECEIPT_STORAGE_PATH = MEDIA_ROOT / 'receipts'
 RECEIPT_STORAGE_PATH.mkdir(parents=True, exist_ok=True)
-
 ALLOWED_RECEIPT_TYPES = [
     'application/pdf',
     'image/jpeg',
     'image/jpg',
     'image/png',
 ]
-
 # ------------------------------
 # FINTECH SETTINGS
 # ------------------------------
@@ -256,16 +231,13 @@ TRANSACTION_LIMITS = {
     'single_transaction_limit': Decimal('5000.00'),
     'monthly_limit': Decimal('50000.00'),
 }
-
 KYC_VERIFICATION_REQUIRED = True
 COMPLIANCE_CHECK_ENABLED = True
-
 # ------------------------------
 # Suppress DRF min_value warning
 # ------------------------------
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="rest_framework.fields")
-
 # ------------------------------
 # PUSHER CONFIG
 # ------------------------------
@@ -273,9 +245,8 @@ PUSHER_APP_ID = os.environ.get("PUSHER_APP_ID")
 PUSHER_KEY = os.environ.get("PUSHER_KEY")
 PUSHER_SECRET = os.environ.get("PUSHER_SECRET")
 PUSHER_CLUSTER = os.environ.get("PUSHER_CLUSTER")
-
 # Safety check
 if not all([PUSHER_APP_ID, PUSHER_KEY, PUSHER_SECRET, PUSHER_CLUSTER]):
-    print("⚠️ Pusher env vars are missing")
+    print(" Pusher env vars are missing")
 else:
-    print("✅ Pusher env vars loaded successfully")
+    print(" Pusher env vars loaded successfully")
