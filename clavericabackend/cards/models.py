@@ -4,7 +4,7 @@ Converted from SQLAlchemy to Django ORM
 """
 
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings  # Import settings to use AUTH_USER_MODEL
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 
@@ -25,9 +25,10 @@ class CardStatus(models.TextChoices):
 class Card(models.Model):
     """Card model for virtual and physical cards"""
     
-    # Foreign key to Django User model
+    # Foreign key to custom User model
+    # CHANGED: from User to settings.AUTH_USER_MODEL
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,  # This references your Account model
         on_delete=models.CASCADE,
         related_name='cards'
     )
@@ -106,8 +107,9 @@ class Transaction(models.Model):
     ]
     
     # Foreign keys
+    # CHANGED: from User to settings.AUTH_USER_MODEL
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,  # This references your Account model
         on_delete=models.CASCADE,
         related_name='card_transactions'
     )

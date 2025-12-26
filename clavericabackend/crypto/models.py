@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings  # CHANGED: Import settings instead of User
 
 class CryptoCurrency(models.Model):
     symbol = models.CharField(max_length=10, unique=True)
@@ -10,7 +10,8 @@ class CryptoCurrency(models.Model):
     last_price_update = models.DateTimeField(auto_now=True)
 
 class CryptoWallet(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # CHANGED: User to settings.AUTH_USER_MODEL
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     currency = models.ForeignKey(CryptoCurrency, on_delete=models.CASCADE)
     balance = models.DecimalField(max_digits=20, decimal_places=8, default=0)
     available_balance = models.DecimalField(max_digits=20, decimal_places=8, default=0)
@@ -31,7 +32,8 @@ class CryptoTransaction(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
 
 class CryptoAddress(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # CHANGED: User to settings.AUTH_USER_MODEL
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     currency = models.ForeignKey(CryptoCurrency, on_delete=models.CASCADE)
     address = models.CharField(max_length=100)
     label = models.CharField(max_length=50, blank=True)

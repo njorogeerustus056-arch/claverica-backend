@@ -1,22 +1,28 @@
-from django.db import models
-from django.conf import settings
-from decimal import Decimal
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from .models import Account
 
-class Profile(models.Model):
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="profile"
+@admin.register(Account)
+class AccountAdmin(BaseUserAdmin):
+    list_display = ('email', 'first_name', 'last_name', 'is_active', 'is_staff', 'date_joined')
+    list_filter = ('is_active', 'is_staff', 'date_joined')
+    search_fields = ('email', 'first_name', 'last_name')
+    ordering = ('email',)
+    readonly_fields = ('date_joined',)
+
+    fieldsets = (
+        (None, {'fields': ('email', 'password')}),
+        ('Personal info', {'fields': ('first_name', 'last_name', 'phone', 'document_type', 'document_number', 'street', 'city', 'state', 'zip_code')}),
+        ('Employment', {'fields': ('occupation', 'employer', 'income_range')}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
 
-    phone_number = models.CharField(max_length=20, blank=True)
-    balance = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal("0.00")
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('email', 'first_name', 'last_name', 'password1', 'password2'),
+        }),
     )
-    verified = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"{self.user.email} Profile"
+    filter_horizontal = ('groups', 'user_permissions',)

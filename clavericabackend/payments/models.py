@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings  # CHANGED: Import settings instead of User
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 import uuid
@@ -23,7 +23,8 @@ class Account(models.Model):
         ('ETH', 'Ethereum'),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='accounts')
+    # CHANGED: User to settings.AUTH_USER_MODEL
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='accounts')
     account_number = models.CharField(max_length=20, unique=True, editable=False)
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES, default='checking')
     currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
@@ -44,7 +45,8 @@ class Account(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.account_number} ({self.currency})"
+        # CHANGED: Access email instead of username since your Account model uses email
+        return f"{self.user.email} - {self.account_number} ({self.currency})"
 
     def save(self, *args, **kwargs):
         if not self.account_number:
@@ -162,7 +164,8 @@ class Card(models.Model):
 
 class Beneficiary(models.Model):
     """Saved beneficiaries for quick transfers"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='beneficiaries')
+    # CHANGED: User to settings.AUTH_USER_MODEL
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='beneficiaries')
     name = models.CharField(max_length=255)
     account_number = models.CharField(max_length=50)
     bank_name = models.CharField(max_length=255, blank=True)
@@ -282,11 +285,13 @@ class Payment(models.Model):
         ('deposit', 'Deposit'),
         ('withdrawal', 'Withdrawal'),
     ]
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # CHANGED: User to settings.AUTH_USER_MODEL
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
     timestamp = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, default='pending')
 
     def __str__(self):
-        return f"{self.user.username} - {self.transaction_type} - {self.amount}"
+        # CHANGED: Access email instead of username
+        return f"{self.user.email} - {self.transaction_type} - {self.amount}"
