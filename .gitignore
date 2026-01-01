@@ -1,0 +1,10 @@
+__pycache__/ 
+*.pyc 
+db.sqlite3 
+.env 
+/media/ 
+/staticfiles/ 
+clavericafrontend/ 
+receipts_api.postman_collection.json 
+test_all_apps.py 
+test_settings.py 

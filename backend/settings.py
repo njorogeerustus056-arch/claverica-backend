@@ -1,0 +1,764 @@
+"""
+Django settings for Claverica fintech backend.
+Production-ready configuration for Render deployment.
+
+Environment Variables Required:
+- DJANGO_SECRET_KEY: Secret key for Django
+- DATABASE_URL: PostgreSQL database URL
+- DEBUG: Set to 'True' for development
+- CORS_ALLOWED_ORIGINS: Comma-separated list of allowed origins
+
+Optional:
+- REDIS_URL: For caching and channels
+- SENTRY_DSN: For error tracking
+- EMAIL_*: For email configuration
+- PUSHER_*: For real-time notifications
+"""
+
+# ============================================================================
+# CRITICAL: Python Path Fix for Non-Standard Project Structure
+# ============================================================================
+import sys
+import os
+from pathlib import Path
+
+# Fix Python path since manage.py is in parent directory
+BACKEND_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = BACKEND_DIR.parent
+
+# Add backend directory to Python path (where your apps are)
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+# Add project directory to Python path
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+
+# Print debug info (only in development)
+if os.environ.get('DEBUG') == 'True':
+    print(f"✓ Python path configured")
+    print(f"  Backend dir: {BACKEND_DIR}")
+    print(f"  Project dir: {PROJECT_DIR}")
+    print(f"  Current sys.path: {sys.path[:3]}...")
+# ============================================================================
+
+import warnings
+from datetime import timedelta
+from decimal import Decimal
+
+import dj_database_url
+from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
+
+# ------------------------------
+# TEST ENVIRONMENT DETECTION
+# ------------------------------
+def is_test_environment():
+    """Check if we're running tests"""
+    return ('test' in sys.argv or 
+            'pytest' in sys.modules or 
+            os.environ.get('DJANGO_TEST') == 'True' or
+            os.environ.get('RUNNING_TESTS') == 'True')
+
+# ------------------------------
+# ENVIRONMENT VARIABLE HELPER
+# ------------------------------
+def get_env_variable(var_name, default=None, required=False):
+    """Get environment variable or return default/raise error."""
+    value = os.environ.get(var_name, default)
+    if required and value is None:
+        raise ImproperlyConfigured(f"Set the {var_name} environment variable")
+    return value
+
+# Load environment variables from .env file
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
+
+# ------------------------------
+# BASE DIRECTORY
+# ------------------------------
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# ------------------------------
+# SECRET KEY AND DEBUG
+# ------------------------------
+SECRET_KEY = get_env_variable(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-CHANGE-THIS-IN-PRODUCTION',
+    required=not get_env_variable('DEBUG', 'False') == 'True'
+)
+
+# Force DEBUG=False when running tests
+if is_test_environment():
+    DEBUG = False
+    print("✓ Test environment detected, DEBUG set to False")
+else:
+    DEBUG = get_env_variable('DEBUG', 'False') == 'True'
+
+# Validate critical production variables
+if not DEBUG:
+    required_vars = ['DJANGO_SECRET_KEY', 'DATABASE_URL']
+    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    if missing_vars:
+        raise ImproperlyConfigured(
+            f"Missing required environment variables: {', '.join(missing_vars)}"
+        )
+
+# ------------------------------
+# API VERSION
+# ------------------------------
+API_VERSION = get_env_variable('API_VERSION', '1.0.0')
+GIT_COMMIT = get_env_variable('RENDER_GIT_COMMIT', 'local')
+APP_VERSION = f"{API_VERSION}-{GIT_COMMIT[:8]}" if GIT_COMMIT != 'local' else API_VERSION
+
+# ------------------------------
+# ALLOWED HOSTS
+# ------------------------------
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
+render_hostname = get_env_variable('RENDER_EXTERNAL_HOSTNAME')
+if render_hostname:
+    ALLOWED_HOSTS.append(render_hostname)
+    ALLOWED_HOSTS.append(f'.{render_hostname}')
+
+# ------------------------------
+# INSTALLED APPS
+# ------------------------------
+INSTALLED_APPS = [
+    # Django Core Apps
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    
+    # Daphne & Channels (MUST come BEFORE staticfiles)
+    'daphne',
+    'channels',
+    
+    # Static files (MUST come AFTER daphne)
+    'django.contrib.staticfiles',
+    
+    # Health checks
+    'health_check',
+    'health_check.db',
+    'health_check.cache',
+    'health_check.storage',
+    
+    # Third-party apps
+    'django_extensions',
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'corsheaders',
+    'django_filters',
+    
+    # Your custom apps
+    'tasks',
+    'accounts',
+    'cards',
+    'compliance',
+    'crypto',
+    'escrow',
+    'notifications',
+    'payments',
+    'receipts',
+    'transactions',
+    'transfers',
+]
+
+# Add development tools (skip for tests)
+if DEBUG and not is_test_environment():
+    INSTALLED_APPS.append('drf_spectacular')
+
+# Add debug toolbar but we'll configure it properly below
+if DEBUG and not is_test_environment():
+    INSTALLED_APPS.append('debug_toolbar')
+
+# ------------------------------
+# MIDDLEWARE
+# ------------------------------
+MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+# Add debug toolbar middleware for development (skip for tests)
+# COMMENTED OUT TEMPORARILY TO FIX THE ERROR
+# if DEBUG and not is_test_environment():
+#     MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
+#     INTERNAL_IPS = ['127.0.0.1', 'localhost']
+
+# ------------------------------
+# URLS AND TEMPLATES
+# ------------------------------
+ROOT_URLCONF = 'urls'
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+WSGI_APPLICATION = 'wsgi.application'
+ASGI_APPLICATION = 'asgi.application'
+
+# Create template directory if it doesn't exist
+template_dir = BASE_DIR / 'templates'
+os.makedirs(template_dir, exist_ok=True)
+
+# ------------------------------
+# DATABASE
+# ------------------------------
+# Force SQLite for tests
+if is_test_environment():
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': ':memory:',
+        }
+    }
+else:
+    database_url = get_env_variable('DATABASE_URL')
+    if database_url:
+        DATABASES = {
+            'default': dj_database_url.parse(database_url, conn_max_age=600, ssl_require=not DEBUG)
+        }
+        if not DEBUG:
+            DATABASES['default']['CONN_MAX_AGE'] = 600
+            DATABASES['default']['CONN_HEALTH_CHECKS'] = True
+        
+        # Add PostgreSQL-specific optimizations
+        if 'postgresql' in DATABASES['default'].get('ENGINE', ''):
+            DATABASES['default']['OPTIONS'] = {
+                'connect_timeout': 10,
+                'keepalives': 1,
+                'keepalives_idle': 30,
+                'keepalives_interval': 10,
+                'keepalives_count': 5,
+            }
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
+
+# ------------------------------
+# PASSWORD HASHING
+# ------------------------------
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+]
+
+# ------------------------------
+# CUSTOM USER MODEL
+# ------------------------------
+AUTH_USER_MODEL = 'accounts.Account'
+
+# ------------------------------
+# AUTHENTICATION BACKENDS
+# ------------------------------
+AUTHENTICATION_BACKENDS = [
+    'accounts.backends.EmailBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# ------------------------------
+# AUTH PASSWORD VALIDATORS
+# ------------------------------
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+# ------------------------------
+# INTERNATIONALIZATION
+# ------------------------------
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+# ------------------------------
+# STATIC AND MEDIA FILES
+# ------------------------------
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Create media directories if they don't exist
+os.makedirs(MEDIA_ROOT / 'receipts', exist_ok=True)
+os.makedirs(MEDIA_ROOT / 'profiles', exist_ok=True)
+
+# ------------------------------
+# DEFAULT AUTO FIELD
+# ------------------------------
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ------------------------------
+# REST FRAMEWORK
+# ------------------------------
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.FileUploadParser',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',
+        'user': '1000/day',
+        'login': '10/minute',
+        'transaction': '30/minute',
+        'transfer': '20/minute',
+    },
+}
+
+# Add API documentation for development (skip for tests)
+if DEBUG and not is_test_environment():
+    REST_FRAMEWORK['DEFAULT_SCHEMA_CLASS'] = 'drf_spectacular.openapi.AutoSchema'
+
+# ------------------------------
+# SIMPLE JWT CONFIGURATION
+# ------------------------------
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    'JWK_URL': None,
+    'LEEWAY': 0,
+    
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    
+    'JTI_CLAIM': 'jti',
+    
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=60),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=7),
+}
+
+# ------------------------------
+# CORS
+# ------------------------------
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+]
+
+if not DEBUG:
+    cors_origins = get_env_variable(
+        'CORS_ALLOWED_ORIGINS',
+        'http://localhost:3000,http://localhost:5173'
+    )
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'content-disposition',
+]
+
+# ------------------------------
+# SECURITY
+# ------------------------------
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+]
+
+csrf_origins = get_env_variable('CSRF_TRUSTED_ORIGINS')
+if csrf_origins:
+    CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in csrf_origins.split(',')])
+
+if render_hostname:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{render_hostname}')
+
+# Session security
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax' if DEBUG else 'Strict'
+CSRF_COOKIE_HTTPONLY = True
+CSRF_USE_SESSIONS = False
+
+# ------------------------------
+# RECEIPT SETTINGS
+# ------------------------------
+RECEIPT_STORAGE_PATH = MEDIA_ROOT / 'receipts'
+ALLOWED_RECEIPT_TYPES = [
+    'application/pdf',
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/bmp',
+    'image/tiff',
+    'image/webp',
+]
+MAX_RECEIPT_SIZE = 10 * 1024 * 1024
+
+# ------------------------------
+# FINTECH SETTINGS
+# ------------------------------
+TRANSACTION_LIMITS = {
+    'daily_limit': Decimal('10000.00'),
+    'single_transaction_limit': Decimal('5000.00'),
+    'monthly_limit': Decimal('50000.00'),
+}
+KYC_VERIFICATION_REQUIRED = True
+COMPLIANCE_CHECK_ENABLED = True
+
+# ------------------------------
+# HEALTH CHECK SETTINGS
+# ------------------------------
+HEALTH_CHECK = {
+    'DISK_USAGE_MAX': 90,  # percent
+    'MEMORY_MIN': 100,    # in MB
+}
+
+# ------------------------------
+# Suppress DRF min_value warning
+# ------------------------------
+warnings.filterwarnings("ignore", category=UserWarning, module="rest_framework.fields")
+
+# ------------------------------
+# PUSHER CONFIG
+# ------------------------------
+PUSHER_APP_ID = get_env_variable("PUSHER_APP_ID")
+PUSHER_KEY = get_env_variable("PUSHER_KEY")
+PUSHER_SECRET = get_env_variable("PUSHER_SECRET")
+PUSHER_CLUSTER = get_env_variable("PUSHER_CLUSTER")
+if not all([PUSHER_APP_ID, PUSHER_KEY, PUSHER_SECRET, PUSHER_CLUSTER]):
+    print("Warning: Pusher env vars are missing")
+else:
+    print("Success: Pusher env vars loaded successfully")
+
+# ------------------------------
+# DJANGO CHANNELS CONFIG
+# ------------------------------
+redis_url = get_env_variable('REDIS_URL')
+if not DEBUG and redis_url:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [redis_url],
+                "capacity": 1500,
+                "expiry": 10,
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        },
+    }
+
+# ------------------------------
+# CACHE CONFIGURATION
+# ------------------------------
+if not DEBUG and redis_url:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": redis_url,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
+            }
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'unique-snowflake',
+        }
+    }
+
+# ------------------------------
+# ERROR MONITORING (Sentry)
+# ------------------------------
+sentry_dsn = get_env_variable('SENTRY_DSN')
+if not DEBUG and sentry_dsn:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+        
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=0.1,
+            send_default_pii=False,
+            environment="production" if not DEBUG else "development",
+            release=APP_VERSION,
+        )
+        print("Success: Sentry initialized successfully")
+    except ImportError:
+        print("Warning: Sentry SDK not installed")
+
+# ------------------------------
+# API DOCUMENTATION (Swagger/OpenAPI)
+# ------------------------------
+if DEBUG and not is_test_environment():
+    SPECTACULAR_SETTINGS = {
+        'TITLE': 'Claverica Fintech API',
+        'DESCRIPTION': 'Fintech backend API documentation',
+        'VERSION': API_VERSION,
+        'SERVE_INCLUDE_SCHEMA': False,
+        'COMPONENT_SPLIT_REQUEST': True,
+        'SWAGGER_UI_SETTINGS': {
+            'deepLinking': True,
+            'persistAuthorization': True,
+            'displayRequestDuration': True,
+        },
+    }
+
+# ------------------------------
+# LOGGING
+# ------------------------------
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+        'test': {
+            'format': '{asctime} {levelname} {module}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'test_console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'test',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'accounts': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'receipts': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'tests': {
+            'handlers': ['test_console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'rest_framework_simplejwt': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'channels': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'transfers': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+    },
+    },
+}
+
+# ------------------------------
+# FILE UPLOAD SETTINGS
+# ------------------------------
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+FILE_UPLOAD_PERMISSIONS = 0o644
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
+
+# ------------------------------
+# SESSION SETTINGS
+# ------------------------------
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 86400
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+# ------------------------------
+# EMAIL SETTINGS
+# ------------------------------
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = get_env_variable('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(get_env_variable('EMAIL_PORT', 587))
+EMAIL_USE_TLS = get_env_variable('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = get_env_variable('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = get_env_variable('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = get_env_variable('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# ------------------------------
+# TEST SETTINGS
+# ------------------------------
+TEST_RUNNER = 'django.test.runner.DiscoverRunner'
+
+# ------------------------------
+# DEBUG TOOLBAR SETTINGS - FIXED
+# ------------------------------
+if DEBUG and not is_test_environment():
+    def show_toolbar(request):
+        return DEBUG
+    
+    DEBUG_TOOLBAR_CONFIG = {
+        'SHOW_TOOLBAR_CALLBACK': show_toolbar,
+        'SHOW_COLLAPSED': True,
+        'RESULTS_CACHE_SIZE': 3,
+        'IS_RUNNING_TESTS': False,
+        # Fix for namespace error
+        'DISABLE_PANELS': {
+            'debug_toolbar.panels.redirects.RedirectsPanel',
+        },
+    }
+    
+    # Proper configuration to avoid namespace errors
+    DEBUG_TOOLBAR_PANELS = [
+        'debug_toolbar.panels.history.HistoryPanel',
+        'debug_toolbar.panels.versions.VersionsPanel',
+        'debug_toolbar.panels.timer.TimerPanel',
+        'debug_toolbar.panels.settings.SettingsPanel',
+        'debug_toolbar.panels.headers.HeadersPanel',
+        'debug_toolbar.panels.request.RequestPanel',
+        'debug_toolbar.panels.sql.SQLPanel',
+        'debug_toolbar.panels.staticfiles.StaticFilesPanel',
+        'debug_toolbar.panels.templates.TemplatesPanel',
+        'debug_toolbar.panels.cache.CachePanel',
+        'debug_toolbar.panels.signals.SignalsPanel',
+        'debug_toolbar.panels.redirects.RedirectsPanel',
+    ]
+    
+    # Add middleware BUT COMMENTED OUT FOR NOW to fix the error
+    # MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
+    INTERNAL_IPS = ['127.0.0.1', 'localhost']

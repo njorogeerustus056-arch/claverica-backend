@@ -1,0 +1,59 @@
+# 1. Add to INSTALLED_APPS in settings.py
+INSTALLED_APPS = [
+    # ... other apps
+    'notifications',
+]
+
+# 2. Include URLs in main urls.py
+from django.urls import path, include
+
+urlpatterns = [
+    # ... other urls
+    path('api/notifications/', include('notifications.urls')),
+]
+
+# 3. Run migrations
+python manage.py makemigrations notifications
+python manage.py migrate
+
+# 4. Create default notification templates
+python manage.py create_notification_templates
+
+# 5. (Optional) Create superuser if not exists
+python manage.py createsuperuser
+```
+
+## 🎯 **API Endpoints:**
+```
+# Notifications
+GET    /api/notifications/notifications/                  - List all notifications
+POST   /api/notifications/notifications/                  - Create notification
+GET    /api/notifications/notifications/{id}/             - Get notification
+POST   /api/notifications/notifications/{id}/mark_as_read/
+POST   /api/notifications/notifications/{id}/mark_as_unread/
+POST   /api/notifications/notifications/{id}/archive/
+POST   /api/notifications/notifications/mark_all_as_read/
+POST   /api/notifications/notifications/mark_multiple_as_read/
+DELETE /api/notifications/notifications/clear_all/
+GET    /api/notifications/notifications/unread/
+GET    /api/notifications/notifications/recent/
+GET    /api/notifications/notifications/stats/
+
+# Preferences
+GET    /api/notifications/preferences/my_preferences/
+PATCH  /api/notifications/preferences/update_preferences/
+
+# Devices
+GET    /api/notifications/devices/                        - List devices
+POST   /api/notifications/devices/                        - Register device
+POST   /api/notifications/devices/{id}/deactivate/
+
+# Templates
+GET    /api/notifications/templates/                      - List templates
+
+# Utility Endpoints
+POST   /api/notifications/send/                           - Send notification
+POST   /api/notifications/send-bulk/                      - Send bulk
+POST   /api/notifications/send-template/                  - Send from template
+GET    /api/notifications/count/                          - Get unread count
+GET    /api/notifications/summary/                        - Get summary

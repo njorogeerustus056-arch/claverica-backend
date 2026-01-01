@@ -1,0 +1,3 @@
+"Test receipt content" 
+"Amount: $29.99" 
+"Date: 2024-01-16" 
