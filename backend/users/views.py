@@ -8,29 +8,33 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.contrib.auth import get_user_model, update_session_auth_hash
+from rest_framework import status
+from django.contrib.auth import update_session_auth_hash
 from django.utils import timezone
-from django.core.mail import send_mail
-from django.conf import settings
+from django.db.models import Q
+
 from .models import UserProfile, UserSettings, SecurityAlert, ConnectedDevice, ActivityLog
 
-User = get_user_model()
 logger = logging.getLogger(__name__)
+
 
 # -----------------------------------------------------------------
 # HELPER FUNCTIONS
 # -----------------------------------------------------------------
-
-def get_avatar_initials(user):
-    """Generate avatar initials from user name"""
-    if user.first_name and user.last_name:
-        return f"{user.first_name[0]}{user.last_name[0]}".upper()
-    elif user.username:
-        return user.username[:2].upper()
+def get_avatar_initials(account):
+    """Generate avatar initials from account name"""
+    if account.first_name and account.last_name:
+        return f"{account.first_name[0]}{account.last_name[0]}".upper()
+    elif account.email:
+        return account.email[:2].upper()
     return "U"
+
 
 def pretty_time_ago(dt):
     """Convert datetime to "X time ago" format"""
+    if not dt:
+        return "Never"
+        
     now = timezone.now()
     diff = now - dt
     
@@ -51,53 +55,48 @@ def pretty_time_ago(dt):
     else:
         return "Just now"
 
-def create_activity_log(user, activity_type, request=None, metadata=None):
+
+def create_activity_log(account, activity_type, request=None, metadata=None):
     """Create an activity log entry"""
     ip_address = None
     user_agent = None
-    location = None
     
     if request:
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
             ip_address = x_forwarded_for.split(',')[0].strip()
         else:
-            ip_address = request.META.get('REMOTE_ADDR')
-        user_agent = request.META.get('HTTP_USER_AGENT', '')
+            ip_address = request.META.get('REMOTE_ADDR', '')
+        user_agent = request.META.get('HTTP_USER_AGENT', '')[:200]
     
-    return ActivityLog.objects.create(
-        user=user,
-        activity_type=activity_type,
-        ip_address=ip_address,
-        user_agent=user_agent,
-        location=location,
-        metadata=metadata or {}
-    )
+    try:
+        return ActivityLog.objects.create(
+            account=account,
+            activity_type=activity_type,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            metadata=metadata or {}
+        )
+    except Exception as e:
+        logger.error(f"Failed to create activity log: {e}")
+        return None
+
 
 # -----------------------------------------------------------------
-# EXISTING CODE
+# USER PROFILE VIEW
 # -----------------------------------------------------------------
 class UserProfileView(APIView):
     """
-    GET /api/users/profile/?user_id=7
-    Returns user profile data including name, balance, account number, IP, etc.
+    GET /api/users/profile/
+    Returns user profile data
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user_id = request.query_params.get('user_id')
-
-        # Security check: user can only access their own profile
-        if not user_id or int(user_id) != request.user.id:
-            return Response(
-                {"error": "You can only view your own profile"},
-                status=403
-            )
-
         try:
-            user = User.objects.get(id=user_id)
-            profile = user.profile
-
+            account = request.user
+            profile = account.user_profile
+            
             # Get client IP address
             x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
             if x_forwarded_for:
@@ -106,162 +105,191 @@ class UserProfileView(APIView):
                 ip_address = request.META.get('REMOTE_ADDR', 'Unknown')
 
             # Use actual account number or generate one
-            account_number = profile.account_number or f"CLV{user.id:08d}"
+            account_number = profile.account_number or f"CLV{account.id:08d}"
 
             profile_data = {
-                "id": user.id,
-                "first_name": user.first_name or "User",
-                "last_name": user.last_name or "",
-                "email": user.email,
+                "id": account.id,
+                "first_name": account.first_name or "User",
+                "last_name": account.last_name or "",
+                "email": account.email,
                 "balance": 12500.00,  # Mock for now
                 "account_number": account_number,
                 "ip_address": ip_address,
-                "email_verified": profile.email_verified,
+                "email_verified": account.email_verified,
                 "phone": profile.phone or "",
                 "phone_verified": profile.phone_verified,
                 "subscription_tier": profile.subscription_tier,
                 "avatar_color": profile.avatar_color,
-                "cards": []  # Will be populated when cards endpoint is ready
+                "cards": []
             }
 
             return Response(profile_data)
 
-        except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=404)
         except Exception as e:
             logger.error(f"Error in UserProfileView: {str(e)}")
-            return Response({"error": "Internal server error"}, status=500)
+            return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # -----------------------------------------------------------------
-# NEW ENDPOINTS FOR ACCOUNT SETTINGS
+# PROFILE SETTINGS
 # -----------------------------------------------------------------
-
-# Profile Management
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_profile_settings(request):
     """Get extended profile for AccountSettings page"""
-    user = request.user
-    profile = user.profile
-    
-    # Calculate security score
-    security_score = 0
-    if profile.email_verified:
-        security_score += 25
-    if profile.phone_verified:
-        security_score += 25
-    if user.settings.two_factor_enabled:
-        security_score += 25
-    if profile.last_password_change > timezone.now() - timedelta(days=90):
-        security_score += 25
-    
-    profile_data = {
-        "name": f"{user.first_name} {user.last_name}".strip() or user.username,
-        "username": user.username,
-        "email": user.email,
-        "email_verified": profile.email_verified,
-        "phone": profile.phone or "",
-        "phone_verified": profile.phone_verified,
-        "account_number": profile.account_number or f"CLV{user.id:08d}",
-        "member_since": user.date_joined.strftime("%b %Y"),
-        "avatar": get_avatar_initials(user),
-        "tier": profile.subscription_tier,
-        "security_score": security_score,
-        "last_password_change": pretty_time_ago(profile.last_password_change),
-        "avatar_color": profile.avatar_color
-    }
-    
-    return Response(profile_data)
+    try:
+        account = request.user
+        profile = account.user_profile
+        settings = account.user_settings
+        
+        # Calculate security score
+        security_score = 0
+        if account.email_verified:
+            security_score += 25
+        if profile.phone_verified:
+            security_score += 25
+        if settings.two_factor_enabled:
+            security_score += 25
+        if profile.last_password_change and profile.last_password_change > timezone.now() - timedelta(days=90):
+            security_score += 25
+        
+        profile_data = {
+            "name": f"{account.first_name or ''} {account.last_name or ''}".strip() or account.email,
+            "username": account.email,
+            "email": account.email,
+            "email_verified": account.email_verified,
+            "phone": profile.phone or "",
+            "phone_verified": profile.phone_verified,
+            "account_number": profile.account_number or f"CLV{account.id:08d}",
+            "member_since": account.date_joined.strftime("%b %Y") if account.date_joined else "Unknown",
+            "avatar": get_avatar_initials(account),
+            "tier": profile.subscription_tier or "free",
+            "security_score": security_score,
+            "last_password_change": pretty_time_ago(profile.last_password_change),
+            "avatar_color": profile.avatar_color or "#3B82F6"
+        }
+        
+        return Response(profile_data)
+    except Exception as e:
+        logger.error(f"Error in get_profile_settings: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# User Settings
+
+# -----------------------------------------------------------------
+# USER SETTINGS
+# -----------------------------------------------------------------
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_settings(request):
-    """Get user settings from database"""
-    user = request.user
-    settings = user.settings
-    
-    settings_data = {
-        "dark_mode": settings.dark_mode,
-        "activity_logs_enabled": settings.activity_logs_enabled,
-        "security_pin_enabled": settings.security_pin_enabled,
-        "two_factor_enabled": settings.two_factor_enabled,
-        "biometric_enabled": settings.biometric_enabled,
-        "email_notifications": settings.email_notifications,
-        "push_notifications": settings.push_notifications,
-        "sms_notifications": settings.sms_notifications,
-        "data_collection": settings.data_collection,
-        "subscription_tier": user.profile.subscription_tier,
-        "language": settings.language
-    }
-    
-    return Response(settings_data)
+    """Get account settings from database"""
+    try:
+        account = request.user
+        settings = account.user_settings
+        profile = account.user_profile
+        
+        settings_data = {
+            "dark_mode": settings.dark_mode,
+            "activity_logs_enabled": settings.activity_logs_enabled,
+            "security_pin_enabled": settings.security_pin_enabled,
+            "two_factor_enabled": settings.two_factor_enabled,
+            "biometric_enabled": settings.biometric_enabled,
+            "email_notifications": settings.email_notifications,
+            "push_notifications": settings.push_notifications,
+            "sms_notifications": settings.sms_notifications,
+            "data_collection": settings.data_collection,
+            "subscription_tier": profile.subscription_tier or "free",
+            "language": settings.language or "en"
+        }
+        
+        return Response(settings_data)
+    except Exception as e:
+        logger.error(f"Error in get_settings: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def update_settings(request):
-    """Update user settings in database"""
-    data = request.data
-    user = request.user
-    settings = user.settings
-    
-    # Define allowed fields to update
-    allowed_fields = [
-        'dark_mode', 'activity_logs_enabled', 'security_pin_enabled',
-        'two_factor_enabled', 'biometric_enabled', 'email_notifications',
-        'push_notifications', 'sms_notifications', 'data_collection', 'language'
-    ]
-    
-    # Update only allowed fields
-    updated_fields = []
-    for field in allowed_fields:
-        if field in data:
-            setattr(settings, field, data[field])
-            updated_fields.append(field)
-    
-    if updated_fields:
-        settings.save()
-        create_activity_log(user, 'settings_change', request, {'updated_fields': updated_fields})
-        logger.info(f"Updated settings for {user.username}: {updated_fields}")
-        return Response({
-            "message": "Settings updated successfully",
-            "updated_fields": updated_fields
-        })
-    
-    return Response({"error": "No valid fields provided for update"}, status=400)
+    """Update account settings in database"""
+    try:
+        data = request.data
+        account = request.user
+        settings = account.user_settings
+        
+        # Define allowed fields to update
+        allowed_fields = [
+            'dark_mode', 'activity_logs_enabled', 'security_pin_enabled',
+            'two_factor_enabled', 'biometric_enabled', 'email_notifications',
+            'push_notifications', 'sms_notifications', 'data_collection', 'language'
+        ]
+        
+        # Update only allowed fields
+        updated_fields = []
+        for field in allowed_fields:
+            if field in data:
+                # Handle boolean fields
+                if field in ['dark_mode', 'activity_logs_enabled', 'security_pin_enabled',
+                           'two_factor_enabled', 'biometric_enabled', 'email_notifications',
+                           'push_notifications', 'sms_notifications', 'data_collection']:
+                    setattr(settings, field, bool(data[field]))
+                else:
+                    setattr(settings, field, data[field])
+                updated_fields.append(field)
+        
+        if updated_fields:
+            settings.save()
+            create_activity_log(account, 'settings_change', request, {'updated_fields': updated_fields})
+            logger.info(f"Updated settings for {account.email}: {updated_fields}")
+            return Response({
+                "message": "Settings updated successfully",
+                "updated_fields": updated_fields
+            })
+        
+        return Response({"error": "No valid fields provided for update"}, status=400)
+    except Exception as e:
+        logger.error(f"Error in update_settings: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# Security Alerts
+
+# -----------------------------------------------------------------
+# SECURITY ENDPOINTS
+# -----------------------------------------------------------------
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_security_alerts(request):
     """Get security alerts from database"""
-    user = request.user
-    alerts = SecurityAlert.objects.filter(user=user).order_by('-created_at')[:20]
-    
-    alerts_data = []
-    for alert in alerts:
-        alerts_data.append({
-            "id": alert.id,
-            "type": alert.alert_type,
-            "severity": alert.severity,
-            "message": alert.message,
-            "timestamp": pretty_time_ago(alert.created_at),
-            "resolved": alert.resolved
-        })
-    
-    return Response({"alerts": alerts_data})
+    try:
+        account = request.user
+        alerts = SecurityAlert.objects.filter(account=account).order_by('-created_at')[:20]
+        
+        alerts_data = []
+        for alert in alerts:
+            alerts_data.append({
+                "id": alert.id,
+                "type": alert.alert_type,
+                "severity": alert.severity,
+                "message": alert.message,
+                "timestamp": pretty_time_ago(alert.created_at),
+                "resolved": alert.resolved
+            })
+        
+        return Response({"alerts": alerts_data})
+    except Exception as e:
+        logger.error(f"Error in get_security_alerts: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def resolve_security_alert(request):
     """Mark alert as resolved"""
-    alert_id = request.data.get('alert_id')
-    
-    if not alert_id:
-        return Response({"error": "Alert ID is required"}, status=400)
-    
     try:
-        alert = SecurityAlert.objects.get(id=alert_id, user=request.user)
+        alert_id = request.data.get('alert_id')
+        
+        if not alert_id:
+            return Response({"error": "Alert ID is required"}, status=400)
+        
+        alert = SecurityAlert.objects.get(id=alert_id, account=request.user)
         alert.resolved = True
         alert.resolved_at = timezone.now()
         alert.save()
@@ -270,257 +298,313 @@ def resolve_security_alert(request):
         return Response({"message": "Alert resolved successfully"})
     except SecurityAlert.DoesNotExist:
         return Response({"error": "Alert not found"}, status=404)
+    except Exception as e:
+        logger.error(f"Error in resolve_security_alert: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_security_score(request):
     """Get calculated security score"""
-    user = request.user
-    profile = user.profile
-    
-    security_score = 0
-    if profile.email_verified:
-        security_score += 25
-    if profile.phone_verified:
-        security_score += 25
-    if user.settings.two_factor_enabled:
-        security_score += 25
-    if profile.last_password_change > timezone.now() - timedelta(days=90):
-        security_score += 25
-    
-    return Response({"security_score": security_score})
+    try:
+        account = request.user
+        profile = account.user_profile
+        settings = account.user_settings
+        
+        security_score = 0
+        if account.email_verified:
+            security_score += 25
+        if profile.phone_verified:
+            security_score += 25
+        if settings.two_factor_enabled:
+            security_score += 25
+        if profile.last_password_change and profile.last_password_change > timezone.now() - timedelta(days=90):
+            security_score += 25
+        
+        return Response({"security_score": security_score})
+    except Exception as e:
+        logger.error(f"Error in get_security_score: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# Connected Devices
+
+# -----------------------------------------------------------------
+# DEVICE MANAGEMENT
+# -----------------------------------------------------------------
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_connected_devices(request):
     """Get connected devices from database"""
-    user = request.user
-    devices = ConnectedDevice.objects.filter(user=user).order_by('-last_active')
-    
-    devices_data = []
-    for device in devices:
-        devices_data.append({
-            "id": device.id,
-            "name": device.device_name,
-            "type": device.device_type,
-            "last_active": pretty_time_ago(device.last_active),
-            "location": device.location or "Unknown",
-            "current": device.is_current,
-            "os": device.os or "Unknown",
-            "model": device.device_name,
-            "connection_type": "wifi",  # Default
-            "battery_level": 100  # Default
-        })
-    
-    return Response({"devices": devices_data})
+    try:
+        account = request.user
+        devices = ConnectedDevice.objects.filter(account=account).order_by('-last_active')
+        
+        devices_data = []
+        for device in devices:
+            devices_data.append({
+                "id": device.id,
+                "name": device.device_name or "Unknown Device",
+                "type": device.device_type or "unknown",
+                "last_active": pretty_time_ago(device.last_active),
+                "location": device.location or "Unknown",
+                "current": device.is_current,
+                "os": device.os or "Unknown",
+                "model": device.device_name or "Unknown",
+                "connection_type": "wifi",
+                "battery_level": 100
+            })
+        
+        return Response({"devices": devices_data})
+    except Exception as e:
+        logger.error(f"Error in get_connected_devices: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def disconnect_device(request):
     """Disconnect device"""
-    device_id = request.data.get('device_id')
-    
-    if not device_id:
-        return Response({"error": "Device ID is required"}, status=400)
-    
     try:
-        device = ConnectedDevice.objects.get(id=device_id, user=request.user)
+        device_id = request.data.get('device_id')
+        
+        if not device_id:
+            return Response({"error": "Device ID is required"}, status=400)
+        
+        device = ConnectedDevice.objects.get(id=device_id, account=request.user)
         device.delete()
         
         create_activity_log(request.user, 'device_removed', request, {'device_id': device_id})
         return Response({"message": "Device disconnected successfully"})
     except ConnectedDevice.DoesNotExist:
         return Response({"error": "Device not found"}, status=404)
+    except Exception as e:
+        logger.error(f"Error in disconnect_device: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# Activity Logs
+
+# -----------------------------------------------------------------
+# ACTIVITY LOGS
+# -----------------------------------------------------------------
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_activity_logs(request):
     """Get activity logs from database"""
-    user = request.user
-    logs = ActivityLog.objects.filter(user=user).order_by('-created_at')[:50]
-    
-    logs_data = []
-    for log in logs:
-        logs_data.append({
-            "id": log.id,
-            "device": "Unknown",  # Would need to parse user_agent
-            "browser": log.user_agent[:50] if log.user_agent else "Unknown",
-            "ip": log.ip_address or "Unknown",
-            "location": log.location or "Unknown",
-            "country": "ke",  # Default
-            "time": pretty_time_ago(log.created_at),
-            "current": False,  # Would need device tracking
-            "status": "success",  # Default
-            "activity_type": log.activity_type
-        })
-    
-    return Response({"logs": logs_data})
+    try:
+        account = request.user
+        logs = ActivityLog.objects.filter(account=account).order_by('-created_at')[:50]
+        
+        logs_data = []
+        for log in logs:
+            logs_data.append({
+                "id": log.id,
+                "device": "Unknown",
+                "browser": (log.user_agent or "Unknown")[:50],
+                "ip": log.ip_address or "Unknown",
+                "location": log.location or "Unknown",
+                "country": "ke",
+                "time": pretty_time_ago(log.created_at),
+                "current": False,
+                "status": "success",
+                "activity_type": log.activity_type or "unknown"
+            })
+        
+        return Response({"logs": logs_data})
+    except Exception as e:
+        logger.error(f"Error in get_activity_logs: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# Data Export
+
+# -----------------------------------------------------------------
+# DATA EXPORT
+# -----------------------------------------------------------------
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def export_user_data(request):
-    """Export user data"""
-    user = request.user
-    profile = user.profile
-    settings = user.settings
-    
-    # Gather data from all models
-    data = {
-        "profile": {
-            "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "date_joined": user.date_joined.isoformat(),
-            "last_login": user.last_login.isoformat() if user.last_login else None
-        },
-        "extended_profile": {
-            "phone": profile.phone,
-            "phone_verified": profile.phone_verified,
-            "email_verified": profile.email_verified,
-            "subscription_tier": profile.subscription_tier,
-            "account_number": profile.account_number,
-            "last_password_change": profile.last_password_change.isoformat()
-        },
-        "settings": {
-            "dark_mode": settings.dark_mode,
-            "language": settings.language,
-            "email_notifications": settings.email_notifications,
-            "two_factor_enabled": settings.two_factor_enabled,
-            "data_collection": settings.data_collection
-        },
-        "activity_logs_count": ActivityLog.objects.filter(user=user).count(),
-        "security_alerts_count": SecurityAlert.objects.filter(user=user).count(),
-        "devices_count": ConnectedDevice.objects.filter(user=user).count(),
-        "exported_at": timezone.now().isoformat()
-    }
-    
-    create_activity_log(user, 'settings_change', request, {'action': 'data_export'})
-    
-    return Response({
-        "data": data,
-        "filename": f"claverica_export_{user.username}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json",
-        "message": "Data exported successfully"
-    })
+    """Export account data"""
+    try:
+        account = request.user
+        profile = account.user_profile
+        settings = account.user_settings
+        
+        # Gather data from all models
+        data = {
+            "profile": {
+                "email": account.email,
+                "first_name": account.first_name or "",
+                "last_name": account.last_name or "",
+                "phone": profile.phone or "",
+                "date_joined": account.date_joined.isoformat() if account.date_joined else None,
+                "last_login": account.last_login.isoformat() if account.last_login else None
+            },
+            "extended_profile": {
+                "phone_verified": profile.phone_verified,
+                "email_verified": account.email_verified,
+                "subscription_tier": profile.subscription_tier or "free",
+                "account_number": profile.account_number or f"CLV{account.id:08d}",
+                "last_password_change": profile.last_password_change.isoformat() if profile.last_password_change else None
+            },
+            "settings": {
+                "dark_mode": settings.dark_mode,
+                "language": settings.language or "en",
+                "email_notifications": settings.email_notifications,
+                "two_factor_enabled": settings.two_factor_enabled,
+                "data_collection": settings.data_collection
+            },
+            "activity_logs_count": ActivityLog.objects.filter(account=account).count(),
+            "security_alerts_count": SecurityAlert.objects.filter(account=account).count(),
+            "devices_count": ConnectedDevice.objects.filter(account=account).count(),
+            "exported_at": timezone.now().isoformat()
+        }
+        
+        create_activity_log(account, 'settings_change', request, {'action': 'data_export'})
+        
+        return Response({
+            "data": data,
+            "filename": f"claverica_export_{account.email}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json",
+            "message": "Data exported successfully"
+        })
+    except Exception as e:
+        logger.error(f"Error in export_user_data: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# Password Management
+
+# -----------------------------------------------------------------
+# PASSWORD MANAGEMENT (MOVED TO users app)
+# -----------------------------------------------------------------
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def change_password(request):
     """Change password"""
-    data = request.data
-    
-    old_password = data.get('old_password')
-    new_password = data.get('new_password')
-    confirm_password = data.get('confirm_password')
-    
-    # Validate
-    if not all([old_password, new_password, confirm_password]):
-        return Response({"error": "All fields are required"}, status=400)
-    
-    if new_password != confirm_password:
-        return Response({"error": "New passwords do not match"}, status=400)
-    
-    if len(new_password) < 8:
-        return Response({"error": "Password must be at least 8 characters"}, status=400)
-    
-    # Check old password
-    user = request.user
-    if not user.check_password(old_password):
-        return Response({"error": "Current password is incorrect"}, status=400)
-    
-    # Update password
-    user.set_password(new_password)
-    user.save()
-    
-    # Update last_password_change in profile
-    profile = user.profile
-    profile.last_password_change = timezone.now()
-    profile.save()
-    
-    # Create security alert
-    SecurityAlert.objects.create(
-        user=user,
-        alert_type='password_change',
-        severity='medium',
-        message='Password was changed successfully',
-        metadata={'changed_at': timezone.now().isoformat()}
-    )
-    
-    create_activity_log(user, 'password_change', request)
-    
-    # Keep user logged in
-    update_session_auth_hash(request, user)
-    
-    return Response({"message": "Password changed successfully"})
+    try:
+        data = request.data
+        
+        old_password = data.get('old_password')
+        new_password = data.get('new_password')
+        confirm_password = data.get('confirm_password')
+        
+        # Validate
+        if not all([old_password, new_password, confirm_password]):
+            return Response({"error": "All fields are required"}, status=400)
+        
+        if new_password != confirm_password:
+            return Response({"error": "New passwords do not match"}, status=400)
+        
+        if len(new_password) < 8:
+            return Response({"error": "Password must be at least 8 characters"}, status=400)
+        
+        # Check old password
+        account = request.user
+        if not account.check_password(old_password):
+            return Response({"error": "Current password is incorrect"}, status=400)
+        
+        # Update password
+        account.set_password(new_password)
+        account.save()
+        
+        # Update last_password_change in profile
+        profile = account.user_profile
+        profile.last_password_change = timezone.now()
+        profile.save()
+        
+        # Create security alert
+        SecurityAlert.objects.create(
+            account=account,
+            alert_type='password_change',
+            severity='medium',
+            message='Password was changed successfully',
+            metadata={'changed_at': timezone.now().isoformat()}
+        )
+        
+        create_activity_log(account, 'password_change', request)
+        
+        # Keep account logged in
+        update_session_auth_hash(request, account)
+        
+        return Response({"message": "Password changed successfully"})
+    except Exception as e:
+        logger.error(f"Error in change_password: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# Verification
+
+# -----------------------------------------------------------------
+# VERIFICATION ENDPOINTS
+# -----------------------------------------------------------------
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def verify_email(request):
     """Send email verification"""
-    user = request.user
-    profile = user.profile
-    
-    # Generate verification code (in production, store in database)
-    code = ''.join(random.choices(string.digits, k=6))
-    
-    # In production, send actual email
-    logger.info(f"Email verification code for {user.email}: {code}")
-    
-    # For now, just mark as verified for demo
-    profile.email_verified = True
-    profile.save()
-    
-    create_activity_log(user, 'email_verification', request)
-    
-    return Response({
-        "message": "Email verification sent. Check your email for the verification code."
-    })
+    try:
+        account = request.user
+        profile = account.user_profile
+        
+        # Generate verification code (in production, store in database)
+        code = ''.join(random.choices(string.digits, k=6))
+        
+        # In production, send actual email
+        logger.info(f"Email verification code for {account.email}: {code}")
+        
+        # For now, just mark as verified for demo
+        account.email_verified = True
+        account.save()
+        
+        create_activity_log(account, 'email_verification', request)
+        
+        return Response({
+            "message": "Email verification sent. Check your email for the verification code."
+        })
+    except Exception as e:
+        logger.error(f"Error in verify_email: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def verify_phone(request):
     """Send phone verification"""
-    user = request.user
-    profile = user.profile
-    
-    phone_number = request.data.get('phone')
-    if phone_number:
-        profile.phone = phone_number
-        profile.save()
-    
-    # Generate verification code (in production, store in database)
-    code = ''.join(random.choices(string.digits, k=6))
-    
-    # In production, send actual SMS
-    logger.info(f"Phone verification code for {profile.phone}: {code}")
-    
-    # For now, just return success for demo
-    create_activity_log(user, 'phone_verification', request)
-    
-    return Response({
-        "message": "SMS verification sent to your phone number.",
-        "requires_code": True  # Frontend should show code input
-    })
+    try:
+        account = request.user
+        profile = account.user_profile
+        
+        phone_number = request.data.get('phone')
+        if phone_number:
+            profile.phone = phone_number
+            profile.save()
+        
+        # Generate verification code (in production, store in database)
+        code = ''.join(random.choices(string.digits, k=6))
+        
+        # In production, send actual SMS
+        logger.info(f"Phone verification code for {profile.phone or 'no phone'}: {code}")
+        
+        # For now, just return success for demo
+        create_activity_log(account, 'phone_verification', request)
+        
+        return Response({
+            "message": "SMS verification sent to your phone number.",
+            "requires_code": True
+        })
+    except Exception as e:
+        logger.error(f"Error in verify_phone: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def confirm_phone_verification(request):
     """Confirm phone verification with code"""
-    code = request.data.get('code')
-    
-    if not code or len(code) != 6 or not code.isdigit():
-        return Response({"error": "Invalid verification code"}, status=400)
-    
-    # In production, verify the code against database
-    # For demo, accept any 6-digit code
-    user = request.user
-    profile = user.profile
-    profile.phone_verified = True
-    profile.save()
-    
-    return Response({"message": "Phone verified successfully"})
+    try:
+        code = request.data.get('code')
+        
+        if not code or len(code) != 6 or not code.isdigit():
+            return Response({"error": "Invalid verification code"}, status=400)
+        
+        # In production, verify the code against database
+        account = request.user
+        profile = account.user_profile
+        profile.phone_verified = True
+        profile.save()
+        
+        return Response({"message": "Phone verified successfully"})
+    except Exception as e:
+        logger.error(f"Error in confirm_phone_verification: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

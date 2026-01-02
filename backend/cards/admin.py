@@ -3,7 +3,7 @@ Django admin configuration for Cards app
 """
 
 from django.contrib import admin
-from .models import Card, Transaction
+from .models import Card, CardTransaction
 
 
 @admin.register(Card)
@@ -33,8 +33,8 @@ class CardAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(Transaction)
-class TransactionAdmin(admin.ModelAdmin):
+@admin.register(CardTransaction)
+class CardTransactionAdmin(admin.ModelAdmin):
     list_display = [
         'id', 'user', 'card', 'amount', 'merchant',
         'transaction_type', 'status', 'created_at'

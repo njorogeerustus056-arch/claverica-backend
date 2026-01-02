@@ -87,15 +87,16 @@ SECRET_KEY = get_env_variable(
     required=not get_env_variable('DEBUG', 'False') == 'True'
 )
 
-# Force DEBUG=False when running tests
+# Set DEBUG based on environment
 if is_test_environment():
-    DEBUG = False
-    print("✓ Test environment detected, DEBUG set to False")
+    # Tests should run in development-like environment
+    DEBUG = True
+    print("✓ Test environment detected, DEBUG set to True for testing")
 else:
     DEBUG = get_env_variable('DEBUG', 'False') == 'True'
 
 # Validate critical production variables
-if not DEBUG:
+if not DEBUG and not is_test_environment():
     required_vars = ['DJANGO_SECRET_KEY', 'DATABASE_URL']
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
     if missing_vars:
@@ -120,7 +121,7 @@ if render_hostname:
     ALLOWED_HOSTS.append(f'.{render_hostname}')
 
 # ------------------------------
-# INSTALLED APPS
+# INSTALLED APPS - REMOVED DEBUG_TOOLBAR
 # ------------------------------
 INSTALLED_APPS = [
     # Django Core Apps
@@ -153,6 +154,7 @@ INSTALLED_APPS = [
     # Your custom apps
     'tasks',
     'accounts',
+    'users',
     'cards',
     'compliance',
     'crypto',
@@ -164,34 +166,24 @@ INSTALLED_APPS = [
     'transfers',
 ]
 
-# Add development tools (skip for tests)
+# Add development tools (skip for tests) - ONLY drf_spectacular
 if DEBUG and not is_test_environment():
     INSTALLED_APPS.append('drf_spectacular')
 
-# Add debug toolbar but we'll configure it properly below
-if DEBUG and not is_test_environment():
-    INSTALLED_APPS.append('debug_toolbar')
-
 # ------------------------------
-# MIDDLEWARE
+# MIDDLEWARE - REMOVED DEBUG TOOLBAR MIDDLEWARE
 # ------------------------------
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-# Add debug toolbar middleware for development (skip for tests)
-# COMMENTED OUT TEMPORARILY TO FIX THE ERROR
-# if DEBUG and not is_test_environment():
-#     MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
-#     INTERNAL_IPS = ['127.0.0.1', 'localhost']
 
 # ------------------------------
 # URLS AND TEMPLATES
@@ -418,7 +410,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
-if not DEBUG:
+if not DEBUG and not is_test_environment():
     cors_origins = get_env_variable(
         'CORS_ALLOWED_ORIGINS',
         'http://localhost:3000,http://localhost:5173'
@@ -450,7 +442,7 @@ CORS_ALLOW_HEADERS = [
 # ------------------------------
 # SECURITY
 # ------------------------------
-if not DEBUG:
+if not DEBUG and not is_test_environment():
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -541,7 +533,7 @@ else:
 # DJANGO CHANNELS CONFIG
 # ------------------------------
 redis_url = get_env_variable('REDIS_URL')
-if not DEBUG and redis_url:
+if not DEBUG and redis_url and not is_test_environment():
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -562,7 +554,7 @@ else:
 # ------------------------------
 # CACHE CONFIGURATION
 # ------------------------------
-if not DEBUG and redis_url:
+if not DEBUG and redis_url and not is_test_environment():
     CACHES = {
         "default": {
             "BACKEND": "django_redis.cache.RedisCache",
@@ -585,7 +577,7 @@ else:
 # ERROR MONITORING (Sentry)
 # ------------------------------
 sentry_dsn = get_env_variable('SENTRY_DSN')
-if not DEBUG and sentry_dsn:
+if not DEBUG and sentry_dsn and not is_test_environment():
     try:
         import sentry_sdk
         from sentry_sdk.integrations.django import DjangoIntegration
@@ -689,7 +681,12 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
-    },
+        },
+        'users': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
     },
 }
 
@@ -726,39 +723,10 @@ DEFAULT_FROM_EMAIL = get_env_variable('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 TEST_RUNNER = 'django.test.runner.DiscoverRunner'
 
 # ------------------------------
-# DEBUG TOOLBAR SETTINGS - FIXED
+# DEBUG SETTINGS (Simplified - no debug toolbar)
 # ------------------------------
 if DEBUG and not is_test_environment():
-    def show_toolbar(request):
-        return DEBUG
-    
-    DEBUG_TOOLBAR_CONFIG = {
-        'SHOW_TOOLBAR_CALLBACK': show_toolbar,
-        'SHOW_COLLAPSED': True,
-        'RESULTS_CACHE_SIZE': 3,
-        'IS_RUNNING_TESTS': False,
-        # Fix for namespace error
-        'DISABLE_PANELS': {
-            'debug_toolbar.panels.redirects.RedirectsPanel',
-        },
-    }
-    
-    # Proper configuration to avoid namespace errors
-    DEBUG_TOOLBAR_PANELS = [
-        'debug_toolbar.panels.history.HistoryPanel',
-        'debug_toolbar.panels.versions.VersionsPanel',
-        'debug_toolbar.panels.timer.TimerPanel',
-        'debug_toolbar.panels.settings.SettingsPanel',
-        'debug_toolbar.panels.headers.HeadersPanel',
-        'debug_toolbar.panels.request.RequestPanel',
-        'debug_toolbar.panels.sql.SQLPanel',
-        'debug_toolbar.panels.staticfiles.StaticFilesPanel',
-        'debug_toolbar.panels.templates.TemplatesPanel',
-        'debug_toolbar.panels.cache.CachePanel',
-        'debug_toolbar.panels.signals.SignalsPanel',
-        'debug_toolbar.panels.redirects.RedirectsPanel',
-    ]
-    
-    # Add middleware BUT COMMENTED OUT FOR NOW to fix the error
-    # MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
-    INTERNAL_IPS = ['127.0.0.1', 'localhost']
+    print("✓ Development mode enabled")
+    print("  API Documentation: /api/docs/")
+    print("  Admin Interface: /admin/")
+    print("  Health Check: /health/")

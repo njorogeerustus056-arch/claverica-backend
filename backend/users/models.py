@@ -1,169 +1,257 @@
 # users/models.py
-"""
-User Management Models for Account Settings
-"""
-import uuid
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.utils import timezone
-from django.db.models.signals import post_save
-from django.dispatch import receiver
+from django.utils.translation import gettext_lazy as _
+
 
 class UserProfile(models.Model):
-    """Extended user profile information"""
+    """Extended user profile information - User Management"""
     TIER_CHOICES = [
-        ('basic', 'Basic'),
-        ('premium', 'Premium'),
-        ('enterprise', 'Enterprise'),
+        ('basic', _('Basic')),
+        ('premium', _('Premium')),
+        ('enterprise', _('Enterprise')),
     ]
     
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    phone = models.CharField(max_length=20, blank=True, null=True)
-    phone_verified = models.BooleanField(default=False)
-    account_number = models.CharField(max_length=50, blank=True, null=True)
-    avatar_color = models.CharField(max_length=7, default='#3B82F6')
-    subscription_tier = models.CharField(max_length=20, choices=TIER_CHOICES, default='basic')
-    last_password_change = models.DateTimeField(default=timezone.now)
-    email_verified = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Link to accounts.Account (authentication model)
+    account = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='user_profile'
+    )
+    
+    # User management fields (NOT authentication)
+    phone = models.CharField(_('phone number'), max_length=20, blank=True, null=True)
+    phone_verified = models.BooleanField(_('phone verified'), default=False)
+    
+    # Account management
+    account_number = models.CharField(_('account number'), max_length=50, blank=True)
+    avatar_color = models.CharField(_('avatar color'), max_length=7, default='#3B82F6')
+    subscription_tier = models.CharField(
+        _('subscription tier'),
+        max_length=20,
+        choices=TIER_CHOICES,
+        default='basic'
+    )
+    
+    # Document Info (user management, not authentication)
+    DOC_TYPE_CHOICES = [
+        ('drivers-license', _("Driver's License")),
+        ('ssn', _("SSN")),
+        ('tfn', _("TFN")),
+        ('national-id', _("National ID")),
+        ('passport', _("Passport")),
+    ]
+    document_type = models.CharField(
+        _('document type'),
+        max_length=20,
+        choices=DOC_TYPE_CHOICES,
+        blank=True,
+        null=True
+    )
+    document_number = models.CharField(
+        _('document number'),
+        max_length=50,
+        blank=True,
+        null=True
+    )
+    
+    # Address (user management, not authentication)
+    street = models.CharField(_('street'), max_length=255, blank=True, null=True)
+    city = models.CharField(_('city'), max_length=100, blank=True, null=True)
+    state = models.CharField(_('state'), max_length=50, blank=True, null=True)
+    zip_code = models.CharField(_('zip code'), max_length=20, blank=True, null=True)
+    
+    # Employment (user management, not authentication)
+    occupation = models.CharField(_('occupation'), max_length=100, blank=True, null=True)
+    employer = models.CharField(_('employer'), max_length=100, blank=True, null=True)
+    
+    INCOME_RANGE_CHOICES = [
+        ('<25k', _('Below $25,000')),
+        ('25k-50k', _('$25,000 – $50,000')),
+        ('50k-100k', _('$50,000 – $100,000')),
+        ('100k-200k', _('$100,000 – $200,000')),
+        ('>200k', _('Above $200,000')),
+    ]
+    income_range = models.CharField(
+        _('income range'),
+        max_length=20,
+        choices=INCOME_RANGE_CHOICES,
+        blank=True,
+        null=True
+    )
+    
+    # Security (user management)
+    last_password_change = models.DateTimeField(_('last password change'), default=timezone.now)
+    
+    # Timestamps
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('updated at'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('user profile')
+        verbose_name_plural = _('user profiles')
     
     def __str__(self):
-        return f"{self.user.username} Profile"
+        return f"{self.account.email} Profile"
+    
+    def save(self, *args, **kwargs):
+        if not self.account_number:
+            self.account_number = f"USR{self.account.id:08d}"
+        super().save(*args, **kwargs)
+
 
 class UserSettings(models.Model):
     """User preferences and settings"""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='settings')
+    account = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='user_settings'
+    )
     
     # Security Settings
-    activity_logs_enabled = models.BooleanField(default=True)
-    security_pin_enabled = models.BooleanField(default=True)
-    two_factor_enabled = models.BooleanField(default=True)
-    biometric_enabled = models.BooleanField(default=False)
+    activity_logs_enabled = models.BooleanField(_('activity logs enabled'), default=True)
+    security_pin_enabled = models.BooleanField(_('security pin enabled'), default=True)
+    two_factor_enabled = models.BooleanField(_('two factor enabled'), default=True)
+    biometric_enabled = models.BooleanField(_('biometric enabled'), default=False)
     
     # Notification Settings
-    email_notifications = models.BooleanField(default=True)
-    push_notifications = models.BooleanField(default=True)
-    sms_notifications = models.BooleanField(default=False)
+    email_notifications = models.BooleanField(_('email notifications'), default=True)
+    push_notifications = models.BooleanField(_('push notifications'), default=True)
+    sms_notifications = models.BooleanField(_('sms notifications'), default=False)
     
     # Privacy Settings
+    DATA_COLLECTION_CHOICES = [
+        ('all', _('All')),
+        ('essential', _('Essential Only')),
+    ]
     data_collection = models.CharField(
+        _('data collection'),
         max_length=20,
-        choices=[('all', 'All'), ('essential', 'Essential Only')],
+        choices=DATA_COLLECTION_CHOICES,
         default='all'
     )
     
     # Appearance
-    dark_mode = models.BooleanField(default=False)
-    language = models.CharField(max_length=10, default='en')
+    dark_mode = models.BooleanField(_('dark mode'), default=False)
+    language = models.CharField(_('language'), max_length=10, default='en')
     
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Timestamps
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('updated at'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('user settings')
+        verbose_name_plural = _('user settings')
     
     def __str__(self):
-        return f"{self.user.username} Settings"
+        return f"{self.account.email} Settings"
+
 
 class SecurityAlert(models.Model):
     """Security alerts and notifications"""
     ALERT_TYPES = [
-        ('new_device', 'New Device Login'),
-        ('location_change', 'Location Change'),
-        ('password_change', 'Password Changed'),
-        ('suspicious_activity', 'Suspicious Activity'),
-        ('login_attempt', 'Failed Login Attempt'),
+        ('new_device', _('New Device Login')),
+        ('location_change', _('Location Change')),
+        ('password_change', _('Password Changed')),
+        ('suspicious_activity', _('Suspicious Activity')),
+        ('login_attempt', _('Failed Login Attempt')),
     ]
     
     SEVERITY_CHOICES = [
-        ('low', 'Low'),
-        ('medium', 'Medium'),
-        ('high', 'High'),
-        ('critical', 'Critical'),
+        ('low', _('Low')),
+        ('medium', _('Medium')),
+        ('high', _('High')),
+        ('critical', _('Critical')),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='alerts')
-    alert_type = models.CharField(max_length=50, choices=ALERT_TYPES)
-    severity = models.CharField(max_length=10, choices=SEVERITY_CHOICES)
-    message = models.TextField()
-    metadata = models.JSONField(default=dict, blank=True)
-    resolved = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    resolved_at = models.DateTimeField(null=True, blank=True)
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.alert_type} ({self.severity})"
+    account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='security_alerts'
+    )
+    alert_type = models.CharField(_('alert type'), max_length=50, choices=ALERT_TYPES)
+    severity = models.CharField(_('severity'), max_length=10, choices=SEVERITY_CHOICES)
+    message = models.TextField(_('message'))
+    metadata = models.JSONField(_('metadata'), default=dict, blank=True)
+    resolved = models.BooleanField(_('resolved'), default=False)
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
+    resolved_at = models.DateTimeField(_('resolved at'), null=True, blank=True)
     
     class Meta:
+        verbose_name = _('security alert')
+        verbose_name_plural = _('security alerts')
         ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.account.email} - {self.alert_type} ({self.severity})"
+
 
 class ConnectedDevice(models.Model):
     """Track user's connected devices"""
     DEVICE_TYPES = [
-        ('mobile', 'Mobile'),
-        ('desktop', 'Desktop'),
-        ('tablet', 'Tablet'),
+        ('mobile', _('Mobile')),
+        ('desktop', _('Desktop')),
+        ('tablet', _('Tablet')),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='devices')
-    device_id = models.CharField(max_length=255)
-    device_name = models.CharField(max_length=255)
-    device_type = models.CharField(max_length=20, choices=DEVICE_TYPES)
-    os = models.CharField(max_length=100, blank=True)
-    browser = models.CharField(max_length=100, blank=True)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    location = models.CharField(max_length=255, blank=True)
-    last_active = models.DateTimeField(default=timezone.now)
-    is_current = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.device_name}"
+    account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='connected_devices'
+    )
+    device_id = models.CharField(_('device id'), max_length=255)
+    device_name = models.CharField(_('device name'), max_length=255)
+    device_type = models.CharField(_('device type'), max_length=20, choices=DEVICE_TYPES)
+    os = models.CharField(_('operating system'), max_length=100, blank=True)
+    browser = models.CharField(_('browser'), max_length=100, blank=True)
+    ip_address = models.GenericIPAddressField(_('IP address'), null=True, blank=True)
+    location = models.CharField(_('location'), max_length=255, blank=True)
+    last_active = models.DateTimeField(_('last active'), default=timezone.now)
+    is_current = models.BooleanField(_('is current'), default=False)
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
     
     class Meta:
+        verbose_name = _('connected device')
+        verbose_name_plural = _('connected devices')
         ordering = ['-last_active']
-        unique_together = ['user', 'device_id']
+        unique_together = ['account', 'device_id']
+    
+    def __str__(self):
+        return f"{self.account.email} - {self.device_name}"
+
 
 class ActivityLog(models.Model):
     """User activity logs"""
     ACTIVITY_TYPES = [
-        ('login', 'Login'),
-        ('logout', 'Logout'),
-        ('transaction', 'Transaction'),
-        ('settings_change', 'Settings Change'),
-        ('password_change', 'Password Change'),
-        ('device_added', 'Device Added'),
-        ('device_removed', 'Device Removed'),
-        ('email_verification', 'Email Verification'),
-        ('phone_verification', 'Phone Verification'),
+        ('login', _('Login')),
+        ('logout', _('Logout')),
+        ('transaction', _('Transaction')),
+        ('settings_change', _('Settings Change')),
+        ('password_change', _('Password Change')),
+        ('device_added', _('Device Added')),
+        ('device_removed', _('Device Removed')),
+        ('email_verification', _('Email Verification')),
+        ('phone_verification', _('Phone Verification')),
+        ('profile_update', _('Profile Update')),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activity_logs')
-    activity_type = models.CharField(max_length=50, choices=ACTIVITY_TYPES)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.TextField(blank=True)
-    location = models.CharField(max_length=255, blank=True)
-    metadata = models.JSONField(default=dict, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.activity_type}"
+    account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='activity_logs'
+    )
+    activity_type = models.CharField(_('activity type'), max_length=50, choices=ACTIVITY_TYPES)
+    ip_address = models.GenericIPAddressField(_('IP address'), null=True, blank=True)
+    user_agent = models.TextField(_('user agent'), blank=True)
+    location = models.CharField(_('location'), max_length=255, blank=True)
+    metadata = models.JSONField(_('metadata'), default=dict, blank=True)
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
     
     class Meta:
+        verbose_name = _('activity log')
+        verbose_name_plural = _('activity logs')
         ordering = ['-created_at']
-
-# Signal to create profile/settings when user is created
-@receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        UserProfile.objects.create(user=instance)
-        UserSettings.objects.create(user=instance)
-
-@receiver(post_save, sender=User)
-def save_user_profile(sender, instance, **kwargs):
-    try:
-        instance.profile.save()
-    except UserProfile.DoesNotExist:
-        UserProfile.objects.create(user=instance)
-    try:
-        instance.settings.save()
-    except UserSettings.DoesNotExist:
-        UserSettings.objects.create(user=instance)
+    
+    def __str__(self):
+        return f"{self.account.email} - {self.activity_type}"

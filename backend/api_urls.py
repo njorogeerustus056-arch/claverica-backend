@@ -1,20 +1,28 @@
-# api_urls.py
+# api_urls.py - UPDATED
 """
 API URL Router
 Routes all feature app APIs under /api/<app>/
 """
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenObtainPairView
 
 urlpatterns = [
-    # Authentication endpoints - ADDED THIS SECTION
-    path('auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    # ===================================================
+    # ⚠️ REMOVED: Authentication endpoints from here
+    # JWT endpoints are now handled by accounts app
+    # ===================================================
     
     # Tasks & Rewards API
     path('tasks/', include('tasks.urls')),
     
-    # Accounts API
-    path('accounts/', include('accounts.urls')),
+    # ===================================================
+    # ACCOUNTS API (Authentication ONLY)
+    # ===================================================
+    path('auth/', include('accounts.urls')),
+    
+    # ===================================================
+    # USERS API (User Management ONLY)
+    # ===================================================
+    path('users/', include('users.urls')),
     
     # Cards API
     path('cards/', include('cards.urls')),
@@ -39,4 +47,7 @@ urlpatterns = [
     
     # Transactions API
     path('transactions/', include('transactions.urls')),
+    
+    # Transfers API
+    path('transfers/', include('transfers.urls')),
 ]

@@ -87,7 +87,7 @@ class Card(models.Model):
         return f"**** **** **** {self.last_four}"
 
 
-class Transaction(models.Model):
+class CardTransaction(models.Model):
     """Transaction model for card and account transactions"""
     
     TRANSACTION_TYPES = [

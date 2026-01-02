@@ -1,5 +1,4 @@
-# payments/models.py - CORRECTED COMPLETE VERSION
-
+# payments/models.py - UPDATED TO MATCH DATABASE SCHEMA
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
@@ -8,15 +7,13 @@ import uuid
 
 User = get_user_model()
 
-# ========== ADD THESE FUNCTIONS ==========
 def generate_account_number():
     """Generate unique account number"""
-    return str(uuid.uuid4())[:20]
+    return str(uuid.uuid4()).replace('-', '')[:20].upper()
 
 def generate_transaction_id():
     """Generate unique transaction ID"""
     return str(uuid.uuid4())
-# =========================================
 
 
 class Account(models.Model):
@@ -34,62 +31,72 @@ class Account(models.Model):
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='accounts')
-    
-    # FIXED: Changed from lambda to function reference
     account_number = models.CharField(max_length=20, unique=True, default=generate_account_number)
-    
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES, default='checking')
-    balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    available_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    available_balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     currency = models.CharField(max_length=3, choices=CURRENCIES, default='USD')
-    
-    # THIS FIELD WAS MISSING - ADDED TO MATCH DATABASE SCHEMA
     is_verified = models.BooleanField(default=False)
-    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
-        return f"{self.user.email} - {self.account_type} ({self.account_number})"
+        return f"{self.account_number} - {self.account_type} - ${self.balance}"
     
     def transfer_funds(self, to_account, amount, description=""):
-        """Transfer funds between accounts - REQUIRED FOR TESTS"""
+        """Transfer funds between accounts"""
         from django.db import transaction as db_transaction
-        from decimal import Decimal
+        
+        if not isinstance(amount, Decimal):
+            amount = Decimal(str(amount))
         
         if amount <= Decimal('0'):
             raise ValueError("Transfer amount must be positive")
         
-        if self.balance < amount:
-            raise ValueError("Insufficient funds")
+        if self.available_balance < amount:
+            raise ValueError(f"Insufficient funds. Available: ${self.available_balance}, Required: ${amount}")
         
         if self.currency != to_account.currency:
-            raise ValueError("Currency mismatch")
+            raise ValueError(f"Currency mismatch. Source: {self.currency}, Target: {to_account.currency}")
         
+        if not self.is_active:
+            raise ValueError("Source account is not active")
+        
+        if not to_account.is_active:
+            raise ValueError("Target account is not active")
+        
+        # Use database transaction for atomicity
         with db_transaction.atomic():
-            # Create transaction records
-            debit_tx = Transaction.objects.create(
-                account=self,
+            # Lock accounts for update
+            source_account = Account.objects.select_for_update().get(pk=self.pk)
+            target_account = Account.objects.select_for_update().get(pk=to_account.pk)
+            
+            # Double-check balance after locking
+            if source_account.available_balance < amount:
+                raise ValueError(f"Insufficient funds after lock")
+            
+            # Create transaction record
+            transaction = Transaction.objects.create(
+                account=source_account,
+                recipient_account=target_account,
                 amount=amount,
+                currency=source_account.currency,
                 transaction_type='transfer',
-                currency=self.currency,
                 description=description,
-                status='completed',
-                recipient_account=to_account,
-                recipient_name=to_account.user.get_full_name() or to_account.user.email
+                status='completed'
             )
             
             # Update balances
-            self.balance -= amount
-            self.available_balance -= amount
-            self.save()
+            source_account.balance -= amount
+            source_account.available_balance -= amount
+            source_account.save()
             
-            to_account.balance += amount
-            to_account.available_balance += amount
-            to_account.save()
+            target_account.balance += amount
+            target_account.available_balance += amount
+            target_account.save()
             
-            return debit_tx
+            return transaction
 
 
 class Transaction(models.Model):
@@ -99,9 +106,6 @@ class Transaction(models.Model):
         ('withdrawal', 'Withdrawal'),
         ('transfer', 'Transfer'),
         ('payment', 'Payment'),
-        ('refund', 'Refund'),
-        ('transfer_debit', 'Transfer Debit'),  # Added for transfers
-        ('transfer_credit', 'Transfer Credit'),  # Added for transfers
     ]
     
     STATUS_CHOICES = [
@@ -112,44 +116,45 @@ class Transaction(models.Model):
         ('cancelled', 'Cancelled'),
     ]
     
-    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='transactions')
+    account = models.ForeignKey(
+        Account, 
+        on_delete=models.CASCADE, 
+        related_name='transactions'
+    )
     
-    # FIXED: Changed from lambda to function reference
+    recipient_account = models.ForeignKey(
+        Account, 
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='received_transactions'
+    )
+    
     transaction_id = models.CharField(max_length=50, unique=True, default=generate_transaction_id)
-    
     transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
     amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
     currency = models.CharField(max_length=3, default='USD')
     description = models.TextField(blank=True)
-    
-    # For transfers
-    recipient_account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_transactions')
-    recipient_name = models.CharField(max_length=255, blank=True)
-    
-    # Add counterparty field for transfers
-    counterparty = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='counterparty_transactions')
-    
-    # Add related transaction field for linking transfers
-    related_transaction = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True)
-    
-    # Status tracking
+    recipient_name = models.CharField(max_length=255, blank=True, default="")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     metadata = models.JSONField(default=dict, blank=True)
     idempotency_key = models.CharField(max_length=100, unique=True, null=True, blank=True)
     
-    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
-        return f"{self.transaction_type} - {self.amount} {self.currency} - {self.status}"
+        return f"{self.transaction_type} - ${self.amount} - {self.status}"
     
     class Meta:
-        indexes = [
-            models.Index(fields=['account', 'created_at']),
-            models.Index(fields=['status', 'created_at']),
-        ]
+        ordering = ['-created_at']
+    
+    def save(self, *args, **kwargs):
+        if self.status == 'completed' and not self.completed_at:
+            from django.utils import timezone
+            self.completed_at = timezone.now()
+        super().save(*args, **kwargs)
 
 
 class Card(models.Model):
@@ -157,7 +162,6 @@ class Card(models.Model):
     CARD_TYPES = [
         ('credit', 'Credit Card'),
         ('debit', 'Debit Card'),
-        ('prepaid', 'Prepaid Card'),
     ]
     
     CARD_NETWORKS = [
@@ -167,28 +171,18 @@ class Card(models.Model):
         ('discover', 'Discover'),
     ]
     
-    STATUS_CHOICES = [
-        ('active', 'Active'),
-        ('inactive', 'Inactive'),
-        ('blocked', 'Blocked'),
-        ('expired', 'Expired'),
-    ]
-    
     account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='cards')
     card_type = models.CharField(max_length=20, choices=CARD_TYPES)
-    card_network = models.CharField(max_length=20, choices=CARD_NETWORKS)
+    card_network = models.CharField(max_length=20, choices=CARD_NETWORKS, default='visa')
     last_four = models.CharField(max_length=4)
     expiry_month = models.PositiveSmallIntegerField()
     expiry_year = models.PositiveSmallIntegerField()
     card_holder_name = models.CharField(max_length=255)
-    token = models.CharField(max_length=100, unique=True)  # Payment gateway token
-    
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    token = models.CharField(max_length=100, unique=True)
+    status = models.CharField(max_length=20, default='active')
     is_default = models.BooleanField(default=False)
-    
-    # Security fields (masked in serializers)
-    cvv = models.CharField(max_length=4, blank=True)  # Should be encrypted in production
-    encrypted_data = models.TextField(blank=True)  # For full encrypted card data
+    cvv = models.CharField(max_length=4, blank=True, default="")
+    encrypted_data = models.TextField(blank=True, default="")
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -196,30 +190,29 @@ class Card(models.Model):
     def __str__(self):
         return f"{self.card_network} •••• {self.last_four}"
     
-    class Meta:
-        ordering = ['-is_default', '-created_at']
+    def is_expired(self):
+        import datetime
+        current_year = datetime.datetime.now().year
+        current_month = datetime.datetime.now().month
+        return (self.expiry_year < current_year) or (self.expiry_year == current_year and self.expiry_month < current_month)
 
 
 class PaymentMethod(models.Model):
-    """Generic payment method model"""
-    PAYMENT_METHOD_TYPES = [
+    """Payment method model"""
+    METHOD_TYPES = [
         ('card', 'Card'),
-        ('bank_account', 'Bank Account'),
-        ('digital_wallet', 'Digital Wallet'),
-        ('crypto', 'Cryptocurrency'),
+        ('bank', 'Bank Account'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_methods')
-    method_type = models.CharField(max_length=20, choices=PAYMENT_METHOD_TYPES)
+    method_type = models.CharField(max_length=20, choices=METHOD_TYPES)
     display_name = models.CharField(max_length=255)
     is_default = models.BooleanField(default=False)
-    
-    # References to other models
-    card = models.ForeignKey(Card, on_delete=models.CASCADE, null=True, blank=True)
-    bank_account = models.ForeignKey(Account, on_delete=models.CASCADE, null=True, blank=True)
-    
-    # Metadata for different payment methods
     metadata = models.JSONField(default=dict, blank=True)
+    
+    # References to actual payment methods
+    bank_account = models.ForeignKey(Account, on_delete=models.CASCADE, null=True, blank=True)
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -229,28 +222,18 @@ class PaymentMethod(models.Model):
 
 
 class AuditLog(models.Model):
-    """Audit log for tracking important changes"""
-    ACTION_CHOICES = [
-        ('create', 'Create'),
-        ('update', 'Update'),
-        ('delete', 'Delete'),
-        ('approve', 'Approve'),
-        ('reject', 'Reject'),
-        ('block', 'Block'),
-    ]
-    
+    """Audit log model"""
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
-    model_name = models.CharField(max_length=50)
-    object_id = models.CharField(max_length=100)
+    action = models.CharField(max_length=50)
+    model_name = models.CharField(max_length=50, blank=True, default="")
+    object_id = models.CharField(max_length=100, blank=True, default="")
     details = models.JSONField(default=dict)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.TextField(blank=True)
+    user_agent = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        user_email = self.user.email if self.user else "System"
-        return f"{user_email} - {self.action} - {self.model_name}"
+        return f"{self.user.email if self.user else 'System'} - {self.action}"
     
     class Meta:
         indexes = [

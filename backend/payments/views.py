@@ -1,25 +1,23 @@
-# payments/views.py - COMPLETE CORRECTED VERSION WITH FIX
-
-from rest_framework import viewsets, status
+# payments/views.py - CORRECTED VERSION
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Q
 from django.shortcuts import get_object_or_404
-from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.db import transaction as db_transaction
-import uuid
+import logging
 
-# CORRECTED IMPORTS - Only models that exist
-from .models import Account, Transaction, Card, PaymentMethod
-
-# CORRECTED SERIALIZER IMPORTS - Only serializers that exist
+from .models import Account, Transaction, Card, AuditLog
 from .serializers import (
-    AccountSerializer, TransactionSerializer, TransactionCreateSerializer,
-    CardSerializer, AccountBalanceSerializer, TransferRequestSerializer,
-    PaymentMethodSerializer
+    AccountSerializer, AccountBalanceSerializer,
+    TransactionSerializer, QuickTransferSerializer, 
+    CardSerializer, DepositWithdrawalSerializer,
+    TransactionStatusSerializer
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AccountViewSet(viewsets.ModelViewSet):
@@ -28,279 +26,582 @@ class AccountViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return Account.objects.filter(user=self.request.user)
+        return Account.objects.filter(user=self.request.user).order_by('-created_at')
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
     
+    def perform_destroy(self, instance):
+        """Override delete to deactivate instead of hard delete"""
+        if instance.balance != Decimal('0.00'):
+            raise ValueError("Cannot deactivate account with non-zero balance")
+        instance.is_active = False
+        instance.save()
+    
     @action(detail=True, methods=['get'])
     def balance(self, request, pk=None):
-        """Get detailed balance information"""
+        """Get account balance"""
         account = self.get_object()
-        
-        with db_transaction.atomic():
-            # Use select_for_update for consistency
-            account = Account.objects.select_for_update().get(pk=account.pk)
-            
-            pending_count = Transaction.objects.filter(
-                account=account,
-                status__in=['pending', 'processing']
-            ).count()
-            
-            balance_data = {
-                'balance': account.balance,
-                'available_balance': account.available_balance,
-                'currency': account.currency,
-                'pending_transactions': pending_count,
-            }
-        
-        serializer = AccountBalanceSerializer(balance_data)
+        serializer = AccountBalanceSerializer(account)
         return Response(serializer.data)
-
-
-class TransactionViewSet(viewsets.ModelViewSet):
-    """Manage transactions"""
-    permission_classes = [IsAuthenticated]
-    
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return TransactionCreateSerializer
-        return TransactionSerializer
-    
-    def get_queryset(self):
-        user_accounts = Account.objects.filter(user=self.request.user)
-        return Transaction.objects.filter(account__in=user_accounts)
-    
-    def create(self, request, *args, **kwargs):
-        """Create transaction with idempotency check"""
-        idempotency_key = request.headers.get('Idempotency-Key')
-        
-        if idempotency_key:
-            # Check for existing transaction with same idempotency key
-            existing = Transaction.objects.filter(
-                idempotency_key=idempotency_key
-            ).first()
-            
-            if existing:
-                return Response(
-                    TransactionSerializer(existing).data,
-                    status=status.HTTP_200_OK
-                )
-        
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        with db_transaction.atomic():
-            # Add idempotency key if provided
-            if idempotency_key:
-                serializer.validated_data['idempotency_key'] = idempotency_key
-            
-            transaction = serializer.save()
-        
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            TransactionSerializer(transaction).data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
-        )
     
     @action(detail=True, methods=['post'])
-    def cancel(self, request, pk=None):
-        """Cancel a pending transaction"""
-        transaction = self.get_object()
+    def deposit(self, request, pk=None):
+        """Deposit funds into account"""
+        account = self.get_object()
         
-        if transaction.status not in ['pending', 'processing']:
-            return Response(
-                {'error': 'Only pending transactions can be cancelled'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        serializer = DepositWithdrawalSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        with db_transaction.atomic():
-            # Lock transaction and account
-            transaction = Transaction.objects.select_for_update().get(pk=transaction.pk)
-            account = Account.objects.select_for_update().get(pk=transaction.account.pk)
+        try:
+            amount = Decimal(str(serializer.validated_data['amount']))
+            description = serializer.validated_data.get('description', 'Deposit')
             
-            transaction.status = 'cancelled'
-            transaction.save()
+            if amount <= Decimal('0'):
+                return Response(
+                    {'error': 'Amount must be greater than 0'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
-            # Refund amount to account if already deducted
-            if transaction.transaction_type in ['withdrawal', 'transfer', 'payment']:
-                account.available_balance += transaction.amount
+            with db_transaction.atomic():
+                # Create deposit transaction
+                transaction = Transaction.objects.create(
+                    account=account,
+                    amount=amount,
+                    currency=account.currency,
+                    transaction_type='deposit',
+                    description=description,
+                    status='completed'
+                )
+                
+                # Update account balance
+                account.balance += amount
+                account.available_balance += amount
                 account.save()
-        
-        return Response({'status': 'Transaction cancelled'})
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def quick_transfer(request):
-    """Quick transfer endpoint with atomic operations - FIXED VERSION"""
-    serializer = TransferRequestSerializer(data=request.data)
-    
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        with db_transaction.atomic():
-            # Get the sender's account - FIXED: Use filter().first() instead of get()
-            account = Account.objects.select_for_update().filter(
-                user=request.user,
-                is_active=True
-            ).first()
-            
-            if not account:
-                return Response(
-                    {'error': 'No active account found'},
-                    status=status.HTTP_404_NOT_FOUND
+                
+                # Log the deposit
+                AuditLog.objects.create(
+                    user=request.user,
+                    action='deposit_made',
+                    details={
+                        'account_id': account.id,
+                        'account_number': account.account_number,
+                        'amount': str(amount),
+                        'transaction_id': transaction.transaction_id
+                    }
                 )
-            
-            recipient_account = Account.objects.select_for_update().get(
-                account_number=serializer.validated_data['recipient_account_number']
-            )
-            
-            amount = serializer.validated_data['amount']
-            
-            # Check balance
-            if account.available_balance < amount:
-                return Response(
-                    {'error': 'Insufficient balance'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Check currency match
-            if account.currency != recipient_account.currency:
-                return Response(
-                    {'error': 'Currency mismatch'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Create transaction
-            transaction = Transaction.objects.create(
-                account=account,
-                transaction_type='transfer',
-                amount=amount,
-                currency=serializer.validated_data.get('currency', 'USD'),
-                recipient_account=recipient_account,
-                recipient_name=recipient_account.user.get_full_name() or recipient_account.user.email,
-                description=serializer.validated_data.get('description', ''),
-                status='completed',
-                idempotency_key=request.headers.get('Idempotency-Key', str(uuid.uuid4()))
-            )
-            
-            # Update balances atomically
-            account.balance -= amount
-            account.available_balance -= amount
-            account.save()
-            
-            recipient_account.balance += amount
-            recipient_account.available_balance += amount
-            recipient_account.save()
             
             return Response(
                 TransactionSerializer(transaction).data,
                 status=status.HTTP_201_CREATED
             )
             
-    except Account.DoesNotExist:
-        return Response(
-            {'error': 'Account not found'},
-            status=status.HTTP_404_NOT_FOUND
+        except InvalidOperation:
+            return Response(
+                {'error': 'Invalid amount format'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Deposit failed: {str(e)}")
+            return Response(
+                {'error': 'Deposit failed. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def withdraw(self, request, pk=None):
+        """Withdraw funds from account"""
+        account = self.get_object()
+        
+        serializer = DepositWithdrawalSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            amount = Decimal(str(serializer.validated_data['amount']))
+            description = serializer.validated_data.get('description', 'Withdrawal')
+            
+            if amount <= Decimal('0'):
+                return Response(
+                    {'error': 'Amount must be greater than 0'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check available balance, not just balance
+            if account.available_balance < amount:
+                return Response(
+                    {'error': 'Insufficient available funds'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            with db_transaction.atomic():
+                # Create withdrawal transaction
+                transaction = Transaction.objects.create(
+                    account=account,
+                    amount=amount,
+                    currency=account.currency,
+                    transaction_type='withdrawal',
+                    description=description,
+                    status='completed'
+                )
+                
+                # Update account balance
+                account.balance -= amount
+                account.available_balance -= amount
+                account.save()
+                
+                # Log the withdrawal
+                AuditLog.objects.create(
+                    user=request.user,
+                    action='withdrawal_made',
+                    details={
+                        'account_id': account.id,
+                        'account_number': account.account_number,
+                        'amount': str(amount),
+                        'transaction_id': transaction.transaction_id
+                    }
+                )
+            
+            return Response(
+                TransactionSerializer(transaction).data,
+                status=status.HTTP_201_CREATED
+            )
+            
+        except InvalidOperation:
+            return Response(
+                {'error': 'Invalid amount format'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Withdrawal failed: {str(e)}")
+            return Response(
+                {'error': 'Withdrawal failed. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class TransactionViewSet(viewsets.ModelViewSet):  # CHANGED: ReadOnlyModelViewSet -> ModelViewSet
+    """View and create transactions"""
+    serializer_class = TransactionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Get transactions where user is involved using account and recipient_account
+        return Transaction.objects.filter(
+            Q(account__user=user) | 
+            Q(recipient_account__user=user)
+        ).select_related(
+            'account', 'recipient_account', 
+            'account__user', 'recipient_account__user'
+        ).order_by('-created_at')
+    
+    def create(self, request, *args, **kwargs):
+        """Handle transaction creation"""
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get validated data
+            data = serializer.validated_data
+            account = data.get('account')
+            recipient_account = data.get('recipient_account')
+            amount = data['amount']
+            transaction_type = data.get('transaction_type', 'transfer')
+            description = data.get('description', '')
+            
+            # Handle different transaction types
+            if transaction_type == 'deposit':
+                # Deposit: account receives money
+                if not account:
+                    return Response(
+                        {'error': 'Account is required for deposit'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                with db_transaction.atomic():
+                    # Create transaction
+                    transaction = Transaction.objects.create(
+                        account=account,
+                        amount=amount,
+                        currency=account.currency,
+                        transaction_type='deposit',
+                        description=description,
+                        status='completed'
+                    )
+                    
+                    # Update balance
+                    account.balance += amount
+                    account.available_balance += amount
+                    account.save()
+                    
+            elif transaction_type == 'withdrawal':
+                # Withdrawal: account sends money (no recipient)
+                if not account:
+                    return Response(
+                        {'error': 'Account is required for withdrawal'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                if account.available_balance < amount:
+                    return Response(
+                        {'error': 'Insufficient available funds'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                with db_transaction.atomic():
+                    # Create transaction
+                    transaction = Transaction.objects.create(
+                        account=account,
+                        amount=amount,
+                        currency=account.currency,
+                        transaction_type='withdrawal',
+                        description=description,
+                        status='completed'
+                    )
+                    
+                    # Update balance
+                    account.balance -= amount
+                    account.available_balance -= amount
+                    account.save()
+                    
+            elif transaction_type == 'transfer':
+                # Transfer: account sends to recipient_account
+                if not account or not recipient_account:
+                    return Response(
+                        {'error': 'Both sender and recipient accounts are required for transfer'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Check if sender account belongs to user
+                if account.user != request.user:
+                    return Response(
+                        {'error': 'You can only transfer from your own accounts'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+                
+                # Check if recipient account is active
+                if not recipient_account.is_active:
+                    return Response(
+                        {'error': 'Recipient account is not active'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Use the account's transfer_funds method
+                transaction = account.transfer_funds(
+                    to_account=recipient_account,
+                    amount=amount,
+                    description=description
+                )
+                
+            else:
+                return Response(
+                    {'error': f'Invalid transaction type: {transaction_type}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Serialize and return the created transaction
+            output_serializer = TransactionSerializer(transaction)
+            return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+            
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Transaction creation failed: {str(e)}")
+            return Response(
+                {'error': 'Transaction creation failed'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def update_status(self, request, pk=None):
+        """Update transaction status (admin/owner only)"""
+        transaction = self.get_object()
+        
+        # Check if user has permission to update this transaction
+        user = request.user
+        
+        # User must be either sender or receiver
+        is_owner = (
+            (transaction.account and transaction.account.user == user) or
+            (transaction.recipient_account and transaction.recipient_account.user == user)
         )
-    except Exception as e:
-        return Response(
-            {'error': str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        
+        if not is_owner and not user.is_staff:
+            return Response(
+                {'error': 'You do not have permission to update this transaction'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = TransactionStatusSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            new_status = serializer.validated_data['status']
+            notes = serializer.validated_data.get('notes', '')
+            
+            # Update transaction status
+            old_status = transaction.status
+            transaction.status = new_status
+            transaction.description = f"{transaction.description}\nStatus Update: {new_status}. Notes: {notes}"
+            transaction.save()
+            
+            # Log the status change
+            AuditLog.objects.create(
+                user=request.user,
+                action='transaction_status_updated',
+                details={
+                    'transaction_id': transaction.transaction_id,
+                    'old_status': old_status,
+                    'new_status': new_status,
+                    'notes': notes
+                }
+            )
+            
+            return Response(
+                TransactionSerializer(transaction).data,
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            logger.error(f"Status update failed: {str(e)}")
+            return Response(
+                {'error': 'Failed to update transaction status'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'])
+    def quick_transfer(self, request):
+        """Quick transfer endpoint"""
+        serializer = QuickTransferSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            to_account_number = serializer.validated_data['to_account_number']
+            amount = Decimal(str(serializer.validated_data['amount']))
+            description = serializer.validated_data.get('description', 'Quick Transfer')
+            
+            if amount <= Decimal('0'):
+                return Response(
+                    {'error': 'Amount must be greater than 0'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get sender's primary account (first active account)
+            sender_account = Account.objects.filter(
+                user=request.user,
+                is_active=True
+            ).first()
+            
+            if not sender_account:
+                return Response(
+                    {'error': 'No active account found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get recipient account
+            try:
+                recipient_account = Account.objects.get(
+                    account_number=to_account_number,
+                    is_active=True
+                )
+            except Account.DoesNotExist:
+                return Response(
+                    {'error': 'Recipient account not found or inactive'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Check if transferring to self
+            if sender_account.id == recipient_account.id:
+                return Response(
+                    {'error': 'Cannot transfer to the same account'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Use the model's transfer_funds method
+            transaction = sender_account.transfer_funds(
+                to_account=recipient_account,
+                amount=amount,
+                description=description
+            )
+            
+            # Log the transfer
+            AuditLog.objects.create(
+                user=request.user,
+                action='quick_transfer_made',
+                details={
+                    'from_account': sender_account.account_number,
+                    'to_account': recipient_account.account_number,
+                    'amount': str(amount),
+                    'transaction_id': transaction.transaction_id
+                }
+            )
+            
+            return Response(
+                TransactionSerializer(transaction).data,
+                status=status.HTTP_201_CREATED
+            )
+            
+        except Account.DoesNotExist:
+            return Response(
+                {'error': 'Account not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except InvalidOperation:
+            return Response(
+                {'error': 'Invalid amount format'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Quick transfer failed: {str(e)}")
+            return Response(
+                {'error': 'Transfer failed. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class CardViewSet(viewsets.ModelViewSet):
-    """Manage cards - SECURE VERSION"""
+    """Manage cards"""
     serializer_class = CardSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        user_accounts = Account.objects.filter(user=self.request.user)
-        return Card.objects.filter(account__in=user_accounts)
+        user_accounts = Account.objects.filter(user=self.request.user, is_active=True)
+        return Card.objects.filter(account__in=user_accounts).order_by('-created_at')
     
-    def create(self, request, *args, **kwargs):
-        """Create card - should integrate with payment gateway"""
-        # In production, this should call Stripe/PayPal to create a token
-        # NEVER accept raw card details directly!
+    def perform_create(self, serializer):
+        """Create a new card - ensure it's associated with user's account"""
+        account = serializer.validated_data.get('account')
         
-        # Example with Stripe:
-        # stripe_token = request.data.get('stripe_token')
-        # stripe.Customer.create_source(customer_id, source=stripe_token)
+        # Verify the account belongs to the user
+        if account.user != self.request.user:
+            raise permissions.PermissionDenied("You can only add cards to your own accounts")
         
-        return Response(
-            {'error': 'Card creation requires payment gateway integration'},
-            status=status.HTTP_501_NOT_IMPLEMENTED
+        serializer.save()
+        
+        # Log card creation (masked for security)
+        AuditLog.objects.create(
+            user=self.request.user,
+            action='card_created',
+            details={
+                'account_id': account.id,
+                'card_type': serializer.validated_data.get('card_type'),
+                'last_four': serializer.validated_data.get('last_four'),
+                'status': 'active'
+            }
         )
     
     @action(detail=True, methods=['post'])
-    def block(self, request, pk=None):
-        """Block a card"""
-        with db_transaction.atomic():
-            card = Card.objects.select_for_update().get(pk=pk)
-            card.status = 'blocked'
-            card.save()
-            
-            # Call payment gateway to block card
-            # stripe.Customer.delete_source(customer_id, card.token)
-            
-        return Response({'status': 'Card blocked'})
-
-
-class PaymentMethodViewSet(viewsets.ModelViewSet):
-    """Manage payment methods"""
-    serializer_class = PaymentMethodSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        return PaymentMethod.objects.filter(user=self.request.user)
-    
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+    def deactivate(self, request, pk=None):
+        """Deactivate a card"""
+        card = self.get_object()
+        
+        old_status = card.status
+        card.status = 'inactive'
+        card.save()
+        
+        # Log card deactivation
+        AuditLog.objects.create(
+            user=request.user,
+            action='card_deactivated',
+            details={
+                'card_id': card.id,
+                'last_four': card.last_four,
+                'old_status': old_status,
+                'new_status': card.status
+            }
+        )
+        
+        return Response({
+            'message': 'Card deactivated successfully',
+            'card_id': card.id,
+            'status': card.status
+        })
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard_stats(request):
     """Get dashboard statistics"""
+    user = request.user
+    
     try:
-        user_accounts = Account.objects.filter(user=request.user)
+        # Get user accounts
+        accounts = Account.objects.filter(user=user, is_active=True)
         
-        # Total balance
-        total_balance = sum(acc.balance for acc in user_accounts)
+        # Calculate total balance
+        total_balance_result = accounts.aggregate(total=Sum('balance'))
+        total_balance = total_balance_result['total'] or Decimal('0.00')
         
-        # Recent transactions
+        # Get account details
+        account_details = AccountBalanceSerializer(accounts, many=True).data
+        
+        # Get recent transactions
         recent_transactions = Transaction.objects.filter(
-            account__in=user_accounts
-        ).order_by('-created_at')[:5]
+            Q(account__user=user) | 
+            Q(recipient_account__user=user)
+        ).order_by('-created_at')[:10]
         
-        # Active cards
+        # Count active cards
         active_cards = Card.objects.filter(
-            account__in=user_accounts,
+            account__user=user,
             status='active'
         ).count()
         
-        # Pending transactions
+        # Count pending transactions
         pending_transactions = Transaction.objects.filter(
-            account__in=user_accounts,
-            status__in=['pending', 'processing']
+            Q(account__user=user),
+            status='pending'
         ).count()
         
-        stats = {
-            'total_balance': float(total_balance),
+        # Calculate monthly totals
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        one_month_ago = timezone.now() - timedelta(days=30)
+        
+        monthly_deposits = Transaction.objects.filter(
+            account__user=user,
+            transaction_type='deposit',
+            status='completed',
+            created_at__gte=one_month_ago
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        monthly_withdrawals = Transaction.objects.filter(
+            account__user=user,
+            transaction_type='withdrawal',
+            status='completed',
+            created_at__gte=one_month_ago
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        return Response({
+            'total_balance': str(total_balance),
             'currency': 'USD',
+            'accounts': account_details,
             'active_cards': active_cards,
             'pending_transactions': pending_transactions,
-            'recent_transactions': TransactionSerializer(recent_transactions, many=True).data
-        }
-        
-        return Response(stats)
+            'monthly_deposits': str(monthly_deposits),
+            'monthly_withdrawals': str(monthly_withdrawals),
+            'recent_transactions': TransactionSerializer(recent_transactions, many=True).data,
+            'account_count': accounts.count()
+        })
         
     except Exception as e:
+        logger.error(f"Dashboard stats failed: {str(e)}")
         return Response(
-            {'error': str(e)},
+            {'error': 'Failed to load dashboard data'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

@@ -4,7 +4,7 @@ cards/serializers.py - CORRECTED VERSION
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Card, Transaction, CardType, CardStatus
+from .models import Card, CardTransaction, CardType, CardStatus
 from decimal import Decimal
 
 User = get_user_model()
@@ -72,7 +72,7 @@ class CardUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
-class TransactionSerializer(serializers.ModelSerializer):
+class CardTransactionSerializer(serializers.ModelSerializer):
     """Serializer for Transaction model"""
     
     user = UserSerializer(read_only=True)
@@ -81,7 +81,7 @@ class TransactionSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
-        model = Transaction
+        model = CardTransaction
         fields = [
             'id', 'user', 'card', 'card_last_four', 'amount',
             'merchant', 'category', 'transaction_type', 'transaction_type_display',
@@ -90,11 +90,11 @@ class TransactionSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user', 'created_at']
 
 
-class TransactionCreateSerializer(serializers.ModelSerializer):
+class CardTransactionCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating transactions"""
     
     class Meta:
-        model = Transaction
+        model = CardTransaction
         fields = [
             'card', 'amount', 'merchant', 'category',
             'transaction_type', 'description'
@@ -141,4 +141,4 @@ class CardDetailSerializer(serializers.ModelSerializer):
     def get_recent_transactions(self, obj):
         """Get recent transactions for this card"""
         transactions = obj.transactions.all()[:5]  # Last 5 transactions
-        return TransactionSerializer(transactions, many=True).data
+        return CardTransactionSerializer(transactions, many=True).data

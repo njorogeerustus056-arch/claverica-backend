@@ -1,4 +1,4 @@
-# urls.py
+# urls.py - UPDATED
 """
 Main URL Configuration for Claverica Backend
 Routes all API endpoints and admin interface
@@ -8,7 +8,6 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView,
     TokenBlacklistView,
@@ -16,73 +15,56 @@ from rest_framework_simplejwt.views import (
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.http import JsonResponse
 
-# Simple user profile endpoint
+# Simple health check endpoint
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def user_profile(request):
-    """Simple user profile endpoint that matches frontend expectations"""
-    user = request.user
-    
-    # Debug logging
-    print(f"[USER PROFILE] Request from user: {user.id} - {user.email}")
-    
-    # Extract basic user info
-    email_prefix = user.email.split('@')[0] if user.email else 'user'
-    
-    return Response({
-        'id': user.id,
-        'email': user.email,
-        'first_name': getattr(user, 'first_name', ''),
-        'last_name': getattr(user, 'last_name', ''),
-        'name': f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}".strip() or email_prefix.title(),
-        'account_number': getattr(user, 'account_number', f'ACC{user.id:08d}'),
-        'balance': float(getattr(user, 'balance', 0.0)),
-        'ip_address': request.META.get('REMOTE_ADDR', '192.168.1.1'),
+def health_check(request):
+    """Health check endpoint"""
+    return JsonResponse({
+        'status': 'healthy',
+        'service': 'Claverica Backend API',
+        'version': getattr(settings, 'APP_VERSION', '1.0.0'),
+        'debug': settings.DEBUG
     })
 
+# Simple API root
+@api_view(['GET'])
+def api_root(request):
+    """API root endpoint"""
+    return JsonResponse({
+        'name': 'Claverica Fintech API',
+        'version': getattr(settings, 'APP_VERSION', '1.0.0'),
+        'documentation': '/api/docs/' if settings.DEBUG else None,
+        'endpoints': {
+            'admin': '/admin/',
+            'auth': '/api/auth/',
+            'users': '/api/users/',
+            'transactions': '/api/transactions/',
+        }
+    })
+
+# Simple pusher auth stub
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def pusher_auth(request):
+    """Pusher authentication stub"""
+    return JsonResponse({'error': 'Pusher not configured'}, status=501)
+
 urlpatterns = [
+    # Health check and API root
+    path('health/', health_check, name='health-check'),
+    path('', api_root, name='api-root'),
+    
     # Admin interface
     path('admin/', admin.site.urls),
     
-    # JWT Authentication endpoints
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
-    path('api/auth/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
+    # Pusher auth
+    path('api/pusher/auth/', pusher_auth, name='pusher-auth'),
     
-    # User profile endpoint
-    path('api/user/profile/', user_profile, name='user-profile'),
+    # Main API routes (includes both accounts and users)
+    path('api/', include('api_urls')),
 ]
-
-# Try to import views safely
-try:
-    import views
-    urlpatterns += [
-        path('health/', views.health_check, name='health-check'),
-        path('', views.api_root, name='api-root'),
-        path('api/pusher/auth/', views.pusher_auth, name='pusher-auth'),
-    ]
-except ImportError as e:
-    print(f"Note: Could not import views: {e}")
-
-# Try to include api_urls safely
-try:
-    urlpatterns += [
-        path('api/', include('api_urls')),
-    ]
-except Exception as e:
-    print(f"Note: Could not include api_urls: {e}")
-
-# DEBUG TOOLBAR FIX - Add this conditionally
-if settings.DEBUG:
-    try:
-        import debug_toolbar
-        urlpatterns = [
-            path('__debug__/', include(debug_toolbar.urls)),
-        ] + urlpatterns
-    except ImportError:
-        print("Note: Debug toolbar not installed")
 
 # Serve media files in development
 if settings.DEBUG:
