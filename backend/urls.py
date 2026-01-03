@@ -28,7 +28,7 @@ def health_check(request):
     })
 
 # ============================================================================
-# CRITICAL: User Model Diagnostic Endpoint
+# CRITICAL: User Model Diagnostic Endpoint - FIXED VERSION
 # ============================================================================
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -36,17 +36,24 @@ def user_model_debug(request):
     """Diagnostic endpoint to check which user model is being used"""
     try:
         User = get_user_model()
-        UserModel = get_user_model()
         
-        # Try to check if we can create a user instance
-        can_create_user = False
-        try:
-            # Just check if model has required fields
-            has_email = hasattr(UserModel, 'email')
-            has_username = hasattr(UserModel, 'username')
-            can_create_user = True
-        except:
-            can_create_user = False
+        # Convert Path objects to strings for JSON serialization
+        db_name = settings.DATABASES['default'].get('NAME', 'Unknown')
+        if hasattr(db_name, '__str__'):
+            db_name = str(db_name)
+        
+        db_host = settings.DATABASES['default'].get('HOST', 'Unknown')
+        if db_host and hasattr(db_host, '__str__'):
+            db_host = str(db_host)
+        
+        # Convert any Path objects in apps_before_accounts to strings
+        accounts_position = settings.INSTALLED_APPS.index('accounts') if 'accounts' in settings.INSTALLED_APPS else -1
+        apps_before_accounts = []
+        if accounts_position >= 0:
+            apps_before_accounts = [
+                str(app) if hasattr(app, '__str__') else app 
+                for app in settings.INSTALLED_APPS[:accounts_position]
+            ]
         
         return JsonResponse({
             'status': 'success',
@@ -57,26 +64,23 @@ def user_model_debug(request):
             'IS_RENDER': 'RENDER' in os.environ,
             'IS_PRODUCTION': not settings.DEBUG,
             'DEBUG': settings.DEBUG,
-            'DATABASE': settings.DATABASES['default']['ENGINE'],
-            'CAN_CREATE_USER': can_create_user,
-            'USER_MODEL_HAS_EMAIL': has_email,
-            'USER_MODEL_HAS_USERNAME': has_username,
+            'DATABASE_ENGINE': settings.DATABASES['default']['ENGINE'],
+            'DATABASE_NAME': db_name,
+            'DATABASE_HOST': db_host,
+            'CAN_CREATE_USER': hasattr(User, 'email') and hasattr(User, 'password'),
+            'USER_MODEL_HAS_EMAIL': hasattr(User, 'email'),
+            'USER_MODEL_HAS_USERNAME': hasattr(User, 'username'),
             'APP_ORDER': {
-                'accounts_position': settings.INSTALLED_APPS.index('accounts') if 'accounts' in settings.INSTALLED_APPS else 'NOT_FOUND',
+                'accounts_position': accounts_position,
                 'total_apps': len(settings.INSTALLED_APPS),
-                'apps_before_accounts': settings.INSTALLED_APPS[:settings.INSTALLED_APPS.index('accounts')] if 'accounts' in settings.INSTALLED_APPS else []
-            },
-            'DATABASE_INFO': {
-                'engine': settings.DATABASES['default']['ENGINE'],
-                'name': settings.DATABASES['default'].get('NAME', 'Unknown'),
-                'host': settings.DATABASES['default'].get('HOST', 'Unknown'),
-            } if 'default' in settings.DATABASES else {}
+                'apps_before_accounts': apps_before_accounts
+            }
         })
     except Exception as e:
         return JsonResponse({
             'status': 'error',
             'error': str(e),
-            'traceback': str(e.__traceback__) if hasattr(e, '__traceback__') else None
+            'error_type': type(e).__name__
         }, status=500)
 
 # Simple API root - MAKE PUBLIC
