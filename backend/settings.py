@@ -71,7 +71,11 @@ def get_env_variable(var_name, default=None, required=False):
     return value
 
 # Load environment variables from .env file
-load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
+env_path = Path(__file__).resolve().parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+else:
+    print(f"Warning: .env file not found at {env_path}")
 
 # ------------------------------
 # BASE DIRECTORY
@@ -84,7 +88,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = get_env_variable(
     'DJANGO_SECRET_KEY',
     'django-insecure-CHANGE-THIS-IN-PRODUCTION',
-    required=not get_env_variable('DEBUG', 'False') == 'True'
+    required=not (get_env_variable('DEBUG', 'False') == 'True')
 )
 
 # Set DEBUG based on environment
@@ -111,6 +115,14 @@ API_VERSION = get_env_variable('API_VERSION', '1.0.0')
 GIT_COMMIT = get_env_variable('RENDER_GIT_COMMIT', 'local')
 APP_VERSION = f"{API_VERSION}-{GIT_COMMIT[:8]}" if GIT_COMMIT != 'local' else API_VERSION
 
+# ============================================================================
+# CRITICAL FIX: CUSTOM USER MODEL MUST BE DEFINED BEFORE INSTALLED_APPS
+# ============================================================================
+# This MUST be defined BEFORE INSTALLED_APPS to work properly
+AUTH_USER_MODEL = 'accounts.Account'
+print(f"✓ AUTH_USER_MODEL set to: {AUTH_USER_MODEL}")
+# ============================================================================
+
 # ------------------------------
 # ALLOWED HOSTS
 # ------------------------------
@@ -120,8 +132,13 @@ if render_hostname:
     ALLOWED_HOSTS.append(render_hostname)
     ALLOWED_HOSTS.append(f'.{render_hostname}')
 
+# Add any additional allowed hosts from environment
+additional_hosts = get_env_variable('ALLOWED_HOSTS')
+if additional_hosts:
+    ALLOWED_HOSTS.extend([host.strip() for host in additional_hosts.split(',')])
+
 # ------------------------------
-# INSTALLED APPS - REMOVED DEBUG_TOOLBAR
+# INSTALLED APPS - FIXED ORDER FOR CUSTOM USER MODEL
 # ------------------------------
 INSTALLED_APPS = [
     # Django Core Apps
@@ -131,11 +148,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     
-    # Daphne & Channels (MUST come BEFORE staticfiles)
-    'daphne',
-    'channels',
-    
-    # Static files (MUST come AFTER daphne)
+    # Static files
     'django.contrib.staticfiles',
     
     # Health checks
@@ -151,10 +164,14 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     
-    # Your custom apps
-    'tasks',
-    'accounts',
+    # ============================================
+    # YOUR CUSTOM APPS - ACCOUNTS MUST BE FIRST!
+    # ============================================
+    'accounts',  # ← CRITICAL: Must be before any other custom app
+    
+    # Other custom apps (order matters for dependencies)
     'users',
+    'tasks',
     'cards',
     'compliance',
     'crypto',
@@ -171,7 +188,7 @@ if DEBUG and not is_test_environment():
     INSTALLED_APPS.append('drf_spectacular')
 
 # ------------------------------
-# MIDDLEWARE - REMOVED DEBUG TOOLBAR MIDDLEWARE
+# MIDDLEWARE
 # ------------------------------
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -186,9 +203,9 @@ MIDDLEWARE = [
 ]
 
 # ------------------------------
-# URLS AND TEMPLATES
+# URLS AND TEMPLATES - FIXED URLs
 # ------------------------------
-ROOT_URLCONF = 'urls'
+ROOT_URLCONF = 'backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -204,17 +221,16 @@ TEMPLATES = [
         },
     },
 ]
-WSGI_APPLICATION = 'wsgi.application'
-ASGI_APPLICATION = 'asgi.application'
+WSGI_APPLICATION = 'backend.wsgi.application'
 
 # Create template directory if it doesn't exist
 template_dir = BASE_DIR / 'templates'
 os.makedirs(template_dir, exist_ok=True)
 
 # ------------------------------
-# DATABASE
+# DATABASE - FIXED FOR RENDER POSTGRESQL & LOCAL SQLITE
 # ------------------------------
-# Force SQLite for tests
+# Always use SQLite for tests
 if is_test_environment():
     DATABASES = {
         'default': {
@@ -222,18 +238,31 @@ if is_test_environment():
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+    print("✓ Using SQLite for testing")
 else:
+    # Check if we have a PostgreSQL database URL (for Render)
     database_url = get_env_variable('DATABASE_URL')
-    if database_url:
-        DATABASES = {
-            'default': dj_database_url.parse(database_url, conn_max_age=600, ssl_require=not DEBUG)
-        }
-        if not DEBUG:
-            DATABASES['default']['CONN_MAX_AGE'] = 600
-            DATABASES['default']['CONN_HEALTH_CHECKS'] = True
-        
-        # Add PostgreSQL-specific optimizations
-        if 'postgresql' in DATABASES['default'].get('ENGINE', ''):
+    
+    if database_url and 'postgres' in database_url:
+        # PostgreSQL for Render/Production
+        try:
+            DATABASES = {
+                'default': dj_database_url.config(
+                    default=database_url,
+                    conn_max_age=600,
+                    ssl_require=not DEBUG
+                )
+            }
+            
+            # Remove any sslmode parameter that might cause issues
+            if 'OPTIONS' in DATABASES['default'] and 'sslmode' in DATABASES['default']['OPTIONS']:
+                del DATABASES['default']['OPTIONS']['sslmode']
+            
+            if not DEBUG:
+                DATABASES['default']['CONN_MAX_AGE'] = 600
+                DATABASES['default']['CONN_HEALTH_CHECKS'] = True
+            
+            # Add PostgreSQL-specific optimizations
             DATABASES['default']['OPTIONS'] = {
                 'connect_timeout': 10,
                 'keepalives': 1,
@@ -241,13 +270,31 @@ else:
                 'keepalives_interval': 10,
                 'keepalives_count': 5,
             }
+            print("✓ Using PostgreSQL database (Render)")
+            
+            # DEBUG: Print database info for troubleshooting
+            if DEBUG:
+                print(f"  Database: {DATABASES['default']['NAME']}")
+                print(f"  User: {DATABASES['default']['USER']}")
+                print(f"  Host: {DATABASES['default']['HOST']}")
+        except Exception as e:
+            print(f"Error configuring PostgreSQL: {e}")
+            print("Falling back to SQLite...")
+            DATABASES = {
+                'default': {
+                    'ENGINE': 'django.db.backends.sqlite3',
+                    'NAME': BASE_DIR / 'db.sqlite3',
+                }
+            }
     else:
+        # SQLite for local development
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
                 'NAME': BASE_DIR / 'db.sqlite3',
             }
         }
+        print("✓ Using SQLite for local development")
 
 # ------------------------------
 # PASSWORD HASHING
@@ -258,11 +305,6 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
     'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
 ]
-
-# ------------------------------
-# CUSTOM USER MODEL
-# ------------------------------
-AUTH_USER_MODEL = 'accounts.Account'
 
 # ------------------------------
 # AUTHENTICATION BACKENDS
@@ -311,6 +353,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Create media directories if they don't exist
+os.makedirs(MEDIA_ROOT, exist_ok=True)
 os.makedirs(MEDIA_ROOT / 'receipts', exist_ok=True)
 os.makedirs(MEDIA_ROOT / 'profiles', exist_ok=True)
 
@@ -415,7 +458,8 @@ if not DEBUG and not is_test_environment():
         'CORS_ALLOWED_ORIGINS',
         'http://localhost:3000,http://localhost:5173'
     )
-    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
+    if cors_origins:
+        CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
@@ -455,6 +499,12 @@ if not DEBUG and not is_test_environment():
     SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
     X_FRAME_OPTIONS = 'DENY'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+else:
+    # In development/test, disable HTTPS redirects
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0  # Disable HSTS in development
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
@@ -530,30 +580,9 @@ else:
     print("Success: Pusher env vars loaded successfully")
 
 # ------------------------------
-# DJANGO CHANNELS CONFIG
-# ------------------------------
-redis_url = get_env_variable('REDIS_URL')
-if not DEBUG and redis_url and not is_test_environment():
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [redis_url],
-                "capacity": 1500,
-                "expiry": 10,
-            },
-        },
-    }
-else:
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer",
-        },
-    }
-
-# ------------------------------
 # CACHE CONFIGURATION
 # ------------------------------
+redis_url = get_env_variable('REDIS_URL')
 if not DEBUG and redis_url and not is_test_environment():
     CACHES = {
         "default": {
@@ -672,11 +701,6 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
-        'channels': {
-            'handlers': ['console'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
-        },
         'transfers': {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'INFO',
@@ -722,11 +746,54 @@ DEFAULT_FROM_EMAIL = get_env_variable('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 # ------------------------------
 TEST_RUNNER = 'django.test.runner.DiscoverRunner'
 
-# ------------------------------
-# DEBUG SETTINGS (Simplified - no debug toolbar)
-# ------------------------------
-if DEBUG and not is_test_environment():
-    print("✓ Development mode enabled")
-    print("  API Documentation: /api/docs/")
-    print("  Admin Interface: /admin/")
-    print("  Health Check: /health/")
+# ============================================================================
+# CRITICAL: DIAGNOSTIC OUTPUT FOR USER MODEL DEBUGGING
+# ============================================================================
+print("=" * 60)
+print("🚀 SYSTEM DIAGNOSTICS")
+print("=" * 60)
+print(f"🔧 AUTH_USER_MODEL: {AUTH_USER_MODEL}")
+print(f"🐛 DEBUG: {DEBUG}")
+print(f"🌐 ALLOWED_HOSTS: {ALLOWED_HOSTS}")
+print(f"🗄️  DATABASE ENGINE: {DATABASES['default']['ENGINE']}")
+print(f"📦 ACCOUNTS in INSTALLED_APPS: {'accounts' in INSTALLED_APPS}")
+print(f"📌 ACCOUNTS position: {INSTALLED_APPS.index('accounts') if 'accounts' in INSTALLED_APPS else 'NOT FOUND'}")
+print("=" * 60)
+print("✅ Settings loaded successfully!")
+print("=" * 60)
+# ============================================================================
+
+# Force DEBUG settings for runserver
+if 'runserver' in sys.argv:
+    DEBUG = True
+    SECURE_SSL_REDIRECT = False
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = False
+    print("✓ Runserver detected: Forcing development settings")
+
+# ============================================================================
+# CRITICAL: ADD DIAGNOSTIC ENDPOINT URL CONFIGURATION
+# ============================================================================
+# Add this to your backend/urls.py to check the settings:
+"""
+# backend/urls.py - Add this for diagnostics
+from django.http import JsonResponse
+from django.conf import settings
+
+def check_auth_model(request):
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    return JsonResponse({
+        'AUTH_USER_MODEL': getattr(settings, 'AUTH_USER_MODEL', 'NOT SET'),
+        'ACTUAL_USER_MODEL': f'{User.__module__}.{User.__name__}',
+        'IS_CUSTOM_MODEL': User.__name__ == 'Account',
+        'DEBUG': settings.DEBUG,
+        'DATABASE': settings.DATABASES['default']['ENGINE'],
+    })
+
+urlpatterns = [
+    # ... other patterns
+    path('api/check-auth-model/', check_auth_model),
+]
+"""
+# ============================================================================

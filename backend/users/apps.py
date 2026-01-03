@@ -10,6 +10,6 @@ class UsersConfig(AppConfig):
         # Import signals to ensure they're registered
         try:
             import users.signals
-            print("✅ Users signals imported successfully")
+            print(" Users signals imported successfully")
         except Exception as e:
-            print(f"⚠ Could not import users.signals: {e}")
+            print(f" Could not import users.signals: {e}")
