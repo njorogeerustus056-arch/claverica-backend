@@ -10,7 +10,7 @@ from django.conf.urls.static import static
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from django.http import JsonResponse
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from django.db import connection  # ✅ ADD THIS
 from django.contrib.auth import get_user_model
 
 # Simple health check endpoint - MAKE PUBLIC
@@ -26,6 +26,36 @@ def health_check(request):
         'environment': 'production' if not settings.DEBUG else 'development',
         'user_model': getattr(settings, 'AUTH_USER_MODEL', 'Not set'),
     })
+
+# ============================================================================
+# CRITICAL: Database Test Endpoint
+# ============================================================================
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def test_database(request):
+    """Test database connection endpoint"""
+    try:
+        # Test database connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+        
+        return JsonResponse({
+            'status': 'success',
+            'database': settings.DATABASES['default']['ENGINE'],
+            'connected': True,
+            'test_result': result[0] if result else None,
+            'ssl_mode': settings.DATABASES['default'].get('OPTIONS', {}).get('sslmode', 'Not set'),
+        })
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'database': settings.DATABASES['default']['ENGINE'],
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'debug': settings.DEBUG,
+            'is_render': 'RENDER' in os.environ,
+        }, status=500)
 
 # ============================================================================
 # CRITICAL: User Model Diagnostic Endpoint - FIXED VERSION
@@ -67,6 +97,7 @@ def user_model_debug(request):
             'DATABASE_ENGINE': settings.DATABASES['default']['ENGINE'],
             'DATABASE_NAME': db_name,
             'DATABASE_HOST': db_host,
+            'DATABASE_SSL': settings.DATABASES['default'].get('OPTIONS', {}).get('sslmode', 'Not set'),
             'CAN_CREATE_USER': hasattr(User, 'email') and hasattr(User, 'password'),
             'USER_MODEL_HAS_EMAIL': hasattr(User, 'email'),
             'USER_MODEL_HAS_USERNAME': hasattr(User, 'username'),
@@ -91,6 +122,7 @@ def api_root(request):
     debug_endpoints = {
         'user_model_check': '/api/debug/user-model/',
         'health_check': '/health/',
+        'test_database': '/test-db/',
         'admin': '/admin/',
     } if settings.DEBUG else {}
     
@@ -160,10 +192,33 @@ def reset_database_debug(request):
             'error': str(e)
         }, status=500)
 
+# ============================================================================
+# Conditional import for drf_spectacular (only in DEBUG mode)
+# ============================================================================
+if settings.DEBUG:
+    try:
+        from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+        SPECTACULAR_AVAILABLE = True
+    except ImportError:
+        SPECTACULAR_AVAILABLE = False
+        SpectacularAPIView = None
+        SpectacularSwaggerView = None
+        SpectacularRedocView = None
+else:
+    SPECTACULAR_AVAILABLE = False
+    SpectacularAPIView = None
+    SpectacularSwaggerView = None
+    SpectacularRedocView = None
+
 urlpatterns = [
     # API root and health check
     path('', api_root, name='api-root'),
     path('health/', health_check, name='health-check'),
+    
+    # ============================================================================
+    # CRITICAL: Database Test Endpoint (Added)
+    # ============================================================================
+    path('test-db/', test_database, name='test-database'),
     
     # ============================================================================
     # CRITICAL: User Model Debug Endpoint (Added)
@@ -178,22 +233,19 @@ urlpatterns = [
     # Admin interface
     path('admin/', admin.site.urls),
     
-    # API Documentation (only in development)
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
-    
     # ============================================================================
     # CRITICAL FIX: Correct API routing
     # ============================================================================
-    # Choose ONE of these options based on your project structure:
-    
-    # Option 1: If api_urls.py is in the backend directory
     path('api/', include('backend.api_urls')),
-    
-    # Option 2: If api_urls.py is in the same directory as manage.py (root)
-    # path('api/', include('api_urls')),
 ]
+
+# Add API documentation only in DEBUG mode
+if settings.DEBUG and SPECTACULAR_AVAILABLE:
+    urlpatterns += [
+        path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+        path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+        path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    ]
 
 # Serve media and static files in development
 if settings.DEBUG:
@@ -214,6 +266,7 @@ if settings.DEBUG:
     print("✓ Django URLs configured")
     print(f"  Root URL pattern count: {len(urlpatterns)}")
     print(f"  API endpoints routed through: backend.api_urls")
+    print(f"  Database test endpoint: /test-db/")
 else:
     print("✓ Production URLs configured")
     print(f"  Allowed hosts: {settings.ALLOWED_HOSTS}")

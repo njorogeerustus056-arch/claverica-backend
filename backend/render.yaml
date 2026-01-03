@@ -6,26 +6,34 @@ services:
     region: oregon
     plan: starter
     buildCommand: |
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      python manage.py collectstatic --no-input
-      python manage.py migrate --no-input
-    startCommand: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3
+      pip install --upgrade pip setuptools wheel
+      pip install -r requirements.txt --no-cache-dir
+      python manage.py makemigrations --noinput
+      python manage.py migrate --noinput
+      python manage.py collectstatic --noinput
+    startCommand: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
+    healthCheckPath: /health/
     envVars:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DEBUG
-        value: False
+        value: "False"
       - key: ALLOWED_HOSTS
-        sync: false
+        value: "claverica-backend.onrender.com,localhost,127.0.0.1"
       - key: DATABASE_URL
         fromDatabase:
           name: claverica-db
           property: connectionString
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.12.0"  # ← Changed to match yours
       - key: RENDER_EXTERNAL_HOSTNAME
-        sync: false
+        value: "claverica-backend.onrender.com"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://claverica-backend.onrender.com,http://localhost:3000,http://localhost:5173"
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://claverica-backend.onrender.com"
+      - key: API_VERSION
+        value: "1.0.0"
 
 databases:
   # PostgreSQL Database
@@ -34,105 +42,3 @@ databases:
     user: claverica_user
     plan: starter
     region: oregon
-```
-
----
-
-## ✅ **runtime.txt** (PYTHON VERSION)
-```
-python-3.11.7
-```
-
----
-
-## ✅ **.gitignore** (COMPLETE VERSION)
-```
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual Environment
-venv/
-ENV/
-env/
-.venv
-env.bak/
-venv.bak/
-
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-/media
-/staticfiles
-/static
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-.env.production
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-.AppleDouble
-.LSOverride
-
-# Uploads
-uploads/
-media/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.hypothesis/
-coverage.xml
-*.cover
-
-# Logs
-logs/
-*.log
-
-# Backup files
-*.bak
-*.tmp
-
-# Security
-*.pem
-*.key
-*.crt
