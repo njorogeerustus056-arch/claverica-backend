@@ -1,53 +1,44 @@
-# api_urls.py - UPDATED
-"""
-API URL Router
-Routes all feature app APIs under /api/<app>/
-"""
+# api_urls.py - FIXED VERSION
 from django.urls import path, include
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+    TokenBlacklistView,
+)
+from backend.views import pusher_auth
 
 urlpatterns = [
     # ===================================================
-    # ⚠️ REMOVED: Authentication endpoints from here
-    # JWT endpoints are now handled by accounts app
+    # SimpleJWT Authentication endpoints
     # ===================================================
-    
-    # Tasks & Rewards API
-    path('tasks/', include('tasks.urls')),
-    
-    # ===================================================
-    # ACCOUNTS API (Authentication ONLY)
-    # ===================================================
-    path('auth/', include('accounts.urls')),
+    path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('auth/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
     
     # ===================================================
-    # USERS API (User Management ONLY)
+    # Custom Accounts Authentication
+    # ===================================================
+    path('auth/', include('accounts.urls')),  # This adds /register/, /login/, etc
+    
+    # ===================================================
+    # Pusher Authentication
+    # ===================================================
+    path('pusher/auth/', pusher_auth, name='pusher-auth'),
+    
+    # ===================================================
+    # Feature APIs
     # ===================================================
     path('users/', include('users.urls')),
-    
-    # Cards API
+    path('tasks/', include('tasks.urls')),
     path('cards/', include('cards.urls')),
-    
-    # Compliance API
     path('compliance/', include('compliance.urls')),
-    
-    # Crypto API
     path('crypto/', include('crypto.urls')),
-    
-    # Escrow API
     path('escrow/', include('escrow.urls')),
-    
-    # Notifications API
     path('notifications/', include('notifications.urls')),
-    
-    # Payments API
     path('payments/', include('payments.urls')),
-    
-    # Receipts API
     path('receipts/', include('receipts.urls')),
-    
-    # Transactions API
     path('transactions/', include('transactions.urls')),
-    
-    # Transfers API
     path('transfers/', include('transfers.urls')),
 ]
