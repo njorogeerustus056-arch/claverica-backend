@@ -354,10 +354,14 @@ USE_I18N = True
 USE_TZ = True
 
 # ------------------------------
-# STATIC AND MEDIA FILES
+# STATIC AND MEDIA FILES - FIXED FOR WHITENOISE
 # ------------------------------
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Add this line for static file directories
+STATICFILES_DIRS = [BASE_DIR / "static"]  # For development static files
+
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -366,6 +370,19 @@ MEDIA_ROOT = BASE_DIR / 'media'
 os.makedirs(MEDIA_ROOT, exist_ok=True)
 os.makedirs(MEDIA_ROOT / 'receipts', exist_ok=True)
 os.makedirs(MEDIA_ROOT / 'profiles', exist_ok=True)
+
+# Create static directory if it doesn't exist
+static_dir = BASE_DIR / "static"
+os.makedirs(static_dir, exist_ok=True)
+
+# ------------------------------
+# WHITENOISE SETTINGS
+# ------------------------------
+WHITENOISE_AUTOREFRESH = DEBUG  # Auto-refresh static files in development
+WHITENOISE_MAX_AGE = 31536000  # Cache static files for 1 year in production
+WHITENOISE_USE_FINDERS = True  # Use Django's staticfiles finders
+WHITENOISE_ROOT = None  # Don't serve files from root
+WHITENOISE_MANIFEST_STRICT = not DEBUG  # Strict manifest checking in production
 
 # ------------------------------
 # DEFAULT AUTO FIELD
@@ -757,6 +774,11 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
+        'whitenoise': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 
@@ -804,17 +826,12 @@ print(f"🌐 ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 print(f"🗄️  DATABASE ENGINE: {DATABASES['default']['ENGINE']}")
 print(f"📦 ACCOUNTS in INSTALLED_APPS: {'accounts' in INSTALLED_APPS}")
 print(f"📌 ACCOUNTS position: {INSTALLED_APPS.index('accounts') if 'accounts' in INSTALLED_APPS else 'NOT FOUND'}")
+print(f"📁 STATIC_ROOT: {STATIC_ROOT}")
+print(f"📁 STATICFILES_DIRS: {STATICFILES_DIRS}")
+print(f"📦 WHITENOISE ENABLED: {'whitenoise.middleware.WhiteNoiseMiddleware' in MIDDLEWARE}")
 print(f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS[:3]}..." if len(CORS_ALLOWED_ORIGINS) > 3 else f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS}")
 print(f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS[:3]}..." if len(CSRF_TRUSTED_ORIGINS) > 3 else f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS}")
 print("=" * 60)
 print("✅ Settings loaded successfully!")
 print("=" * 60)
 # ============================================================================
-
-# Force DEBUG settings for runserver
-if 'runserver' in sys.argv:
-    DEBUG = True
-    SECURE_SSL_REDIRECT = False
-    CSRF_COOKIE_SECURE = False
-    SESSION_COOKIE_SECURE = False
-    print("✓ Runserver detected: Forcing development settings")

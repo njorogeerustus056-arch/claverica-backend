@@ -175,10 +175,13 @@ if settings.DEBUG and SPECTACULAR_AVAILABLE:
         path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     ]
 
-# Serve media and static files in development
+# Serve media files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# Serve static files in both development and production
+# WhiteNoise handles the actual serving, but this ensures URLs are registered
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 # ============================================================================
 # CUSTOM ADMIN CONFIG

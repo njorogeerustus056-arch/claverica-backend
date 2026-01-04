@@ -1,4 +1,5 @@
-[33mf2a43ec[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m)[m Major backend update: Complete system overhaul
-[33m5e8a2b8[m Final configuration files for deployment
-[33me0d5b04[m Claverica Payment System v1.0
-[33m96444cf[m Claverica Payment System
+[33m507ba64[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m)[m Initial commit - Django backend
+[33me369292[m Deploy production Django settings and configuration updates
+[33m8eecd3c[m Create email_verified field migration
+[33mac45c5a[m Add email_verified field to Account model
+[33m49974b1[m Add all missing packages: health-check, extensions, spectacular, redis, sentry
