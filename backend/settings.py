@@ -70,6 +70,16 @@ def get_env_variable(var_name, default=None, required=False):
         raise ImproperlyConfigured(f"Set the {var_name} environment variable")
     return value
 
+# ------------------------------
+# FRONTEND DOMAINS HELPER
+# ------------------------------
+def get_frontend_domains():
+    """Get frontend domains from environment variable"""
+    frontend_domains = get_env_variable('FRONTEND_DOMAINS', '')
+    if frontend_domains:
+        return [domain.strip() for domain in frontend_domains.split(',')]
+    return []
+
 # Load environment variables from .env file
 env_path = Path(__file__).resolve().parent.parent / ".env"
 if env_path.exists():
@@ -429,7 +439,7 @@ SIMPLE_JWT = {
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
-    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    'USER_AUTHENTICATION_RULES': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
     
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
@@ -443,9 +453,11 @@ SIMPLE_JWT = {
 }
 
 # ------------------------------
-# CORS
+# CORS - UPDATED FOR REACT FRONTEND
 # ------------------------------
 CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+# Base development origins
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:5173',
@@ -453,13 +465,31 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
+# Get frontend domains from environment
+frontend_domains = get_frontend_domains()
+if frontend_domains:
+    CORS_ALLOWED_ORIGINS.extend(frontend_domains)
+    print(f"✓ Frontend domains added to CORS: {frontend_domains}")
+
+# Always add the Render backend itself for internal calls
+if render_hostname:
+    CORS_ALLOWED_ORIGINS.append(f'https://{render_hostname}')
+    print(f"✓ Render domain added to CORS: https://{render_hostname}")
+
+# For production, ensure we don't allow all origins
 if not DEBUG and not is_test_environment():
-    cors_origins = get_env_variable(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:3000,http://localhost:5173'
-    )
-    if cors_origins:
-        CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
+    # Disable CORS_ALLOW_ALL_ORIGINS in production
+    CORS_ALLOW_ALL_ORIGINS = False
+    
+    # Fallback to environment variable if no frontend domains set
+    if not CORS_ALLOWED_ORIGINS:
+        cors_origins = get_env_variable(
+            'CORS_ALLOWED_ORIGINS',
+            'http://localhost:3000,http://localhost:5173'
+        )
+        if cors_origins:
+            CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
+            print(f"✓ CORS origins from env: {CORS_ALLOWED_ORIGINS}")
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
@@ -481,6 +511,7 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
     'content-disposition',
+    'x-csrf-token',
 ]
 
 # ------------------------------
@@ -506,6 +537,9 @@ else:
     CSRF_COOKIE_SECURE = False
     SECURE_HSTS_SECONDS = 0  # Disable HSTS in development
 
+# ------------------------------
+# CSRF TRUSTED ORIGINS - UPDATED FOR REACT
+# ------------------------------
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:5173',
@@ -513,12 +547,24 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
+# Add frontend domains to CSRF
+for domain in frontend_domains:
+    if domain not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(domain)
+
+# Add CSRF origins from environment
 csrf_origins = get_env_variable('CSRF_TRUSTED_ORIGINS')
 if csrf_origins:
-    CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in csrf_origins.split(',')])
+    for origin in csrf_origins.split(','):
+        origin = origin.strip()
+        if origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(origin)
 
+# Add Render domain to CSRF
 if render_hostname:
-    CSRF_TRUSTED_ORIGINS.append(f'https://{render_hostname}')
+    render_origin = f'https://{render_hostname}'
+    if render_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_origin)
 
 # Session security
 SESSION_SAVE_EVERY_REQUEST = True
@@ -758,6 +804,8 @@ print(f"🌐 ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 print(f"🗄️  DATABASE ENGINE: {DATABASES['default']['ENGINE']}")
 print(f"📦 ACCOUNTS in INSTALLED_APPS: {'accounts' in INSTALLED_APPS}")
 print(f"📌 ACCOUNTS position: {INSTALLED_APPS.index('accounts') if 'accounts' in INSTALLED_APPS else 'NOT FOUND'}")
+print(f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS[:3]}..." if len(CORS_ALLOWED_ORIGINS) > 3 else f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS}")
+print(f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS[:3]}..." if len(CSRF_TRUSTED_ORIGINS) > 3 else f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS}")
 print("=" * 60)
 print("✅ Settings loaded successfully!")
 print("=" * 60)
@@ -770,30 +818,3 @@ if 'runserver' in sys.argv:
     CSRF_COOKIE_SECURE = False
     SESSION_COOKIE_SECURE = False
     print("✓ Runserver detected: Forcing development settings")
-
-# ============================================================================
-# CRITICAL: ADD DIAGNOSTIC ENDPOINT URL CONFIGURATION
-# ============================================================================
-# Add this to your backend/urls.py to check the settings:
-"""
-# backend/urls.py - Add this for diagnostics
-from django.http import JsonResponse
-from django.conf import settings
-
-def check_auth_model(request):
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
-    return JsonResponse({
-        'AUTH_USER_MODEL': getattr(settings, 'AUTH_USER_MODEL', 'NOT SET'),
-        'ACTUAL_USER_MODEL': f'{User.__module__}.{User.__name__}',
-        'IS_CUSTOM_MODEL': User.__name__ == 'Account',
-        'DEBUG': settings.DEBUG,
-        'DATABASE': settings.DATABASES['default']['ENGINE'],
-    })
-
-urlpatterns = [
-    # ... other patterns
-    path('api/check-auth-model/', check_auth_model),
-]
-"""
-# ============================================================================
