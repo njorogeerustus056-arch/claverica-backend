@@ -6,27 +6,38 @@ services:
     region: oregon
     plan: starter
     
-    # ⬇️⬇️⬇️ ADD THIS LINE ⬇️⬇️⬇️
-    poetryVersion: none
-    # ⬆️⬆️⬆️ ADD THIS LINE ⬆️⬆️⬆️
-    
+    # Force setuptools instead of Poetry
     buildCommand: |
-      pip install --upgrade pip setuptools wheel
-      pip install -r requirements.txt --no-cache-dir
+      echo "=== BUILD STARTED ==="
+      echo "Using Python: $(python --version)"
+      echo "Current directory: $(pwd)"
+      
+      # Explicit pip installs (bypass Poetry)
+      python -m pip install --upgrade pip setuptools wheel
+      python -m pip install -r requirements.txt --no-cache-dir
+      
+      echo "=== RUNNING DJANGO COMMANDS ==="
       python manage.py makemigrations --noinput
       python manage.py migrate --noinput
       
-      # Ensure staticfiles directory and run collectstatic
-      echo "Creating staticfiles directory..."
+      echo "=== CREATING STATICFILES DIRECTORY ==="
       mkdir -p /opt/render/project/src/staticfiles
-      python manage.py collectstatic --noinput --clear --verbosity 2
+      echo "Directory created at: /opt/render/project/src/staticfiles"
       
-      # Verify files were copied
-      echo "Verifying static files..."
-      ls -la /opt/render/project/src/staticfiles/ 2>/dev/null || echo "staticfiles directory not found"
-      find /opt/render/project/src/staticfiles -name "*.css" | head -5
+      echo "=== RUNNING COLLECTSTATIC ==="
+      python manage.py collectstatic --noinput --clear --verbosity 3
       
-    startCommand: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
+      echo "=== VERIFYING STATIC FILES ==="
+      echo "Checking staticfiles directory:"
+      ls -la /opt/render/project/src/staticfiles/ 2>/dev/null || echo "Directory not found!"
+      echo "Checking admin CSS:"
+      ls -la /opt/render/project/src/staticfiles/admin/css/base.css 2>/dev/null || echo "Admin CSS not found!"
+      echo "Total static files count:"
+      find /opt/render/project/src/staticfiles -type f 2>/dev/null | wc -l || echo "Cannot count files"
+      
+      echo "=== BUILD COMPLETED ==="
+      
+    startCommand: python -m gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
     healthCheckPath: /health/
     
     # Static files configuration
@@ -57,6 +68,11 @@ services:
         value: "1.0.0"
       - key: DISABLE_COLLECTSTATIC
         value: "0"
+      # Add these to disable Poetry virtualenv
+      - key: POETRY_VIRTUALENVS_CREATE
+        value: "false"
+      - key: VIRTUAL_ENV
+        value: "/opt/render/.venv"
 
 databases:
   # PostgreSQL Database

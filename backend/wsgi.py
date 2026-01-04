@@ -21,5 +21,10 @@ print(f"WhiteNoise initialization:")
 print(f"  STATIC_ROOT: {STATIC_ROOT}")
 print(f"  Directory exists: {STATIC_ROOT.exists()}")
 
-application = WhiteNoise(application, root=str(STATIC_ROOT))
-application.add_files(str(STATIC_ROOT), prefix='/static/')
+# Only initialize WhiteNoise if the staticfiles directory exists
+if STATIC_ROOT.exists():
+    application = WhiteNoise(application, root=str(STATIC_ROOT))
+    application.add_files(str(STATIC_ROOT), prefix='/static/')
+else:
+    print(f"Warning: STATIC_ROOT directory {STATIC_ROOT} does not exist.")
+    print("Consider running 'python manage.py collectstatic' first.")
