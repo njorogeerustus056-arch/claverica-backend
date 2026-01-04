@@ -137,10 +137,12 @@ print(f"✓ AUTH_USER_MODEL set to: {AUTH_USER_MODEL}")
 # ALLOWED HOSTS
 # ------------------------------
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
-render_hostname = get_env_variable('RENDER_EXTERNAL_HOSTNAME')
-if render_hostname:
-    ALLOWED_HOSTS.append(render_hostname)
-    ALLOWED_HOSTS.append(f'.{render_hostname}')
+
+# Add Render hostnames
+ALLOWED_HOSTS.append('claverica-backend-rniq.onrender.com')
+ALLOWED_HOSTS.append('.claverica-backend-rniq.onrender.com')
+ALLOWED_HOSTS.append('claverica-backend.onrender.com')
+ALLOWED_HOSTS.append('.claverica-backend.onrender.com')
 
 # Add any additional allowed hosts from environment
 additional_hosts = get_env_variable('ALLOWED_HOSTS')
@@ -482,16 +484,15 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
+# Add Render domains
+CORS_ALLOWED_ORIGINS.append('https://claverica-backend-rniq.onrender.com')
+CORS_ALLOWED_ORIGINS.append('https://claverica-backend.onrender.com')
+
 # Get frontend domains from environment
 frontend_domains = get_frontend_domains()
 if frontend_domains:
     CORS_ALLOWED_ORIGINS.extend(frontend_domains)
     print(f"✓ Frontend domains added to CORS: {frontend_domains}")
-
-# Always add the Render backend itself for internal calls
-if render_hostname:
-    CORS_ALLOWED_ORIGINS.append(f'https://{render_hostname}')
-    print(f"✓ Render domain added to CORS: https://{render_hostname}")
 
 # For production, ensure we don't allow all origins
 if not DEBUG and not is_test_environment():
@@ -564,6 +565,10 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
+# Add Render domains to CSRF
+CSRF_TRUSTED_ORIGINS.append('https://claverica-backend-rniq.onrender.com')
+CSRF_TRUSTED_ORIGINS.append('https://claverica-backend.onrender.com')
+
 # Add frontend domains to CSRF
 for domain in frontend_domains:
     if domain not in CSRF_TRUSTED_ORIGINS:
@@ -576,12 +581,6 @@ if csrf_origins:
         origin = origin.strip()
         if origin not in CSRF_TRUSTED_ORIGINS:
             CSRF_TRUSTED_ORIGINS.append(origin)
-
-# Add Render domain to CSRF
-if render_hostname:
-    render_origin = f'https://{render_hostname}'
-    if render_origin not in CSRF_TRUSTED_ORIGINS:
-        CSRF_TRUSTED_ORIGINS.append(render_origin)
 
 # Session security
 SESSION_SAVE_EVERY_REQUEST = True
