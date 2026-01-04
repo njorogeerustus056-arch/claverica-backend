@@ -10,11 +10,21 @@ services:
       pip install -r requirements.txt --no-cache-dir
       python manage.py makemigrations --noinput
       python manage.py migrate --noinput
-      python manage.py collectstatic --noinput
+      
+      # Ensure staticfiles directory and run collectstatic
+      echo "Creating staticfiles directory..."
+      mkdir -p /opt/render/project/src/staticfiles
+      python manage.py collectstatic --noinput --clear --verbosity 2
+      
+      # Verify files were copied
+      echo "Verifying static files..."
+      ls -la /opt/render/project/src/staticfiles/ 2>/dev/null || echo "staticfiles directory not found"
+      find /opt/render/project/src/staticfiles -name "*.css" | head -5
+      
     startCommand: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
     healthCheckPath: /health/
     
-    # Add static files configuration
+    # Static files configuration
     staticFiles:
       - path: /static
         destination: /opt/render/project/src/staticfiles
@@ -40,7 +50,6 @@ services:
         value: "https://claverica-backend.onrender.com"
       - key: API_VERSION
         value: "1.0.0"
-      # Add this to force WhiteNoise to work
       - key: DISABLE_COLLECTSTATIC
         value: "0"
 
