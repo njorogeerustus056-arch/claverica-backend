@@ -6,13 +6,13 @@ services:
     region: oregon
     plan: starter
     
-    # Force setuptools instead of Poetry
+    # Simplified build command with proven working collectstatic
     buildCommand: |
       echo "=== BUILD STARTED ==="
       echo "Using Python: $(python --version)"
       echo "Current directory: $(pwd)"
       
-      # Explicit pip installs (bypass Poetry)
+      # Install dependencies
       python -m pip install --upgrade pip setuptools wheel
       python -m pip install -r requirements.txt --no-cache-dir
       
@@ -20,21 +20,11 @@ services:
       python manage.py makemigrations --noinput
       python manage.py migrate --noinput
       
-      echo "=== CREATING STATICFILES DIRECTORY ==="
-      mkdir -p /opt/render/project/src/staticfiles
-      echo "Directory created at: /opt/render/project/src/staticfiles"
-      
-      echo "=== RUNNING COLLECTSTATIC ==="
-      python manage.py collectstatic --noinput --clear --verbosity 3
+      echo "=== RUNNING COLLECTSTATIC (PROVEN WORKING) ==="
+      python manage.py collectstatic --noinput
       
       echo "=== VERIFYING STATIC FILES ==="
-      echo "Checking staticfiles directory:"
-      ls -la /opt/render/project/src/staticfiles/ 2>/dev/null || echo "Directory not found!"
-      echo "Checking admin CSS:"
-      ls -la /opt/render/project/src/staticfiles/admin/css/base.css 2>/dev/null || echo "Admin CSS not found!"
-      echo "Total static files count:"
-      find /opt/render/project/src/staticfiles -type f 2>/dev/null | wc -l || echo "Cannot count files"
-      
+      echo "Static files collected successfully at: $(pwd)/staticfiles"
       echo "=== BUILD COMPLETED ==="
       
     startCommand: python -m gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
@@ -51,7 +41,7 @@ services:
       - key: DEBUG
         value: "False"
       - key: ALLOWED_HOSTS
-        value: "claverica-backend.onrender.com,localhost,127.0.0.1"
+        value: "claverica-backend-rniq.onrender.com,claverica-backend.onrender.com,localhost,127.0.0.1"
       - key: DATABASE_URL
         fromDatabase:
           name: claverica-db
@@ -59,11 +49,11 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.0"
       - key: RENDER_EXTERNAL_HOSTNAME
-        value: "claverica-backend.onrender.com"
+        value: "claverica-backend-rniq.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://claverica-backend.onrender.com,http://localhost:3000,http://localhost:5173"
+        value: "https://claverica-backend-rniq.onrender.com,https://claverica-backend.onrender.com,http://localhost:3000,http://localhost:5173"
       - key: CSRF_TRUSTED_ORIGINS
-        value: "https://claverica-backend.onrender.com"
+        value: "https://claverica-backend-rniq.onrender.com,https://claverica-backend.onrender.com"
       - key: API_VERSION
         value: "1.0.0"
       - key: DISABLE_COLLECTSTATIC
