@@ -392,7 +392,7 @@ WHITENOISE_MANIFEST_STRICT = not DEBUG  # Strict manifest checking in production
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ------------------------------
-# REST FRAMEWORK
+# REST FRAMEWORK - UPDATED THROTTLE SETTINGS
 # ------------------------------
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -425,11 +425,12 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day',
-        'user': '1000/day',
-        'login': '10/minute',
-        'transaction': '30/minute',
-        'transfer': '20/minute',
+        'anon': '100/hour',        # CHANGED: Increased from 100/day to 100/hour
+        'user': '1000/hour',       # CHANGED: Increased from 1000/day to 1000/hour
+        'login': '30/minute',      # CHANGED: Increased from 10/minute to 30/minute
+        'transaction': '60/minute', # CHANGED: Increased from 30/minute to 60/minute
+        'transfer': '60/minute',    # CHANGED: Increased from 20/minute to 60/minute
+        'auth': '30/minute',       # ADDED: For token refresh/verification endpoints
     },
 }
 
@@ -653,9 +654,19 @@ if not DEBUG and redis_url and not is_test_environment():
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
                 "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
+                # IMPORTANT: Configure Redis for throttling
+                "SOCKET_CONNECT_TIMEOUT": 5,
+                "SOCKET_TIMEOUT": 5,
+                "RETRY_ON_TIMEOUT": True,
+                "MAX_CONNECTIONS": 1000,
             }
         }
     }
+    
+    # Configure DRF to use Redis for throttling
+    REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
+        'rest_framework.throttling.ScopedRateThrottle',
+    ]
 else:
     CACHES = {
         'default': {
@@ -703,7 +714,7 @@ if DEBUG and not is_test_environment():
     }
 
 # ------------------------------
-# LOGGING
+# LOGGING - ADD THROTTLE LOGGING
 # ------------------------------
 LOGGING = {
     'version': 1,
@@ -721,6 +732,10 @@ LOGGING = {
             'format': '{asctime} {levelname} {module}: {message}',
             'style': '{',
         },
+        'throttle': {
+            'format': '{asctime} THROTTLE {user} {ip} {endpoint} {rate}',
+            'style': '{',
+        },
     },
     'handlers': {
         'console': {
@@ -730,6 +745,11 @@ LOGGING = {
         'test_console': {
             'class': 'logging.StreamHandler',
             'formatter': 'test',
+        },
+        'throttle_file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs/throttle.log',
+            'formatter': 'throttle',
         },
     },
     'loggers': {
@@ -778,8 +798,17 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'rest_framework.throttling': {
+            'handlers': ['throttle_file', 'console'] if DEBUG else ['throttle_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
+
+# Create logs directory if it doesn't exist
+logs_dir = BASE_DIR / 'logs'
+os.makedirs(logs_dir, exist_ok=True)
 
 # ------------------------------
 # FILE UPLOAD SETTINGS
@@ -828,9 +857,11 @@ print(f"📌 ACCOUNTS position: {INSTALLED_APPS.index('accounts') if 'accounts' 
 print(f"📁 STATIC_ROOT: {STATIC_ROOT}")
 print(f"📁 STATICFILES_DIRS: {STATICFILES_DIRS}")
 print(f"📦 WHITENOISE ENABLED: {'whitenoise.middleware.WhiteNoiseMiddleware' in MIDDLEWARE}")
+print(f"🔐 THROTTLE RATES: {REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']}")
+print(f"💾 CACHE BACKEND: {CACHES['default']['BACKEND']}")
 print(f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS[:3]}..." if len(CORS_ALLOWED_ORIGINS) > 3 else f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS}")
 print(f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS[:3]}..." if len(CSRF_TRUSTED_ORIGINS) > 3 else f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS}")
 print("=" * 60)
-print("✅ Settings loaded successfully!")
+print("✅ Settings loaded successfully with throttle fixes!")
 print("=" * 60)
 # ============================================================================
