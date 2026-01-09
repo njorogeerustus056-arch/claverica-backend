@@ -1,8 +1,12 @@
-# accounts/models.py - Verify this is correct
+# accounts/models.py - UPDATED
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.core.validators import MinValueValidator, MaxValueValidator
+import secrets
+import string
+from datetime import timedelta
 
 
 class AccountManager(BaseUserManager):
@@ -43,14 +47,20 @@ class Account(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(_('date joined'), default=timezone.now)
     last_login = models.DateTimeField(_('last login'), blank=True, null=True)
     
-    # Authentication verification fields
+    # Email verification with OTP
     email_verified = models.BooleanField(_('email verified'), default=False)
-    email_verification_token = models.CharField(max_length=100, blank=True)
-    email_verification_sent_at = models.DateTimeField(null=True, blank=True)
+    email_verification_otp = models.CharField(max_length=6, blank=True, null=True)
+    email_verification_otp_sent_at = models.DateTimeField(blank=True, null=True)
+    email_verification_attempts = models.IntegerField(default=0)
     
-    # Password reset fields (for authentication)
-    password_reset_token = models.CharField(max_length=100, blank=True)
-    password_reset_sent_at = models.DateTimeField(null=True, blank=True)
+    # Password reset with OTP
+    password_reset_otp = models.CharField(max_length=6, blank=True, null=True)
+    password_reset_otp_sent_at = models.DateTimeField(blank=True, null=True)
+    password_reset_attempts = models.IntegerField(default=0)
+    
+    # Two-factor authentication (optional)
+    two_factor_enabled = models.BooleanField(default=False)
+    two_factor_secret = models.CharField(max_length=32, blank=True, null=True)
     
     objects = AccountManager()
     
@@ -60,6 +70,10 @@ class Account(AbstractBaseUser, PermissionsMixin):
     class Meta:
         verbose_name = _('account')
         verbose_name_plural = _('accounts')
+        indexes = [
+            models.Index(fields=['email']),
+            models.Index(fields=['email_verified']),
+        ]
     
     def __str__(self):
         return self.email
@@ -69,3 +83,90 @@ class Account(AbstractBaseUser, PermissionsMixin):
     
     def get_short_name(self):
         return self.first_name
+    
+    # OTP Generation Methods
+    def generate_otp(self, length=6):
+        """Generate a numeric OTP"""
+        digits = string.digits
+        return ''.join(secrets.choice(digits) for _ in range(length))
+    
+    def generate_email_verification_otp(self):
+        """Generate and save email verification OTP"""
+        self.email_verification_otp = self.generate_otp()
+        self.email_verification_otp_sent_at = timezone.now()
+        self.email_verification_attempts = 0
+        self.save(update_fields=[
+            'email_verification_otp', 
+            'email_verification_otp_sent_at',
+            'email_verification_attempts'
+        ])
+        return self.email_verification_otp
+    
+    def generate_password_reset_otp(self):
+        """Generate and save password reset OTP"""
+        self.password_reset_otp = self.generate_otp()
+        self.password_reset_otp_sent_at = timezone.now()
+        self.password_reset_attempts = 0
+        self.save(update_fields=[
+            'password_reset_otp', 
+            'password_reset_otp_sent_at',
+            'password_reset_attempts'
+        ])
+        return self.password_reset_otp
+    
+    def is_otp_valid(self, otp, otp_type='email_verification', expiry_minutes=10):
+        """Check if OTP is valid and not expired"""
+        if otp_type == 'email_verification':
+            otp_field = self.email_verification_otp
+            sent_at = self.email_verification_otp_sent_at
+            attempts_field = 'email_verification_attempts'
+        elif otp_type == 'password_reset':
+            otp_field = self.password_reset_otp
+            sent_at = self.password_reset_otp_sent_at
+            attempts_field = 'password_reset_attempts'
+        else:
+            return False
+        
+        if not otp_field or not sent_at:
+            return False
+        
+        # Check expiry
+        expiry_time = sent_at + timedelta(minutes=expiry_minutes)
+        if timezone.now() > expiry_time:
+            return False
+        
+        # Check attempts
+        if getattr(self, attempts_field) >= 5:
+            return False
+        
+        return otp_field == otp
+    
+    def increment_otp_attempts(self, otp_type='email_verification'):
+        """Increment OTP attempts counter"""
+        if otp_type == 'email_verification':
+            self.email_verification_attempts += 1
+            self.save(update_fields=['email_verification_attempts'])
+        elif otp_type == 'password_reset':
+            self.password_reset_attempts += 1
+            self.save(update_fields=['password_reset_attempts'])
+    
+    def clear_otp(self, otp_type='email_verification'):
+        """Clear OTP after successful verification"""
+        if otp_type == 'email_verification':
+            self.email_verification_otp = None
+            self.email_verification_otp_sent_at = None
+            self.email_verification_attempts = 0
+            self.save(update_fields=[
+                'email_verification_otp',
+                'email_verification_otp_sent_at',
+                'email_verification_attempts'
+            ])
+        elif otp_type == 'password_reset':
+            self.password_reset_otp = None
+            self.password_reset_otp_sent_at = None
+            self.password_reset_attempts = 0
+            self.save(update_fields=[
+                'password_reset_otp',
+                'password_reset_otp_sent_at',
+                'password_reset_attempts'
+            ])

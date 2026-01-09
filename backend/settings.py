@@ -830,12 +830,34 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 # EMAIL SETTINGS
 # ------------------------------
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
 EMAIL_HOST = get_env_variable('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(get_env_variable('EMAIL_PORT', 587))
 EMAIL_USE_TLS = get_env_variable('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = get_env_variable('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = get_env_variable('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = get_env_variable('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+EMAIL_HOST_USER = get_env_variable('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = get_env_variable('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = get_env_variable('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@claverica.com')
+
+# Email timeouts
+EMAIL_TIMEOUT = 30
+EMAIL_SSL_KEYFILE = None
+EMAIL_SSL_CERTFILE = None
+EMAIL_USE_SSL = False
+
+# Auto-switch to console backend in development/testing
+if DEBUG or os.environ.get('EMAIL_USE_CONSOLE', 'True') == 'True':
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    print("📧 Email backend set to Console for development/testing")
+
+# ------------------------------
+# OTP CONFIGURATION
+# ------------------------------
+OTP_EXPIRY_MINUTES = int(get_env_variable('OTP_EXPIRY_MINUTES', '10'))
+OTP_MAX_ATTEMPTS = int(get_env_variable('OTP_MAX_ATTEMPTS', '5'))
+OTP_RESEND_COOLDOWN_SECONDS = int(get_env_variable('OTP_RESEND_COOLDOWN_SECONDS', '60'))
+OTP_LENGTH = int(get_env_variable('OTP_LENGTH', '6'))
+
+APP_NAME = get_env_variable('APP_NAME', 'Claverica')
 
 # ------------------------------
 # TEST SETTINGS
@@ -861,7 +883,12 @@ print(f"🔐 THROTTLE RATES: {REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']}")
 print(f"💾 CACHE BACKEND: {CACHES['default']['BACKEND']}")
 print(f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS[:3]}..." if len(CORS_ALLOWED_ORIGINS) > 3 else f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS}")
 print(f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS[:3]}..." if len(CSRF_TRUSTED_ORIGINS) > 3 else f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS}")
+print(f"📧 EMAIL BACKEND: {EMAIL_BACKEND}")
+print(f"📧 DEFAULT FROM: {DEFAULT_FROM_EMAIL}")
+print(f"🔢 OTP EXPIRY: {OTP_EXPIRY_MINUTES} minutes")
+print(f"🔢 OTP MAX ATTEMPTS: {OTP_MAX_ATTEMPTS}")
+print(f"🔢 OTP COOLDOWN: {OTP_RESEND_COOLDOWN_SECONDS} seconds")
 print("=" * 60)
-print("✅ Settings loaded successfully with throttle fixes!")
+print("✅ Settings loaded successfully with OTP email configuration!")
 print("=" * 60)
 # ============================================================================

@@ -1,22 +1,37 @@
-# accounts/views.py - IMPORTANT FIX
+# accounts/views.py - UPDATED COMPLETELY
 import logging
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 
 from .models import Account
+from .utils.email_service import EmailService
 from .serializers import (
     AccountRegistrationSerializer, AccountLoginSerializer,
-    PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
-    EmailVerificationSerializer, AccountProfileSerializer
+    EmailVerificationOTPSerializer, PasswordResetRequestSerializer,
+    PasswordResetOTPVerifySerializer, PasswordResetConfirmSerializer,
+    AccountProfileSerializer
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ------------------------------
+# Throttle Classes
+# ------------------------------
+class StrictAnonThrottle(AnonRateThrottle):
+    rate = '5/hour'  # Stricter for security endpoints
+
+
+class ModerateAnonThrottle(AnonRateThrottle):
+    rate = '10/hour'
 
 
 # ------------------------------
@@ -30,33 +45,59 @@ class IndexView(APIView):
 
 
 # ------------------------------
-# Registration
+# Registration with OTP
 # ------------------------------
 class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = AccountRegistrationSerializer
+    throttle_classes = [ModerateAnonThrottle]
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         try:
+            # Check if email already exists
+            email = serializer.validated_data['email']
+            if Account.objects.filter(email=email).exists():
+                return Response(
+                    {'error': _('Email already registered')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
             account = serializer.save()
             
-            # Generate JWT tokens - FIXED
+            # Generate and send OTP for email verification
+            otp = account.generate_email_verification_otp()
+            
+            # Send OTP email
+            email_sent = EmailService.send_otp_email(
+                to_email=account.email,
+                otp=otp,
+                purpose='verification'
+            )
+            
+            # Generate JWT tokens
             refresh = RefreshToken.for_user(account)
             
-            return Response({
+            response_data = {
                 'account': {
                     'id': account.id,
                     'email': account.email,
                     'first_name': account.first_name,
                     'last_name': account.last_name,
+                    'email_verified': account.email_verified,
                 },
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
-                'message': _('Registration successful')
-            }, status=status.HTTP_201_CREATED)
+                'message': _('Registration successful. Please verify your email.'),
+                'otp_sent': email_sent,
+            }
+            
+            if not email_sent:
+                response_data['warning'] = _('Failed to send verification email. Please try resending.')
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
             logger.error(f"Registration error: {e}")
@@ -67,7 +108,192 @@ class RegisterView(generics.CreateAPIView):
 
 
 # ------------------------------
-# Custom JWT Login - FIXED for Account model
+# Email Verification with OTP
+# ------------------------------
+class VerifyEmailOTPView(APIView):
+    """Verify email using OTP"""
+    permission_classes = [AllowAny]
+    throttle_classes = [StrictAnonThrottle]
+    
+    def post(self, request):
+        serializer = EmailVerificationOTPSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            account = serializer.validated_data['account']
+            
+            # Verify the OTP
+            if account.is_otp_valid(serializer.validated_data['otp'], 'email_verification'):
+                # Mark email as verified
+                account.email_verified = True
+                account.clear_otp('email_verification')
+                account.save(update_fields=['email_verified'])
+                
+                # Send welcome email
+                EmailService.send_welcome_email(account.email, account.first_name)
+                
+                return Response({
+                    'success': True,
+                    'message': _('Email verified successfully!'),
+                    'account': {
+                        'id': account.id,
+                        'email': account.email,
+                        'email_verified': account.email_verified,
+                    }
+                })
+            else:
+                return Response({
+                    'error': _('Invalid or expired OTP')
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResendVerificationOTPView(APIView):
+    """Resend verification OTP"""
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [UserRateThrottle]
+    
+    def post(self, request):
+        account = request.user
+        
+        if account.email_verified:
+            return Response({
+                'message': _('Email already verified')
+            })
+        
+        # Check if OTP was sent recently (rate limiting)
+        if account.email_verification_otp_sent_at:
+            time_since_last_otp = timezone.now() - account.email_verification_otp_sent_at
+            if time_since_last_otp.total_seconds() < 60:  # 1 minute cooldown
+                return Response({
+                    'error': _('Please wait before requesting another OTP')
+                }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        # Generate and send new OTP
+        otp = account.generate_email_verification_otp()
+        email_sent = EmailService.send_otp_email(
+            to_email=account.email,
+            otp=otp,
+            purpose='verification'
+        )
+        
+        if email_sent:
+            return Response({
+                'message': _('Verification OTP sent to your email'),
+                'email': account.email,
+                'cooldown_seconds': 60
+            })
+        else:
+            return Response({
+                'error': _('Failed to send OTP email. Please try again.')
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ------------------------------
+# Password Reset with OTP
+# ------------------------------
+class PasswordResetRequestView(APIView):
+    """Request password reset - sends OTP"""
+    permission_classes = [AllowAny]
+    throttle_classes = [StrictAnonThrottle]
+    
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            
+            try:
+                account = Account.objects.get(email=email)
+                
+                # Check if OTP was sent recently
+                if account.password_reset_otp_sent_at:
+                    time_since_last_otp = timezone.now() - account.password_reset_otp_sent_at
+                    if time_since_last_otp.total_seconds() < 60:  # 1 minute cooldown
+                        return Response({
+                            'message': _('Password reset OTP already sent. Please check your email.'),
+                            'cooldown_seconds': 60
+                        })
+                
+                # Generate and send OTP
+                otp = account.generate_password_reset_otp()
+                email_sent = EmailService.send_otp_email(
+                    to_email=account.email,
+                    otp=otp,
+                    purpose='password_reset'
+                )
+                
+                if email_sent:
+                    return Response({
+                        'message': _('Password reset OTP sent to your email'),
+                        'email': account.email,
+                        'cooldown_seconds': 60
+                    })
+                else:
+                    return Response({
+                        'error': _('Failed to send OTP. Please try again.')
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    
+            except Account.DoesNotExist:
+                # Don't reveal if account exists
+                return Response({
+                    'message': _('If an account exists with this email, you will receive password reset instructions.')
+                })
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordResetVerifyOTPView(APIView):
+    """Verify OTP for password reset"""
+    permission_classes = [AllowAny]
+    throttle_classes = [StrictAnonThrottle]
+    
+    def post(self, request):
+        serializer = PasswordResetOTPVerifySerializer(data=request.data)
+        
+        if serializer.is_valid():
+            account = serializer.validated_data['account']
+            
+            return Response({
+                'success': True,
+                'message': _('OTP verified successfully'),
+                'email': account.email,
+                'token': 'valid'  # In production, you might return a temp token
+            })
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordResetConfirmView(APIView):
+    """Complete password reset with OTP verification"""
+    permission_classes = [AllowAny]
+    throttle_classes = [StrictAnonThrottle]
+    
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            account = serializer.validated_data['account']
+            new_password = serializer.validated_data['new_password']
+            
+            # Set new password
+            account.set_password(new_password)
+            account.clear_otp('password_reset')
+            account.save(update_fields=['password'])
+            
+            # Send confirmation email
+            EmailService.send_password_changed_email(account.email, account.first_name)
+            
+            return Response({
+                'success': True,
+                'message': _('Password reset successful. You can now login with your new password.')
+            })
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ------------------------------
+# Custom JWT Login
 # ------------------------------
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
@@ -87,6 +313,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [StrictAnonThrottle]
 
 
 # ------------------------------
@@ -108,74 +335,7 @@ class LogoutView(APIView):
 
 
 # ------------------------------
-# Password Reset
-# ------------------------------
-class PasswordResetView(APIView):
-    permission_classes = [AllowAny]
-    
-    def post(self, request):
-        serializer = PasswordResetRequestSerializer(data=request.data)
-        if serializer.is_valid():
-            email = serializer.validated_data['email']
-            
-            try:
-                account = Account.objects.get(email=email)
-                # Generate reset token and send email (simplified)
-                logger.info(f"Password reset requested for: {email}")
-                
-                return Response({
-                    'message': _('If an account exists with this email, you will receive password reset instructions.')
-                })
-            except Account.DoesNotExist:
-                # Don't reveal if account exists or not
-                return Response({
-                    'message': _('If an account exists with this email, you will receive password reset instructions.')
-                })
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class PasswordResetConfirmView(APIView):
-    permission_classes = [AllowAny]
-    
-    def post(self, request):
-        serializer = PasswordResetConfirmSerializer(data=request.data)
-        if serializer.is_valid():
-            logger.info("Password reset confirmed")
-            return Response({'message': _('Password reset successful')})
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# ------------------------------
-# Email Verification
-# ------------------------------
-class EmailVerificationView(APIView):
-    permission_classes = [AllowAny]
-    
-    def post(self, request):
-        serializer = EmailVerificationSerializer(data=request.data)
-        if serializer.is_valid():
-            logger.info("Email verification requested")
-            return Response({'message': _('Email verified successfully')})
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class ResendEmailVerificationView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        account = request.user
-        if account.email_verified:
-            return Response({'message': _('Email already verified')})
-        
-        logger.info(f"Resending email verification for: {account.email}")
-        return Response({'message': _('Verification email sent')})
-
-
-# ------------------------------
-# Current Account (Minimal)
+# Current Account
 # ------------------------------
 class CurrentAccountView(APIView):
     permission_classes = [IsAuthenticated]

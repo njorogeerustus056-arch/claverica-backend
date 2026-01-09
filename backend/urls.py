@@ -14,6 +14,16 @@ from django.db import connection
 from django.contrib.auth import get_user_model
 
 # ============================================================================
+# CHECK FOR API_URLS MODULE
+# ============================================================================
+try:
+    from backend import api_urls
+    API_URLS_AVAILABLE = True
+except ImportError as e:
+    API_URLS_AVAILABLE = False
+    print(f"⚠ Warning: Could not import api_urls: {e}")
+
+# ============================================================================
 # ROOT VIEW - Shows basic info
 # ============================================================================
 @api_view(['GET'])
@@ -27,7 +37,7 @@ def root_view(request):
         'environment': 'production' if not settings.DEBUG else 'development',
         'links': {
             'admin_panel': '/admin/',
-            'api_root': '/api/',
+            'api_root': '/api/' if API_URLS_AVAILABLE else None,
             'health_check': '/health/',
             'api_docs': '/api/docs/' if settings.DEBUG else None,
         },
@@ -49,6 +59,7 @@ def health_check(request):
         'environment': 'production' if not settings.DEBUG else 'development',
         'database': settings.DATABASES['default']['ENGINE'],
         'user_model': getattr(settings, 'AUTH_USER_MODEL', 'Not set'),
+        'api_available': API_URLS_AVAILABLE,
     })
 
 # ============================================================================
@@ -120,6 +131,7 @@ def user_model_debug(request):
             'CAN_CREATE_USER': hasattr(User, 'email') and hasattr(User, 'password'),
             'USER_MODEL_HAS_EMAIL': hasattr(User, 'email'),
             'USER_MODEL_HAS_USERNAME': hasattr(User, 'username'),
+            'API_URLS_AVAILABLE': API_URLS_AVAILABLE,
             'APP_ORDER': {
                 'accounts_position': accounts_position,
                 'total_apps': len(settings.INSTALLED_APPS),
@@ -130,7 +142,8 @@ def user_model_debug(request):
         return JsonResponse({
             'status': 'error',
             'error': str(e),
-            'error_type': type(e).__name__
+            'error_type': type(e).__name__,
+            'api_urls_available': API_URLS_AVAILABLE,
         }, status=500)
 
 # ============================================================================
@@ -162,10 +175,11 @@ urlpatterns = [
     
     # Admin interface
     path('admin/', admin.site.urls),
-    
-    # API routes
-    path('api/', include('backend.api_urls')),
 ]
+
+# Add API routes only if available
+if API_URLS_AVAILABLE:
+    urlpatterns.append(path('api/', include('backend.api_urls')))
 
 # Add API documentation only in DEBUG mode
 if settings.DEBUG and SPECTACULAR_AVAILABLE:
@@ -179,9 +193,9 @@ if settings.DEBUG and SPECTACULAR_AVAILABLE:
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
-# Serve static files in both development and production
-# WhiteNoise handles the actual serving, but this ensures URLs are registered
-urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+# Serve static files in development (WhiteNoise handles production)
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 # ============================================================================
 # CUSTOM ADMIN CONFIG
@@ -196,8 +210,16 @@ admin.site.index_title = "Welcome to Claverica Administration"
 if settings.DEBUG:
     print("✓ Django URLs configured")
     print(f"  Root URL pattern count: {len(urlpatterns)}")
-    print(f"  API endpoints routed through: backend.api_urls")
+    if API_URLS_AVAILABLE:
+        print(f"  API endpoints routed through: backend.api_urls")
+    else:
+        print(f"  ⚠ API endpoints NOT available (api_urls.py missing)")
     print(f"  Debug endpoints enabled")
+    
+    if SPECTACULAR_AVAILABLE:
+        print("✓ DRF Spectacular available for API documentation")
+    else:
+        print("⚠ DRF Spectacular not installed - API docs disabled")
 else:
     print("✓ Production URLs configured")
     print(f"  Allowed hosts: {settings.ALLOWED_HOSTS}")

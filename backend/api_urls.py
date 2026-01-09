@@ -13,7 +13,23 @@ from rest_framework_simplejwt.views import (
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from django.http import JsonResponse
-from backend.views import pusher_auth
+from django.conf import settings
+
+# Try to import pusher_auth with error handling
+try:
+    from backend.views import pusher_auth
+    PUSHER_AUTH_AVAILABLE = True
+except ImportError:
+    PUSHER_AUTH_AVAILABLE = False
+    print("⚠ Warning: pusher_auth view not found in backend.views")
+    # Create a placeholder function
+    @api_view(['POST'])
+    @permission_classes([AllowAny])
+    def pusher_auth(request):
+        return JsonResponse({
+            'error': 'Pusher authentication not configured',
+            'detail': 'backend.views.pusher_auth not found'
+        }, status=501)
 
 # ============================================================================
 # API ROOT ENDPOINT
@@ -23,6 +39,39 @@ from backend.views import pusher_auth
 def api_root(request):
     """API root endpoint that shows available endpoints"""
     from django.conf import settings
+    
+    # Build endpoints dictionary
+    endpoints = {
+        'authentication': {
+            'jwt_token': '/api/auth/token/',
+            'jwt_refresh': '/api/auth/token/refresh/',
+            'jwt_verify': '/api/auth/token/verify/',
+            'jwt_blacklist': '/api/auth/token/blacklist/',
+            'register': '/api/auth/register/',
+            'login': '/api/auth/login/',
+            'logout': '/api/auth/logout/',
+            'pusher_auth': '/api/pusher/auth/' if PUSHER_AUTH_AVAILABLE else None,
+        },
+        'user_management': {
+            'users': '/api/users/',
+            'user_profile': '/api/users/profile/',
+            'user_update': '/api/users/update/',
+        },
+        'features': {
+            'transactions': '/api/transactions/',
+            'payments': '/api/payments/',
+            'transfers': '/api/transfers/',
+            'cards': '/api/cards/',
+            'crypto': '/api/crypto/',
+            'escrow': '/api/escrow/',
+            'receipts': '/api/receipts/',
+            'notifications': '/api/notifications/',
+        }
+    }
+    
+    # Filter out None values
+    for category in endpoints:
+        endpoints[category] = {k: v for k, v in endpoints[category].items() if v is not None}
     
     debug_endpoints = {
         'user_model_check': '/api/debug/user-model/',
@@ -39,34 +88,9 @@ def api_root(request):
         'documentation': '/api/docs/' if settings.DEBUG else None,
         'authentication_required': True,
         'authentication_methods': ['JWT Bearer Token'],
+        'pusher_available': PUSHER_AUTH_AVAILABLE,
         'debug_endpoints': debug_endpoints,
-        'endpoints': {
-            'authentication': {
-                'jwt_token': '/api/auth/token/',
-                'jwt_refresh': '/api/auth/token/refresh/',
-                'jwt_verify': '/api/auth/token/verify/',
-                'jwt_blacklist': '/api/auth/token/blacklist/',
-                'register': '/api/auth/register/',
-                'login': '/api/auth/login/',
-                'logout': '/api/auth/logout/',
-                'pusher_auth': '/api/pusher/auth/',
-            },
-            'user_management': {
-                'users': '/api/users/',
-                'user_profile': '/api/users/profile/',
-                'user_update': '/api/users/update/',
-            },
-            'features': {
-                'transactions': '/api/transactions/',
-                'payments': '/api/payments/',
-                'transfers': '/api/transfers/',
-                'cards': '/api/cards/',
-                'crypto': '/api/crypto/',
-                'escrow': '/api/escrow/',
-                'receipts': '/api/receipts/',
-                'notifications': '/api/notifications/',
-            }
-        },
+        'endpoints': endpoints,
         'cors_enabled': True,
         'cors_allowed_origins': getattr(settings, 'CORS_ALLOWED_ORIGINS', [])[:3],  # Show first 3
     })
@@ -112,6 +136,17 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 # ============================================================================
+# APP URL AVAILABILITY CHECK
+# ============================================================================
+def check_app_urls(app_name, url_path):
+    """Check if an app's urls.py exists and is importable"""
+    try:
+        module = __import__(f'{app_name}.urls', fromlist=['urlpatterns'])
+        return True, getattr(module, 'urlpatterns', [])
+    except ImportError:
+        return False, []
+
+# ============================================================================
 # URL PATTERNS
 # ============================================================================
 urlpatterns = [
@@ -132,29 +167,43 @@ urlpatterns = [
     
     # Pusher Authentication
     path('pusher/auth/', pusher_auth, name='pusher-auth'),
-    
-    # ======================
-    # FEATURE APIS
-    # ======================
-    path('users/', include('users.urls')),
-    path('tasks/', include('tasks.urls')),
-    path('cards/', include('cards.urls')),
-    path('compliance/', include('compliance.urls')),
-    path('crypto/', include('crypto.urls')),
-    path('escrow/', include('escrow.urls')),
-    path('notifications/', include('notifications.urls')),
-    path('payments/', include('payments.urls')),
-    path('receipts/', include('receipts.urls')),
-    path('transactions/', include('transactions.urls')),
-    path('transfers/', include('transfers.urls')),
 ]
+
+# ======================
+# DYNAMICALLY ADD FEATURE APIS
+# ======================
+feature_apps = [
+    ('users', 'users/'),
+    ('tasks', 'tasks/'),
+    ('cards', 'cards/'),
+    ('compliance', 'compliance/'),
+    ('crypto', 'crypto/'),
+    ('escrow', 'escrow/'),
+    ('notifications', 'notifications/'),
+    ('payments', 'payments/'),
+    ('receipts', 'receipts/'),
+    ('transactions', 'transactions/'),
+    ('transfers', 'transfers/'),
+]
+
+for app_name, url_prefix in feature_apps:
+    is_available, _ = check_app_urls(app_name, url_prefix)
+    if is_available:
+        urlpatterns.append(path(url_prefix, include(f'{app_name}.urls')))
+        if settings.DEBUG:
+            print(f"  ✓ {app_name} API endpoints added: /api/{url_prefix}")
+    elif settings.DEBUG:
+        print(f"  ⚠ {app_name} API endpoints NOT available: {app_name}/urls.py not found")
 
 # ============================================================================
 # DEBUG OUTPUT
 # ============================================================================
-if os.environ.get('DEBUG') == 'True':
+if settings.DEBUG:
     print("✓ API URLs configured for React integration")
     print(f"  Total API endpoints: {len(urlpatterns)}")
     print(f"  JWT endpoints available")
-    print(f"  Pusher auth: /api/pusher/auth/")
+    if PUSHER_AUTH_AVAILABLE:
+        print(f"  Pusher auth: /api/pusher/auth/")
+    else:
+        print(f"  ⚠ Pusher auth NOT configured")
     print(f"  CORS enabled for React")
