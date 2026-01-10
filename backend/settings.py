@@ -138,16 +138,14 @@ print(f"✓ AUTH_USER_MODEL set to: {AUTH_USER_MODEL}")
 # ------------------------------
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
-# Add Render hostnames
+# Add Render hostnames - ONLY claverica-backend-rniq.onrender.com
 ALLOWED_HOSTS.append('claverica-backend-rniq.onrender.com')
 ALLOWED_HOSTS.append('.claverica-backend-rniq.onrender.com')
-ALLOWED_HOSTS.append('claverica-backend.onrender.com')
-ALLOWED_HOSTS.append('.claverica-backend.onrender.com')
 
-# Add any additional allowed hosts from environment
-additional_hosts = get_env_variable('ALLOWED_HOSTS')
-if additional_hosts:
-    ALLOWED_HOSTS.extend([host.strip() for host in additional_hosts.split(',')])
+# Remove this line to prevent duplicates from environment variable
+# additional_hosts = get_env_variable('ALLOWED_HOSTS')
+# if additional_hosts:
+#     ALLOWED_HOSTS.extend([host.strip() for host in additional_hosts.split(',')])
 
 # ------------------------------
 # INSTALLED APPS - FIXED ORDER FOR CUSTOM USER MODEL
@@ -425,12 +423,12 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',        # CHANGED: Increased from 100/day to 100/hour
-        'user': '1000/hour',       # CHANGED: Increased from 1000/day to 1000/hour
-        'login': '30/minute',      # CHANGED: Increased from 10/minute to 30/minute
-        'transaction': '60/minute', # CHANGED: Increased from 30/minute to 60/minute
-        'transfer': '60/minute',    # CHANGED: Increased from 20/minute to 60/minute
-        'auth': '30/minute',       # ADDED: For token refresh/verification endpoints
+        'anon': '100/hour',
+        'user': '1000/hour',
+        'login': '30/minute',
+        'transaction': '60/minute',
+        'transfer': '60/minute',
+        'auth': '30/minute',
     },
 }
 
@@ -485,9 +483,8 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
-# Add Render domains
+# Add ONLY your Render domain
 CORS_ALLOWED_ORIGINS.append('https://claverica-backend-rniq.onrender.com')
-CORS_ALLOWED_ORIGINS.append('https://claverica-backend.onrender.com')
 
 # Get frontend domains from environment
 frontend_domains = get_frontend_domains()
@@ -566,9 +563,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5173',
 ]
 
-# Add Render domains to CSRF
+# Add ONLY your Render domain to CSRF
 CSRF_TRUSTED_ORIGINS.append('https://claverica-backend-rniq.onrender.com')
-CSRF_TRUSTED_ORIGINS.append('https://claverica-backend.onrender.com')
 
 # Add frontend domains to CSRF
 for domain in frontend_domains:
@@ -621,8 +617,8 @@ COMPLIANCE_CHECK_ENABLED = True
 # HEALTH CHECK SETTINGS
 # ------------------------------
 HEALTH_CHECK = {
-    'DISK_USAGE_MAX': 90,  # percent
-    'MEMORY_MIN': 100,    # in MB
+    'DISK_USAGE_MAX': 90,
+    'MEMORY_MIN': 100,
 }
 
 # ------------------------------
@@ -654,7 +650,6 @@ if not DEBUG and redis_url and not is_test_environment():
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
                 "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
-                # IMPORTANT: Configure Redis for throttling
                 "SOCKET_CONNECT_TIMEOUT": 5,
                 "SOCKET_TIMEOUT": 5,
                 "RETRY_ON_TIMEOUT": True,
@@ -835,10 +830,10 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.sendgrid.net'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'apikey'  # This is literal string 'apikey' for SendGrid
-EMAIL_HOST_PASSWORD = get_env_variable('SENDGRID_API_KEY')  # Your SendGrid API key
+EMAIL_HOST_USER = 'apikey'
+EMAIL_HOST_PASSWORD = get_env_variable('SENDGRID_API_KEY')
 
-# Default from email (use your verified sender from SendGrid)
+# Default from email
 DEFAULT_FROM_EMAIL = get_env_variable('DEFAULT_FROM_EMAIL', 'noreply@claverica.com')
 
 # Email timeouts
