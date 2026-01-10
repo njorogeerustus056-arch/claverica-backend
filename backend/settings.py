@@ -826,29 +826,34 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 86400
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
-# ------------------------------
-# EMAIL SETTINGS
-# ------------------------------
+# ============================================================================
+# EMAIL CONFIGURATION - UPDATED FOR SENDGRID
+# ============================================================================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
-EMAIL_HOST = get_env_variable('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(get_env_variable('EMAIL_PORT', 587))
-EMAIL_USE_TLS = get_env_variable('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = get_env_variable('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = get_env_variable('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = get_env_variable('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@claverica.com')
+# SendGrid Configuration
+EMAIL_HOST = 'smtp.sendgrid.net'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'apikey'  # This is literal string 'apikey' for SendGrid
+EMAIL_HOST_PASSWORD = get_env_variable('SENDGRID_API_KEY')  # Your SendGrid API key
+
+# Default from email (use your verified sender from SendGrid)
+DEFAULT_FROM_EMAIL = get_env_variable('DEFAULT_FROM_EMAIL', 'noreply@claverica.com')
 
 # Email timeouts
 EMAIL_TIMEOUT = 30
-EMAIL_SSL_KEYFILE = None
-EMAIL_SSL_CERTFILE = None
-EMAIL_USE_SSL = False
 
-# Auto-switch to console backend in development/testing
-if DEBUG or os.environ.get('EMAIL_USE_CONSOLE', 'True') == 'True':
+# Auto-switch to console backend in development if no SendGrid API key
+if DEBUG and not get_env_variable('SENDGRID_API_KEY'):
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    print("📧 Email backend set to Console for development/testing")
-
+    print("📧 Email backend set to Console (no SENDGRID_API_KEY in development)")
+elif get_env_variable('SENDGRID_API_KEY'):
+    print("📧 SendGrid email configuration loaded successfully")
+    print(f"   Using sender: {DEFAULT_FROM_EMAIL}")
+else:
+    print("⚠️ Warning: SENDGRID_API_KEY not set. Email sending will fail.")
+# ============================================================================
 # ------------------------------
 # OTP CONFIGURATION
 # ------------------------------
