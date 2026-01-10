@@ -42,3 +42,6 @@ Thumbs.db
 htmlcov/
 .pytest_cache/"backend/test_settings.py" 
 "test_files_backup/" 
+"test_*.py" 
+"*.test.py" 
+".env" 
