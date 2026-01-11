@@ -10,7 +10,6 @@ from .views import (
     VerifyEmailOTPView,
     ResendVerificationOTPView,
     PasswordResetRequestView,
-    PasswordResetVerifyOTPView,
     PasswordResetConfirmView,
     CurrentAccountView
 )
@@ -33,7 +32,6 @@ urlpatterns = [
     
     # Password reset with OTP
     path('password/reset/', PasswordResetRequestView.as_view(), name='password_reset'),
-    path('password/reset/verify/', PasswordResetVerifyOTPView.as_view(), name='password_reset_verify'),
     path('password/reset/confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     
     # Current account

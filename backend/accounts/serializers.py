@@ -96,33 +96,6 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
 
 
-class PasswordResetOTPVerifySerializer(serializers.Serializer):
-    email = serializers.EmailField(required=True)
-    otp = serializers.CharField(
-        required=True,
-        max_length=6,
-        min_length=6,
-        help_text="6-digit OTP sent to your email"
-    )
-    
-    def validate(self, attrs):
-        email = attrs.get('email')
-        otp = attrs.get('otp')
-        
-        try:
-            account = Account.objects.get(email=email)
-        except Account.DoesNotExist:
-            raise serializers.ValidationError(_("Account not found."))
-        
-        # Check if OTP is valid
-        if not account.is_otp_valid(otp, otp_type='password_reset'):
-            account.increment_otp_attempts('password_reset')
-            raise serializers.ValidationError(_("Invalid or expired OTP."))
-        
-        attrs['account'] = account
-        return attrs
-
-
 class PasswordResetConfirmSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     otp = serializers.CharField(

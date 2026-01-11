@@ -16,8 +16,7 @@ from .utils.email_service import EmailService
 from .serializers import (
     AccountRegistrationSerializer, AccountLoginSerializer,
     EmailVerificationOTPSerializer, PasswordResetRequestSerializer,
-    PasswordResetOTPVerifySerializer, PasswordResetConfirmSerializer,
-    AccountProfileSerializer
+    PasswordResetConfirmSerializer, AccountProfileSerializer
 )
 
 logger = logging.getLogger(__name__)
@@ -251,29 +250,8 @@ class PasswordResetRequestView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PasswordResetVerifyOTPView(APIView):
-    """Verify OTP for password reset"""
-    permission_classes = [AllowAny]
-    throttle_classes = [StrictAnonThrottle]
-    
-    def post(self, request):
-        serializer = PasswordResetOTPVerifySerializer(data=request.data)
-        
-        if serializer.is_valid():
-            account = serializer.validated_data['account']
-            
-            return Response({
-                'success': True,
-                'message': _('OTP verified successfully'),
-                'email': account.email,
-                'token': 'valid'  # In production, you might return a temp token
-            })
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
 class PasswordResetConfirmView(APIView):
-    """Complete password reset with OTP verification"""
+    """Complete password reset with OTP verification and password update"""
     permission_classes = [AllowAny]
     throttle_classes = [StrictAnonThrottle]
     
@@ -301,11 +279,17 @@ class PasswordResetConfirmView(APIView):
 
 
 # ------------------------------
-# Custom JWT Login
+# Custom JWT Login (FIXED)
 # ------------------------------
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
+        
+        # ✅ ADDED: Check if email is verified
+        if not self.user.email_verified:
+            raise serializers.ValidationError({
+                "detail": _("Please verify your email before logging in.")
+            })
         
         # Add account info to response
         data['account'] = {
