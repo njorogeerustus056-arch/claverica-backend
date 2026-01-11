@@ -7,6 +7,8 @@ app_name = 'users'
 urlpatterns = [
     # Profile endpoints
     path('profile/', views.UserProfileView.as_view(), name='user-profile'),
+    path('profile/create/', views.create_or_update_profile, name='create-profile'),
+    path('profile/update/', views.update_profile_partial, name='update-profile-partial'),
     path('profile-settings/', views.get_profile_settings, name='profile-settings'),
     
     # Settings endpoints

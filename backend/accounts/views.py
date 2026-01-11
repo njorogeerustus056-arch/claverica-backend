@@ -128,6 +128,9 @@ class VerifyEmailOTPView(APIView):
                 account.clear_otp('email_verification')
                 account.save(update_fields=['email_verified'])
                 
+                # ✅ ADDED: Generate new JWT tokens after successful verification
+                refresh = RefreshToken.for_user(account)
+                
                 # Send welcome email
                 EmailService.send_welcome_email(account.email, account.first_name)
                 
@@ -137,8 +140,13 @@ class VerifyEmailOTPView(APIView):
                     'account': {
                         'id': account.id,
                         'email': account.email,
+                        'first_name': account.first_name,
+                        'last_name': account.last_name,
                         'email_verified': account.email_verified,
-                    }
+                    },
+                    # ✅ ADDED: Return JWT tokens for immediate login
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
                 })
             else:
                 return Response({

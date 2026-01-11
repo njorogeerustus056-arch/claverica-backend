@@ -99,6 +99,57 @@ class UserProfile(models.Model):
         if not self.account_number:
             self.account_number = f"USR{self.account.id:08d}"
         super().save(*args, **kwargs)
+    
+    def has_complete_profile(self):
+        """Check if profile has all required fields filled"""
+        required_fields = ['phone', 'document_type', 'document_number', 
+                          'street', 'city', 'state', 'zip_code']
+        
+        for field in required_fields:
+            value = getattr(self, field)
+            if not value or value.strip() == '':
+                return False
+        return True
+    
+    def get_profile_completion_percentage(self):
+        """Calculate profile completion percentage"""
+        fields_to_check = [
+            'phone', 'document_type', 'document_number', 'street',
+            'city', 'state', 'zip_code', 'occupation', 'employer', 'income_range'
+        ]
+        
+        filled_count = 0
+        for field in fields_to_check:
+            value = getattr(self, field)
+            if value and str(value).strip() != '':
+                filled_count += 1
+        
+        return (filled_count / len(fields_to_check)) * 100
+    
+    def to_dict(self):
+        """Convert profile to dictionary"""
+        return {
+            'id': self.id,
+            'phone': self.phone,
+            'phone_verified': self.phone_verified,
+            'document_type': self.document_type,
+            'document_number': self.document_number,
+            'street': self.street,
+            'city': self.city,
+            'state': self.state,
+            'zip_code': self.zip_code,
+            'occupation': self.occupation,
+            'employer': self.employer,
+            'income_range': self.income_range,
+            'subscription_tier': self.subscription_tier,
+            'avatar_color': self.avatar_color,
+            'account_number': self.account_number,
+            'last_password_change': self.last_password_change,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'has_complete_profile': self.has_complete_profile(),
+            'profile_completion': self.get_profile_completion_percentage()
+        }
 
 
 class UserSettings(models.Model):

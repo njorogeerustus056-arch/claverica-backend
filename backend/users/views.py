@@ -12,8 +12,10 @@ from rest_framework import status
 from django.contrib.auth import update_session_auth_hash
 from django.utils import timezone
 from django.db.models import Q
+from django.conf import settings
 
 from .models import UserProfile, UserSettings, SecurityAlert, ConnectedDevice, ActivityLog
+from .serializers import UserProfileSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +175,120 @@ def get_profile_settings(request):
     except Exception as e:
         logger.error(f"Error in get_profile_settings: {str(e)}")
         return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# -----------------------------------------------------------------
+# PROFILE CREATION/UPDATE ENDPOINTS
+# -----------------------------------------------------------------
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_or_update_profile(request):
+    """Create or update user profile with validation"""
+    try:
+        account = request.user
+        
+        # Get or create profile
+        profile, created = UserProfile.objects.get_or_create(account=account)
+        
+        # Validate data
+        serializer = UserProfileSerializer(profile, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response({
+                "error": "Validation failed",
+                "details": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Save validated data
+        serializer.save()
+        
+        # Create activity log
+        create_activity_log(
+            account, 
+            'profile_update', 
+            request, 
+            {'created': created}
+        )
+        
+        logger.info(f"{'Created' if created else 'Updated'} profile for {account.email}")
+        
+        # Get full profile data for response
+        profile.refresh_from_db()
+        profile_data = {
+            "id": profile.id,
+            "phone": profile.phone,
+            "phone_verified": profile.phone_verified,
+            "document_type": profile.document_type,
+            "document_number": profile.document_number,
+            "street": profile.street,
+            "city": profile.city,
+            "state": profile.state,
+            "zip_code": profile.zip_code,
+            "occupation": profile.occupation,
+            "employer": profile.employer,
+            "income_range": profile.income_range,
+            "subscription_tier": profile.subscription_tier,
+            "avatar_color": profile.avatar_color,
+            "account_number": profile.account_number,
+            "created_at": profile.created_at.isoformat() if profile.created_at else None,
+            "updated_at": profile.updated_at.isoformat() if profile.updated_at else None
+        }
+        
+        message = "Profile created successfully" if created else "Profile updated successfully"
+        
+        return Response({
+            "success": True,
+            "message": message,
+            "profile": profile_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in create_or_update_profile: {str(e)}")
+        return Response({
+            "error": "Failed to create/update profile",
+            "detail": str(e) if settings.DEBUG else None
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_profile_partial(request):
+    """Partially update user profile fields"""
+    try:
+        account = request.user
+        profile = account.user_profile
+        
+        # Validate data
+        serializer = UserProfileSerializer(profile, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response({
+                "error": "Validation failed",
+                "details": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Save validated data
+        serializer.save()
+        
+        # Create activity log
+        create_activity_log(
+            account, 
+            'profile_update', 
+            request, 
+            {'partial_update': True}
+        )
+        
+        logger.info(f"Updated profile for {account.email}")
+        
+        return Response({
+            "success": True,
+            "message": "Profile updated successfully"
+        })
+            
+    except Exception as e:
+        logger.error(f"Error in update_profile_partial: {str(e)}")
+        return Response({
+            "error": "Failed to update profile",
+            "detail": str(e) if settings.DEBUG else None
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # -----------------------------------------------------------------
