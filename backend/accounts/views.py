@@ -11,6 +11,9 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
+# ✅ ADDED: Import for health check decorator
+from rest_framework.decorators import api_view
+
 from .models import Account
 from .utils.email_service import EmailService
 from .serializers import (
@@ -23,6 +26,25 @@ logger = logging.getLogger(__name__)
 
 
 # ------------------------------
+# Health Check Functions
+# ------------------------------
+# ✅ ADDED: Health check function-based view
+@api_view(['GET'])
+def health_check(request):
+    return Response({"status": "ok", "service": "claverica-backend"}, status=200)
+
+
+# ------------------------------
+# Health Check Class View
+# ------------------------------
+class IndexView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        return Response({"message": "Accounts API - Authentication Service"})
+
+
+# ------------------------------
 # Throttle Classes
 # ------------------------------
 class StrictAnonThrottle(AnonRateThrottle):
@@ -31,16 +53,6 @@ class StrictAnonThrottle(AnonRateThrottle):
 
 class ModerateAnonThrottle(AnonRateThrottle):
     rate = '10/hour'
-
-
-# ------------------------------
-# Health Check
-# ------------------------------
-class IndexView(APIView):
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        return Response({"message": "Accounts API - Authentication Service"})
 
 
 # ------------------------------

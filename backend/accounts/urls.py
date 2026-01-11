@@ -14,11 +14,15 @@ from .views import (
     CurrentAccountView
 )
 
+# Import the function-based view for health check
+from . import views
+
 app_name = 'accounts'
 
 urlpatterns = [
-    # Health check
+    # Health check - both root and explicit health endpoint
     path('', IndexView.as_view(), name='index'),
+    path('health/', views.health_check, name='health'),
     
     # Authentication
     path('register/', RegisterView.as_view(), name='register'),
