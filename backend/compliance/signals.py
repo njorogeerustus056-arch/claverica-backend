@@ -11,14 +11,18 @@ import logging
 from .models import (
     KYCVerification, KYCDocument, TACCode,
     WithdrawalRequest, VerificationStatus,
-    ComplianceAuditLog, ComplianceCheck
+    ComplianceAuditLog, ComplianceCheck, ComplianceLevel
 )
 from .services import (
     perform_compliance_checks,
     log_compliance_action,
     cleanup_expired_tac_codes
 )
-from .email_service import send_kyc_approved_email
+from .email_service import (
+    send_kyc_approved_email,
+    send_kyc_rejected_email,
+    send_document_verified_email
+)
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -50,13 +54,10 @@ def handle_kyc_verification_save(sender, instance, created, **kwargs):
         )
     
     else:
-        # Verification updated - FIXED HERE
-        update_fields = kwargs.get('update_fields', None)
-        
-        # Check if update_fields exists and contains 'verification_status'
-        if update_fields and 'verification_status' in update_fields:
-            # Status changed
-            old_status = instance._old_verification_status if hasattr(instance, '_old_verification_status') else None
+        # Use Django's built-in tracking for field changes
+        # We'll check if verification_status was updated by comparing to original
+        if hasattr(instance, '_original_verification_status'):
+            old_status = instance._original_verification_status
             
             if instance.verification_status == VerificationStatus.APPROVED:
                 logger.info(f"KYC verification approved: {instance.id}")
@@ -73,6 +74,16 @@ def handle_kyc_verification_save(sender, instance, created, **kwargs):
             
             elif instance.verification_status == VerificationStatus.REJECTED:
                 logger.info(f"KYC verification rejected: {instance.id}")
+                
+                # Send rejection email
+                try:
+                    send_kyc_rejected_email(
+                        instance.email,
+                        f"{instance.first_name} {instance.last_name}",
+                        instance.rejection_reason or "Not specified"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send KYC rejection email: {e}")
             
             # Log status change
             log_compliance_action(
@@ -94,9 +105,12 @@ def capture_kyc_verification_changes(sender, instance, **kwargs):
     if instance.pk:
         try:
             old_instance = KYCVerification.objects.get(pk=instance.pk)
-            instance._old_verification_status = old_instance.verification_status
+            # Store original status for comparison
+            instance._original_verification_status = old_instance.verification_status
+            instance._original_risk_level = old_instance.risk_level
         except KYCVerification.DoesNotExist:
-            pass
+            instance._original_verification_status = None
+            instance._original_risk_level = None
 
 
 @receiver(post_save, sender=KYCDocument)
@@ -146,7 +160,7 @@ def validate_document_status(sender, instance, **kwargs):
                 instance.status != VerificationStatus.APPROVED):
                 instance.verified_at = None
                 instance.verified_by = None
-        
+                
         except KYCDocument.DoesNotExist:
             pass
 
@@ -213,12 +227,12 @@ def handle_withdrawal_request(sender, instance, created, **kwargs):
         )
     
     else:
-        # Withdrawal updated - FIXED HERE
-        update_fields = kwargs.get('update_fields', None)
-        
-        if update_fields and 'status' in update_fields:
+        # Check if status was updated by storing original value
+        if hasattr(instance, '_original_status'):
+            old_status = instance._original_status
+            
             # Status changed
-            logger.info(f"Withdrawal {instance.id} status changed to {instance.status}")
+            logger.info(f"Withdrawal {instance.id} status changed from {old_status} to {instance.status}")
             
             # Log status change
             log_compliance_action(
@@ -227,6 +241,7 @@ def handle_withdrawal_request(sender, instance, created, **kwargs):
                 "status_change",
                 "withdrawal",
                 str(instance.id),
+                old_value={"status": old_status} if old_status else None,
                 new_value={"status": instance.status}
             )
             
@@ -238,12 +253,24 @@ def handle_withdrawal_request(sender, instance, created, **kwargs):
                     "processing",
                     "withdrawal",
                     str(instance.id),
-                    entity_type="withdrawal",
                     new_value={
                         "processed_by": instance.processed_by,
                         "transaction_hash": instance.transaction_hash
                     }
                 )
+
+
+@receiver(pre_save, sender=WithdrawalRequest)
+def capture_withdrawal_changes(sender, instance, **kwargs):
+    """
+    Capture withdrawal changes before save
+    """
+    if instance.pk:
+        try:
+            old_withdrawal = WithdrawalRequest.objects.get(pk=instance.pk)
+            instance._original_status = old_withdrawal.status
+        except WithdrawalRequest.DoesNotExist:
+            instance._original_status = None
 
 
 @receiver(post_save, sender=ComplianceCheck)

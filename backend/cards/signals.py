@@ -1,18 +1,18 @@
 """
-cards/signals.py - CORRECTED VERSION
+cards/signals.py - CORRECTED VERSION (FIXED)
 """
 
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
-from .models import Card, Transaction
+from .models import Card, CardTransaction  # FIXED: CardTransaction instead of Transaction
 import logging
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-@receiver(post_save, sender=Transaction)
+@receiver(post_save, sender=CardTransaction)  # FIXED: CardTransaction instead of Transaction
 def log_transaction_creation(sender, instance, created, **kwargs):
     """Log when a transaction is created"""
     if created:
@@ -56,6 +56,10 @@ def create_default_card(sender, instance, created, **kwargs):
     if created:
         try:
             from .services import CardService
+            
+            # Check if user already has cards
+            if Card.objects.filter(user=instance).exists():
+                return
             
             # Create a default virtual card for new users
             card_data = {

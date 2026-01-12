@@ -613,6 +613,13 @@ TRANSACTION_LIMITS = {
 KYC_VERIFICATION_REQUIRED = True
 COMPLIANCE_CHECK_ENABLED = True
 
+# Compliance rate limiting settings
+TAC_MAX_REQUESTS_PER_HOUR = 10  # Max TAC requests per hour per user
+WITHDRAWAL_DAILY_LIMIT = Decimal('10000.00')  # Daily withdrawal limit
+WITHDRAWAL_MONTHLY_LIMIT = Decimal('50000.00')  # Monthly withdrawal limit
+WITHDRAWAL_MINIMUM_AMOUNT = Decimal('10.00')  # Minimum withdrawal amount
+SUPPORT_EMAIL = get_env_variable('SUPPORT_EMAIL', 'support@claverica.com')
+
 # ------------------------------
 # HEALTH CHECK SETTINGS
 # ------------------------------
@@ -639,10 +646,11 @@ else:
     print("Success: Pusher env vars loaded successfully")
 
 # ------------------------------
-# CACHE CONFIGURATION
+# CACHE CONFIGURATION - UPDATED FOR RATE LIMITING
 # ------------------------------
 redis_url = get_env_variable('REDIS_URL')
 if not DEBUG and redis_url and not is_test_environment():
+    # Production Redis cache
     CACHES = {
         "default": {
             "BACKEND": "django_redis.cache.RedisCache",
@@ -663,6 +671,7 @@ if not DEBUG and redis_url and not is_test_environment():
         'rest_framework.throttling.ScopedRateThrottle',
     ]
 else:
+    # Development/local cache - using locmem as suggested
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -833,8 +842,9 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'apikey'
 EMAIL_HOST_PASSWORD = get_env_variable('SENDGRID_API_KEY')
 
-# Default from email
+# Email addresses - using your suggested values
 DEFAULT_FROM_EMAIL = get_env_variable('DEFAULT_FROM_EMAIL', 'noreply@claverica.com')
+SUPPORT_EMAIL = get_env_variable('SUPPORT_EMAIL', 'support@claverica.com')
 
 # Email timeouts
 EMAIL_TIMEOUT = 30
@@ -846,6 +856,7 @@ if DEBUG and not get_env_variable('SENDGRID_API_KEY'):
 elif get_env_variable('SENDGRID_API_KEY'):
     print("📧 SendGrid email configuration loaded successfully")
     print(f"   Using sender: {DEFAULT_FROM_EMAIL}")
+    print(f"   Support email: {SUPPORT_EMAIL}")
 else:
     print("⚠️ Warning: SENDGRID_API_KEY not set. Email sending will fail.")
 # ============================================================================
@@ -885,9 +896,14 @@ print(f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS[:3]}..." if len(CORS_AL
 print(f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS[:3]}..." if len(CSRF_TRUSTED_ORIGINS) > 3 else f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS}")
 print(f"📧 EMAIL BACKEND: {EMAIL_BACKEND}")
 print(f"📧 DEFAULT FROM: {DEFAULT_FROM_EMAIL}")
+print(f"📧 SUPPORT EMAIL: {SUPPORT_EMAIL}")
 print(f"🔢 OTP EXPIRY: {OTP_EXPIRY_MINUTES} minutes")
 print(f"🔢 OTP MAX ATTEMPTS: {OTP_MAX_ATTEMPTS}")
 print(f"🔢 OTP COOLDOWN: {OTP_RESEND_COOLDOWN_SECONDS} seconds")
+print(f"🔐 COMPLIANCE - TAC MAX REQUESTS/HOUR: {TAC_MAX_REQUESTS_PER_HOUR}")
+print(f"💰 WITHDRAWAL DAILY LIMIT: ${WITHDRAWAL_DAILY_LIMIT}")
+print(f"💰 WITHDRAWAL MONTHLY LIMIT: ${WITHDRAWAL_MONTHLY_LIMIT}")
+print(f"💰 WITHDRAWAL MINIMUM: ${WITHDRAWAL_MINIMUM_AMOUNT}")
 print("=" * 60)
 print("✅ Settings loaded successfully with OTP email configuration!")
 print("=" * 60)

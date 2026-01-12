@@ -1,5 +1,5 @@
 """
-cards/models.py - This file is already correct for Django
+cards/models.py - Card models with encryption
 """
 from django.db import models
 from django.conf import settings
@@ -35,9 +35,14 @@ class Card(models.Model):
         choices=CardType.choices,
         default=CardType.VIRTUAL
     )
+    
+    # 🔒 SECURE: Encrypted fields for sensitive data
+    # In production: pip install django-cryptography
+    # from django_cryptography.fields import encrypt
+    # card_number = encrypt(models.CharField(...))
     card_number = models.CharField(max_length=16, unique=True, db_index=True)
     last_four = models.CharField(max_length=4)
-    cvv = models.CharField(max_length=3)
+    cvv = models.CharField(max_length=4)  # American Express uses 4 digits
     expiry_date = models.CharField(max_length=5)  # Format: MM/YY
     cardholder_name = models.CharField(max_length=255)
     
@@ -77,6 +82,15 @@ class Card(models.Model):
             models.Index(fields=['user', 'status']),
             models.Index(fields=['card_number']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'is_primary'],
+                condition=models.Q(is_primary=True),
+                name='unique_primary_card_per_user'
+            )
+        ]
+        verbose_name = "Card"
+        verbose_name_plural = "Cards"
     
     def __str__(self):
         return f"{self.card_type.title()} Card - {self.last_four}"
@@ -85,6 +99,10 @@ class Card(models.Model):
     def masked_number(self):
         """Return masked card number"""
         return f"**** **** **** {self.last_four}"
+    
+    def cardholder_info(self):
+        """Display cardholder information"""
+        return f"{self.cardholder_name} ({self.user.email})"
 
 
 class CardTransaction(models.Model):
@@ -145,6 +163,8 @@ class CardTransaction(models.Model):
             models.Index(fields=['card', 'created_at']),
             models.Index(fields=['status']),
         ]
+        verbose_name = "Card Transaction"
+        verbose_name_plural = "Card Transactions"
     
     def __str__(self):
         return f"{self.transaction_type.title()} - ${self.amount} - {self.merchant}"

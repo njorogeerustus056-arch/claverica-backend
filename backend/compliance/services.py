@@ -17,7 +17,7 @@ import logging
 from .models import (
     KYCVerification, KYCDocument, TACCode,
     ComplianceAuditLog, WithdrawalRequest, VerificationStatus,
-    DocumentType, ComplianceCheck
+    DocumentType, ComplianceCheck, ComplianceLevel  # ADDED ComplianceLevel
 )
 
 logger = logging.getLogger(__name__)
@@ -151,7 +151,7 @@ def perform_compliance_checks(verification_id):
         checks.append(risk_check)
         
         # Calculate overall risk score
-        total_risk_score = sum(check.risk_score for check in checks)
+        total_risk_score = sum(check.risk_score for check in checks if check)
         verification.risk_score = total_risk_score
         
         # Determine risk level
@@ -471,7 +471,7 @@ def get_user_compliance_status(user_id):
             w.amount for w in withdrawals.filter(created_at__gte=month_start)
         )
         
-        # Get limits based on compliance level
+        # Get limits based on compliance level - FIXED HERE
         limits = get_limits_for_compliance_level(verification.compliance_level)
         
         # Calculate compliance score (0-100)
@@ -636,3 +636,22 @@ def generate_compliance_report(start_date, end_date):
     except Exception as e:
         logger.error(f"Error generating compliance report: {e}")
         return {'error': str(e)}
+
+
+# NEW FUNCTION: Add rate limiting for TAC requests
+from django.core.cache import cache
+from django.conf import settings
+
+def check_tac_rate_limit(user_id):
+    """Check if user has exceeded TAC request rate limit"""
+    cache_key = f"tac_rate_limit:{user_id}"
+    request_count = cache.get(cache_key, 0)
+    
+    max_requests = getattr(settings, 'TAC_MAX_REQUESTS_PER_HOUR', 10)
+    
+    if request_count >= max_requests:
+        return False, f"Rate limit exceeded. Maximum {max_requests} TAC requests per hour."
+    
+    # Increment count with 1-hour expiration
+    cache.set(cache_key, request_count + 1, timeout=3600)
+    return True, "Rate limit check passed"

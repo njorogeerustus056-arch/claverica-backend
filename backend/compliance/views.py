@@ -2,6 +2,7 @@
 compliance/views.py - Django REST Framework views for compliance app
 """
 
+import logging  # ADD THIS LINE
 from rest_framework import status, viewsets, permissions
 from rest_framework.decorators import api_view, parser_classes, permission_classes, action
 from rest_framework.response import Response
@@ -13,6 +14,8 @@ from datetime import timedelta
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.conf import settings
 
 from .models import (
     KYCVerification, KYCDocument, TACCode,
@@ -32,11 +35,13 @@ from .services import (
 )
 from .email_service import (
     send_tac_email, send_kyc_submitted_email,
-    send_kyc_approved_email, send_withdrawal_confirmation_email
+    send_kyc_approved_email, send_withdrawal_confirmation_email,
+    send_kyc_rejected_email
 )
 from .permissions import IsOwnerOrAdmin, HasKYCApproved
 from .utils import calculate_risk_score, validate_id_number, check_sanctions
 
+logger = logging.getLogger(__name__)  # ADD THIS LINE
 User = get_user_model()
 
 
@@ -231,6 +236,13 @@ class KYCVerificationViewSet(viewsets.ModelViewSet):
         verification.verified_by = str(request.user.id)
         verification.verified_at = timezone.now()
         verification.save()
+        
+        # Send rejection email
+        send_kyc_rejected_email(
+            verification.email,
+            f"{verification.first_name} {verification.last_name}",
+            rejection_reason
+        )
         
         # Log action
         log_compliance_action(
@@ -429,6 +441,18 @@ class TACCodeViewSet(viewsets.ViewSet):
         transaction_id = request.data.get('transaction_id')
         amount = request.data.get('amount')
         
+        # Rate limiting check
+        cache_key = f"tac_generate:{user_id}"
+        request_count = cache.get(cache_key, 0)
+        
+        max_requests = getattr(settings, 'TAC_MAX_REQUESTS_PER_HOUR', 10)
+        if request_count >= max_requests:
+            return Response({
+                "error": "Rate limit exceeded",
+                "message": f"Maximum {max_requests} TAC requests per hour allowed",
+                "retry_after": cache.ttl(cache_key) if cache.ttl(cache_key) else 3600
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
         try:
             # Check for existing active TAC
             existing_tac = TACCode.objects.filter(
@@ -443,7 +467,8 @@ class TACCodeViewSet(viewsets.ViewSet):
                     "success": True,
                     "message": "TAC code already sent",
                     "expires_at": existing_tac.expires_at.isoformat(),
-                    "code": existing_tac.code  # Remove in production!
+                    "time_remaining": (existing_tac.expires_at - timezone.now()).total_seconds(),
+                    "code": existing_tac.code if settings.DEBUG else None  # Only show in debug mode
                 })
             
             # Generate new TAC
@@ -460,19 +485,24 @@ class TACCodeViewSet(viewsets.ViewSet):
                 user_agent=request.META.get('HTTP_USER_AGENT')
             )
             
+            # Increment rate limit counter
+            cache.set(cache_key, request_count + 1, timeout=3600)
+            
             # Get user email and send TAC
             try:
                 user = User.objects.get(id=user_id)
-                send_tac_email(user.email, code, user.get_full_name())
-            except:
-                pass  # Email sending might fail, but we still return the code
+                send_tac_email(user.email, code, user.get_full_name() or user.username)
+            except Exception as email_error:
+                logger.error(f"Failed to send TAC email: {email_error}")
+                # Continue even if email fails
             
             return Response({
                 "success": True,
                 "message": "TAC code sent to your email",
                 "tac_id": str(tac.id),
                 "expires_at": expires_at.isoformat(),
-                "code": code  # Remove in production!
+                "time_remaining": 300,  # 5 minutes in seconds
+                "code": code if settings.DEBUG else None  # Only show in debug mode
             })
         
         except Exception as e:
@@ -547,7 +577,8 @@ class TACCodeViewSet(viewsets.ViewSet):
             return Response({
                 "success": True,
                 "message": "TAC verified successfully",
-                "verified_at": tac.used_at.isoformat()
+                "verified_at": tac.used_at.isoformat(),
+                "transaction_id": tac.transaction_id
             })
         
         except Exception as e:
@@ -627,9 +658,10 @@ class WithdrawalRequestViewSet(viewsets.ModelViewSet):
                 # Send TAC email
                 try:
                     user = User.objects.get(id=user_id)
-                    send_tac_email(user.email, code, user.get_full_name())
-                except:
-                    pass
+                    send_tac_email(user.email, code, user.get_full_name() or user.username)
+                except Exception as email_error:
+                    logger.error(f"Failed to send TAC email: {email_error}")
+                    # Continue even if email fails
             
             return Response({
                 "success": True,
@@ -637,7 +669,7 @@ class WithdrawalRequestViewSet(viewsets.ModelViewSet):
                 "status": withdrawal_req.status,
                 "tac_sent": True,
                 "message": "Withdrawal request created. Please verify with TAC code.",
-                "code": code  # Remove in production!
+                "code": code if settings.DEBUG else None  # Only show in debug mode
             }, status=status.HTTP_201_CREATED)
         
         except Exception as e:
@@ -707,12 +739,12 @@ class WithdrawalRequestViewSet(viewsets.ModelViewSet):
                 user = User.objects.get(id=withdrawal.user_id)
                 send_withdrawal_confirmation_email(
                     user.email,
-                    user.get_full_name(),
+                    user.get_full_name() or user.username,
                     withdrawal.amount,
                     withdrawal.currency
                 )
-            except:
-                pass
+            except Exception as email_error:
+                logger.error(f"Failed to send withdrawal confirmation email: {email_error}")
             
             return Response({
                 "success": True,
@@ -740,6 +772,17 @@ class WithdrawalRequestViewSet(viewsets.ModelViewSet):
         
         withdrawal.status = "cancelled"
         withdrawal.save()
+        
+        # Log action
+        log_compliance_action(
+            withdrawal.user_id,
+            "Withdrawal Cancelled",
+            "cancellation",
+            "withdrawal",
+            str(withdrawal.id),
+            old_value={"status": withdrawal._original_status if hasattr(withdrawal, '_original_status') else "unknown"},
+            new_value={"status": "cancelled"}
+        )
         
         return Response({
             "success": True,

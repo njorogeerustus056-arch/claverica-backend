@@ -16,8 +16,8 @@ from .serializers import (
     CardSerializer,
     CardCreateSerializer,
     CardUpdateSerializer,
-    CardTransactionSerializer,  # FIXED: Changed from TransactionSerializer
-    CardTransactionCreateSerializer,  # FIXED: Changed from TransactionCreateSerializer
+    CardTransactionSerializer,
+    CardTransactionCreateSerializer,
     CardBalanceSerializer,
     TopUpSerializer
 )
@@ -114,7 +114,7 @@ class CardViewSet(viewsets.ModelViewSet):
                 )
             
             # Check user has enough balance (assuming User model has balance field)
-            if request.user.balance < amount:
+            if hasattr(request.user, 'balance') and request.user.balance < amount:
                 return Response(
                     {'error': 'Insufficient account balance'},
                     status=status.HTTP_400_BAD_REQUEST
@@ -122,12 +122,12 @@ class CardViewSet(viewsets.ModelViewSet):
             
             # Use atomic transaction to ensure consistency
             with transaction.atomic():
-                # Update balances
-                request.user.balance -= amount
-                card.balance += amount
+                # Update balances if user has balance field
+                if hasattr(request.user, 'balance'):
+                    request.user.balance -= amount
+                    request.user.save()
                 
-                # Save changes
-                request.user.save()
+                card.balance += amount
                 card.save()
                 
                 # Create transaction record
@@ -145,13 +145,13 @@ class CardViewSet(viewsets.ModelViewSet):
             return Response({
                 'message': 'Card topped up successfully',
                 'card_balance': card.balance,
-                'account_balance': request.user.balance
+                'account_balance': request.user.balance if hasattr(request.user, 'balance') else None
             })
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class CardTransactionViewSet(viewsets.ModelViewSet):  # FIXED: Changed from TransactionViewSet
+class CardTransactionViewSet(viewsets.ModelViewSet):
     """ViewSet for CardTransaction model"""
     
     permission_classes = [IsAuthenticated]
@@ -163,8 +163,8 @@ class CardTransactionViewSet(viewsets.ModelViewSet):  # FIXED: Changed from Tran
     
     def get_serializer_class(self):
         if self.action == 'create':
-            return CardTransactionCreateSerializer  # FIXED: Changed from TransactionCreateSerializer
-        return CardTransactionSerializer  # FIXED: Changed from TransactionSerializer
+            return CardTransactionCreateSerializer
+        return CardTransactionSerializer
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -192,7 +192,7 @@ class CardBalanceAPIView(generics.RetrieveAPIView):
             card = Card.objects.get(id=card_id, user=self.request.user)
             return {
                 'card_balance': card.balance,
-                'account_balance': self.request.user.balance
+                'account_balance': self.request.user.balance if hasattr(self.request.user, 'balance') else None
             }
         except Card.DoesNotExist:
             from rest_framework.exceptions import NotFound

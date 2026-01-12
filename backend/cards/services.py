@@ -1,5 +1,5 @@
 """
-cards/services.py - Business logic for cards
+cards/services.py - Business logic for cards (FIXED VERSION)
 """
 
 import random
@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from django.db import transaction
 from django.contrib.auth import get_user_model
-from .models import Card, Transaction, CardStatus
+from .models import Card, CardTransaction, CardStatus  # FIXED: CardTransaction instead of Transaction
 from .exceptions import CardException
 
 User = get_user_model()
@@ -81,7 +81,7 @@ class CardService:
         card.save()
         
         # Create transaction record
-        transaction = Transaction.objects.create(
+        transaction_record = CardTransaction.objects.create(  # FIXED: CardTransaction instead of Transaction
             user=user,
             card=card,
             amount=amount,
@@ -95,7 +95,7 @@ class CardService:
         return {
             'card': card,
             'account': account,
-            'transaction': transaction
+            'transaction': transaction_record
         }
     
     @staticmethod
@@ -135,7 +135,7 @@ class TransactionService:
     @staticmethod
     def create_transaction(user, transaction_data):
         """Create a new transaction"""
-        transaction = Transaction.objects.create(
+        transaction = CardTransaction.objects.create(  # FIXED: CardTransaction instead of Transaction
             user=user,
             **transaction_data
         )
@@ -144,9 +144,9 @@ class TransactionService:
     @staticmethod
     def get_user_transactions(user, limit=50):
         """Get transactions for a user"""
-        return Transaction.objects.filter(user=user).order_by('-created_at')[:limit]
+        return CardTransaction.objects.filter(user=user).order_by('-created_at')[:limit]  # FIXED
     
     @staticmethod
     def get_card_transactions(card_id, user):
         """Get transactions for a specific card"""
-        return Transaction.objects.filter(card_id=card_id, user=user).order_by('-created_at')
+        return CardTransaction.objects.filter(card_id=card_id, user=user).order_by('-created_at')  # FIXED
