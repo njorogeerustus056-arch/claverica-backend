@@ -1,17 +1,17 @@
 """
-compliance/serializers.py - Django REST Framework serializers for compliance app
+compliance/serializers.py - Django REST Framework serializers for central compliance app
 """
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 
 from .models import (
-    KYCVerification, KYCDocument, ComplianceCheck,
-    TACCode, ComplianceAuditLog, WithdrawalRequest,
-    VerificationStatus, DocumentType, ComplianceLevel
+    ComplianceRequest, KYCVerification, KYCDocument,
+    TACRequest, VideoCallSession, ComplianceAuditLog,
+    ComplianceRule, ComplianceDashboardStats, ComplianceAlert
 )
 
 User = get_user_model()
@@ -22,455 +22,973 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
-        read_only_fields = ['id']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff']
+        read_only_fields = fields
 
 
-class KYCSubmissionSerializer(serializers.Serializer):
-    """Serializer for KYC submission"""
+class ComplianceRequestSerializer(serializers.ModelSerializer):
+    """Serializer for Compliance Request model"""
     
-    # Personal Information
-    first_name = serializers.CharField(max_length=100)
-    middle_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    last_name = serializers.CharField(max_length=100)
-    date_of_birth = serializers.DateTimeField()
-    nationality = serializers.CharField(max_length=100)
-    country_of_residence = serializers.CharField(max_length=100)
+    user = UserSerializer(read_only=True)
+    user_email = serializers.EmailField(read_only=True)
+    app_name_display = serializers.CharField(source='get_app_name_display', read_only=True)
+    request_type_display = serializers.CharField(source='get_request_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    decision_display = serializers.CharField(source='get_decision_display', read_only=True)
+    risk_level_display = serializers.CharField(source='get_risk_level_display', read_only=True)
     
-    # Contact Information
-    email = serializers.EmailField()
-    phone_number = serializers.CharField(max_length=20)
-    address_line1 = serializers.CharField(max_length=255)
-    address_line2 = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    city = serializers.CharField(max_length=100)
-    state_province = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    postal_code = serializers.CharField(max_length=20)
+    # Calculated fields
+    time_since_creation = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
     
-    # Identity Information
-    id_number = serializers.CharField(max_length=100)
-    id_type = serializers.ChoiceField(choices=DocumentType.choices)
-    id_issue_date = serializers.DateTimeField(required=False, allow_null=True)
-    id_expiry_date = serializers.DateTimeField(required=False, allow_null=True)
+    class Meta:
+        model = ComplianceRequest
+        fields = [
+            'compliance_id', 'app_name', 'app_name_display', 'app_transaction_id',
+            'user', 'user_email', 'user_phone',
+            'request_type', 'request_type_display', 'amount', 'currency', 'description',
+            'status', 'status_display', 'priority', 'priority_display',
+            'requires_kyc', 'requires_video_call', 'requires_tac', 'requires_manual_review',
+            'risk_score', 'risk_level', 'risk_level_display',
+            'kyc_verification', 'tac_code', 'tac_generated_at', 'tac_verified_at',
+            'video_call_scheduled_at', 'video_call_link', 'video_call_completed_at',
+            'assigned_to', 'reviewed_by', 'reviewed_at', 'review_notes',
+            'form_data', 'documents',
+            'decision', 'decision_display', 'decision_reason', 'decision_notes',
+            'time_since_creation', 'is_expired',
+            'created_at', 'updated_at', 'resolved_at', 'expires_at',
+            'ip_address', 'user_agent', 'metadata'
+        ]
+        read_only_fields = [
+            'compliance_id', 'created_at', 'updated_at', 'time_since_creation',
+            'is_expired', 'user', 'user_email'
+        ]
     
-    # Additional Information
-    occupation = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    source_of_funds = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    purpose_of_account = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    expected_transaction_volume = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    def get_time_since_creation(self, obj):
+        """Calculate time since creation"""
+        if obj.created_at:
+            delta = timezone.now() - obj.created_at
+            return str(delta).split('.')[0]  # Remove microseconds
+        return None
+    
+    def get_is_expired(self, obj):
+        """Check if request is expired"""
+        return obj.is_expired()
+
+
+class ComplianceRequestCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating Compliance Requests"""
+    
+    class Meta:
+        model = ComplianceRequest
+        fields = [
+            'app_name', 'app_transaction_id',
+            'request_type', 'amount', 'currency', 'description',
+            'form_data', 'documents', 'metadata'
+        ]
     
     def validate(self, data):
-        """Validate KYC submission data"""
-        # Validate date of birth (must be at least 18 years old)
-        date_of_birth = data.get('date_of_birth')
-        if date_of_birth:
-            age = (timezone.now().date() - date_of_birth.date()).days // 365
-            if age < 18:
-                raise serializers.ValidationError("You must be at least 18 years old")
+        """Validate compliance request creation"""
+        # Add current user to request
+        request = self.context.get('request')
+        if request and request.user:
+            data['user'] = request.user
+            data['user_email'] = request.user.email
         
-        # Validate ID expiry date if provided
-        id_expiry_date = data.get('id_expiry_date')
-        if id_expiry_date and id_expiry_date < timezone.now():
-            raise serializers.ValidationError("ID document has expired")
+        # Set default priority based on amount
+        amount = data.get('amount')
+        if amount and amount > 10000:
+            data['priority'] = 'high'
+        elif amount and amount > 5000:
+            data['priority'] = 'normal'
+        else:
+            data['priority'] = 'low'
+        
+        # Auto-detect requirements based on amount and type
+        request_type = data.get('request_type')
+        if request_type == 'manual_payment':
+            data['requires_tac'] = True
+            data['requires_manual_review'] = True
+        
+        if amount and amount > 5000:
+            data['requires_kyc'] = True
+        
+        if amount and amount > 10000:
+            data['requires_video_call'] = True
         
         return data
+    
+    def create(self, validated_data):
+        """Create compliance request"""
+        return ComplianceRequest.objects.create(**validated_data)
 
 
 class KYCVerificationSerializer(serializers.ModelSerializer):
     """Serializer for KYC Verification model"""
     
-    user = UserSerializer(read_only=True, source='get_user')
-    id_type_display = serializers.CharField(source='get_id_type_display', read_only=True)
+    user = UserSerializer(read_only=True)
     verification_status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
     compliance_level_display = serializers.CharField(source='get_compliance_level_display', read_only=True)
+    id_type_display = serializers.CharField(source='get_id_type_display', read_only=True)
+    employment_status_display = serializers.CharField(source='get_employment_status_display', read_only=True)
+    
+    # Calculated fields
+    age = serializers.SerializerMethodField()
+    full_name = serializers.SerializerMethodField()
+    is_id_expired = serializers.SerializerMethodField()
+    
+    # Document counts
     documents_count = serializers.SerializerMethodField()
+    documents_approved_count = serializers.SerializerMethodField()
+    documents_pending_count = serializers.SerializerMethodField()
     
     class Meta:
         model = KYCVerification
         fields = [
-            'id', 'user_id', 'user', 'first_name', 'middle_name', 'last_name',
-            'date_of_birth', 'nationality', 'country_of_residence',
+            'kyc_id', 'user',
+            
+            # Personal Information
+            'first_name', 'middle_name', 'last_name', 'full_name',
+            'date_of_birth', 'age', 'nationality', 'country_of_residence',
+            'country_of_birth',
+            
+            # Contact Information
             'email', 'phone_number', 'address_line1', 'address_line2',
-            'city', 'state_province', 'postal_code', 'id_number',
-            'id_type', 'id_type_display', 'id_issue_date', 'id_expiry_date',
-            'compliance_level', 'compliance_level_display',
+            'city', 'state_province', 'postal_code',
+            
+            # Identity Information
+            'id_number', 'id_type', 'id_type_display', 'id_issue_date',
+            'id_expiry_date', 'is_id_expired', 'id_issuing_country',
+            
+            # Business Information
+            'company_name', 'company_registration_number', 'business_nature',
+            'website',
+            
+            # Employment Information
+            'occupation', 'employer_name', 'employment_status',
+            'employment_status_display',
+            
+            # Financial Information
+            'annual_income', 'income_currency', 'source_of_funds',
+            'expected_monthly_volume', 'purpose_of_account',
+            
+            # Verification Status
             'verification_status', 'verification_status_display',
-            'risk_score', 'risk_level', 'verified_by', 'verified_at',
-            'rejection_reason', 'notes', 'occupation', 'source_of_funds',
-            'purpose_of_account', 'expected_transaction_volume',
-            'ip_address', 'user_agent', 'geolocation',
-            'documents_count', 'created_at', 'updated_at'
+            'compliance_level', 'compliance_level_display',
+            
+            # Risk Assessment
+            'risk_score', 'risk_level', 'risk_factors',
+            'pep_status', 'pep_details', 'sanctions_match', 'sanctions_details',
+            
+            # Review Process
+            'submitted_at', 'verified_by', 'verified_at', 'review_notes',
+            'rejection_reason',
+            
+            # Document Information
+            'documents_submitted', 'documents_approved', 'documents_rejected',
+            'documents_count', 'documents_approved_count', 'documents_pending_count',
+            
+            # Compliance Checks
+            'pep_check_completed', 'sanctions_check_completed',
+            'adverse_media_check_completed', 'document_verification_completed',
+            
+            # Timestamps
+            'created_at', 'updated_at', 'next_review_date',
+            
+            # Metadata
+            'ip_address', 'user_agent', 'metadata'
         ]
         read_only_fields = [
-            'id', 'created_at', 'updated_at', 'verified_at',
-            'risk_score', 'risk_level', 'ip_address', 'user_agent'
+            'kyc_id', 'created_at', 'updated_at', 'age', 'full_name',
+            'is_id_expired', 'documents_count', 'documents_approved_count',
+            'documents_pending_count', 'risk_score', 'risk_level'
         ]
     
+    def get_age(self, obj):
+        """Calculate age from date of birth"""
+        return obj.age()
+    
+    def get_full_name(self, obj):
+        """Get full name"""
+        return obj.full_name()
+    
+    def get_is_id_expired(self, obj):
+        """Check if ID is expired"""
+        return obj.is_expired()
+    
     def get_documents_count(self, obj):
-        """Get count of documents for this verification"""
+        """Get total documents count"""
         return obj.documents.count()
     
-    def get_user(self, obj):
-        """Get user object if user_id corresponds to a User model"""
-        try:
-            return User.objects.get(id=obj.user_id)
-        except (User.DoesNotExist, ValueError):
-            return None
-
-
-class KYCVerificationDetailSerializer(KYCVerificationSerializer):
-    """Detailed serializer for KYC Verification with documents"""
+    def get_documents_approved_count(self, obj):
+        """Get approved documents count"""
+        return obj.documents.filter(status='approved').count()
     
-    documents = serializers.SerializerMethodField()
-    
-    class Meta(KYCVerificationSerializer.Meta):
-        fields = KYCVerificationSerializer.Meta.fields + ['documents']
-    
-    def get_documents(self, obj):
-        """Get all documents for this verification"""
-        documents = obj.documents.all()
-        return KYCDocumentSerializer(documents, many=True).data
+    def get_documents_pending_count(self, obj):
+        """Get pending documents count"""
+        return obj.documents.filter(status='pending').count()
 
 
 class KYCDocumentSerializer(serializers.ModelSerializer):
     """Serializer for KYC Document model"""
     
-    verification = KYCVerificationSerializer(read_only=True)
+    kyc_verification = KYCVerificationSerializer(read_only=True)
+    user = UserSerializer(read_only=True)
     document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    file_url = serializers.SerializerMethodField()
+    verification_method_display = serializers.CharField(source='get_verification_method_display', read_only=True)
+    
+    # Calculated fields
     file_size_mb = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+    file_url_absolute = serializers.SerializerMethodField()
     
     class Meta:
         model = KYCDocument
         fields = [
-            'id', 'verification', 'user_id', 'document_type',
-            'document_type_display', 'document_number',
+            'document_id', 'kyc_verification', 'user',
+            
+            # Document Information
+            'document_type', 'document_type_display', 'document_number',
+            'document_name',
+            
+            # File Information
             'file_name', 'original_file_name', 'file_path', 'file_url',
-            'file_size', 'file_size_mb', 'file_type', 'file_hash',
-            'status', 'status_display', 'verified_at', 'verified_by',
+            'file_url_absolute', 'file_size', 'file_size_mb', 'file_type',
+            'file_hash',
+            
+            # Document Details
+            'issue_date', 'expiry_date', 'is_expired',
+            'issuing_country', 'issuing_authority',
+            
+            # Verification Status
+            'status', 'status_display', 'verified_by', 'verified_at',
+            'verification_method', 'verification_method_display',
+            
+            # OCR & Data Extraction
             'ocr_data', 'extracted_data', 'confidence_score',
-            'notes', 'rejection_reason', 'uploaded_at', 'updated_at'
+            
+            # Notes and Rejection
+            'notes', 'rejection_reason',
+            
+            # Security
+            'is_encrypted', 'encryption_key',
+            
+            # Timestamps
+            'uploaded_at', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'file_name', 'file_path', 'file_hash',
-            'file_size', 'file_type', 'uploaded_at', 'updated_at'
+            'document_id', 'file_name', 'file_path', 'file_size',
+            'file_type', 'file_hash', 'uploaded_at', 'updated_at',
+            'file_size_mb', 'is_expired', 'file_url_absolute'
         ]
-    
-    def get_file_url(self, obj):
-        """Generate file URL for download"""
-        request = self.context.get('request')
-        if request and obj.file_path:
-            return request.build_absolute_uri(f'/media/{obj.file_path}')
-        return None
     
     def get_file_size_mb(self, obj):
         """Convert file size to MB"""
-        if obj.file_size:
-            return round(obj.file_size / (1024 * 1024), 2)
-        return 0
-
-
-class DocumentUploadSerializer(serializers.Serializer):
-    """Serializer for document upload"""
+        return obj.file_size_mb()
     
-    verification_id = serializers.UUIDField()
-    document_type = serializers.ChoiceField(choices=DocumentType.choices)
+    def get_is_expired(self, obj):
+        """Check if document is expired"""
+        return obj.is_expired()
+    
+    def get_file_url_absolute(self, obj):
+        """Get absolute file URL"""
+        request = self.context.get('request')
+        if request and obj.file_url:
+            return request.build_absolute_uri(obj.file_url)
+        return obj.file_url
+
+
+class KYCDocumentUploadSerializer(serializers.Serializer):
+    """Serializer for KYC document upload"""
+    
+    kyc_verification_id = serializers.CharField()
+    document_type = serializers.CharField()
+    document_number = serializers.CharField(required=False, allow_blank=True)
+    document_name = serializers.CharField()
     file = serializers.FileField()
-    document_number = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    
-    def validate_verification_id(self, value):
-        """Validate verification exists"""
-        try:
-            verification = KYCVerification.objects.get(id=value)
-            # Check if verification belongs to current user
-            request = self.context.get('request')
-            if request and str(verification.user_id) != str(request.user.id):
-                raise serializers.ValidationError("Verification does not belong to user")
-            return value
-        except KYCVerification.DoesNotExist:
-            raise serializers.ValidationError("Verification not found")
-
-
-class ComplianceCheckSerializer(serializers.ModelSerializer):
-    """Serializer for Compliance Check model"""
-    
-    verification = KYCVerificationSerializer(read_only=True)
-    
-    class Meta:
-        model = ComplianceCheck
-        fields = [
-            'id', 'verification', 'user_id', 'check_type', 'status',
-            'result', 'risk_score', 'matches_found', 'provider',
-            'provider_reference', 'checked_at', 'expires_at', 'notes'
-        ]
-        read_only_fields = ['id', 'checked_at']
-
-
-class TACCodeSerializer(serializers.ModelSerializer):
-    """Serializer for TAC Code model"""
-    
-    is_valid = serializers.SerializerMethodField()
-    time_remaining = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = TACCode
-        fields = [
-            'id', 'user_id', 'code', 'code_type', 'is_used',
-            'is_expired', 'attempts', 'max_attempts', 'transaction_id',
-            'amount', 'metadata', 'is_valid', 'time_remaining',
-            'created_at', 'expires_at', 'used_at', 'ip_address',
-            'user_agent'
-        ]
-        read_only_fields = [
-            'id', 'code', 'created_at', 'expires_at',
-            'is_used', 'is_expired', 'attempts'
-        ]
-        extra_kwargs = {
-            'code': {'write_only': True}  # Hide code in responses
-        }
-    
-    def get_is_valid(self, obj):
-        """Check if TAC code is still valid"""
-        if obj.is_used or obj.is_expired:
-            return False
-        return obj.expires_at > timezone.now()
-    
-    def get_time_remaining(self, obj):
-        """Get time remaining in seconds"""
-        if obj.is_used or obj.is_expired or obj.expires_at <= timezone.now():
-            return 0
-        return (obj.expires_at - timezone.now()).total_seconds()
-
-
-class TACVerificationSerializer(serializers.Serializer):
-    """Serializer for TAC verification"""
-    
-    code = serializers.CharField(max_length=6)
-    transaction_id = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    
-    def validate_code(self, value):
-        """Validate TAC code format"""
-        if not value.isdigit() or len(value) != 6:
-            raise serializers.ValidationError("TAC code must be 6 digits")
-        return value
-
-
-class TACGenerationSerializer(serializers.Serializer):
-    """Serializer for TAC generation"""
-    
-    transaction_id = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    amount = serializers.FloatField(required=False, allow_null=True)
-    code_type = serializers.CharField(max_length=20, default='withdrawal')
-
-
-class ComplianceAuditLogSerializer(serializers.ModelSerializer):
-    """Serializer for Compliance Audit Log"""
-    
-    actor = UserSerializer(read_only=True, source='get_actor')
-    
-    class Meta:
-        model = ComplianceAuditLog
-        fields = [
-            'id', 'user_id', 'verification_id', 'action', 'action_type',
-            'entity_type', 'entity_id', 'old_value', 'new_value',
-            'actor_id', 'actor', 'actor_role', 'ip_address', 'user_agent',
-            'notes', 'created_at'
-        ]
-        read_only_fields = ['id', 'created_at']
-    
-    def get_actor(self, obj):
-        """Get actor user object if actor_id corresponds to a User model"""
-        if obj.actor_id:
-            try:
-                return User.objects.get(id=obj.actor_id)
-            except (User.DoesNotExist, ValueError):
-                return None
-        return None
-
-
-class WithdrawalRequestSerializer(serializers.Serializer):
-    """Serializer for withdrawal request creation"""
-    
-    amount = serializers.FloatField(min_value=0.01)
-    currency = serializers.CharField(max_length=10, default='USD')
-    destination_type = serializers.CharField(max_length=50)
-    destination_details = serializers.JSONField()
-    notes = serializers.CharField(required=False, allow_blank=True)
-    
-    def validate_amount(self, value):
-        """Validate withdrawal amount"""
-        if value <= 0:
-            raise serializers.ValidationError("Amount must be greater than zero")
-        return value
-    
-    def validate_destination_details(self, value):
-        """Validate destination details based on type"""
-        destination_type = self.initial_data.get('destination_type', '')
-        
-        if destination_type == 'bank_account':
-            required_fields = ['account_number', 'account_name', 'bank_name', 'bank_code']
-            for field in required_fields:
-                if field not in value:
-                    raise serializers.ValidationError(f"{field} is required for bank transfers")
-        
-        elif destination_type == 'crypto_wallet':
-            required_fields = ['wallet_address', 'network']
-            for field in required_fields:
-                if field not in value:
-                    raise serializers.ValidationError(f"{field} is required for crypto transfers")
-        
-        return value
-
-
-class WithdrawalModelSerializer(serializers.ModelSerializer):
-    """Serializer for Withdrawal Request model"""
-    
-    user = UserSerializer(read_only=True, source='get_user')
-    destination_details_formatted = serializers.SerializerMethodField()
-    processing_time = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = WithdrawalRequest
-        fields = [
-            'id', 'user_id', 'user', 'amount', 'currency',
-            'destination_type', 'destination_details', 'destination_details_formatted',
-            'status', 'requires_tac', 'tac_verified', 'tac_code_id',
-            'kyc_status', 'compliance_status', 'processed_by', 'processed_at',
-            'transaction_hash', 'notes', 'rejection_reason',
-            'processing_time', 'created_at', 'updated_at', 'completed_at'
-        ]
-        read_only_fields = [
-            'id', 'status', 'tac_verified', 'tac_code_id',
-            'processed_by', 'processed_at', 'transaction_hash',
-            'created_at', 'updated_at', 'completed_at'
-        ]
-    
-    def get_destination_details_formatted(self, obj):
-        """Format destination details for display"""
-        details = obj.destination_details or {}
-        
-        if obj.destination_type == 'bank_account':
-            return {
-                'account_number': details.get('account_number', ''),
-                'account_name': details.get('account_name', ''),
-                'bank_name': details.get('bank_name', ''),
-                'masked_account': f"****{details.get('account_number', '')[-4:]}" if details.get('account_number') else ''
-            }
-        
-        elif obj.destination_type == 'crypto_wallet':
-            return {
-                'wallet_address': details.get('wallet_address', ''),
-                'network': details.get('network', ''),
-                'masked_address': f"{details.get('wallet_address', '')[:8]}...{details.get('wallet_address', '')[-4:]}" if details.get('wallet_address') else ''
-            }
-        
-        return details
-    
-    def get_processing_time(self, obj):
-        """Calculate processing time"""
-        if obj.completed_at and obj.created_at:
-            return (obj.completed_at - obj.created_at).total_seconds()
-        elif obj.processed_at and obj.created_at:
-            return (obj.processed_at - obj.created_at).total_seconds()
-        return None
-    
-    def get_user(self, obj):
-        """Get user object if user_id corresponds to a User model"""
-        try:
-            return User.objects.get(id=obj.user_id)
-        except (User.DoesNotExist, ValueError):
-            return None
-
-
-class KYCStatisticsSerializer(serializers.Serializer):
-    """Serializer for KYC statistics"""
-    
-    total_verifications = serializers.IntegerField()
-    pending_verifications = serializers.IntegerField()
-    approved_verifications = serializers.IntegerField()
-    rejected_verifications = serializers.IntegerField()
-    average_processing_time = serializers.FloatField()
-    high_risk_count = serializers.IntegerField()
-
-
-class ComplianceDashboardSerializer(serializers.Serializer):
-    """Serializer for compliance dashboard"""
-    
-    kyc_statistics = KYCStatisticsSerializer()
-    recent_withdrawals = WithdrawalModelSerializer(many=True)
-    pending_actions = serializers.IntegerField()
-    audit_log_summary = serializers.DictField()
-
-
-class UserComplianceStatusSerializer(serializers.Serializer):
-    """Serializer for user compliance status"""
-    
-    user_id = serializers.CharField()
-    kyc = serializers.DictField()
-    withdrawals = serializers.DictField()
-    audit_logs = serializers.DictField()
-    compliance_score = serializers.FloatField()
-    restrictions = serializers.ListField(child=serializers.CharField())
-
-
-class DocumentVerificationSerializer(serializers.Serializer):
-    """Serializer for document verification"""
-    
-    document_id = serializers.UUIDField()
-    status = serializers.ChoiceField(choices=VerificationStatus.choices)
-    verified_by = serializers.CharField(max_length=255, required=False)
-    notes = serializers.CharField(required=False, allow_blank=True)
-    rejection_reason = serializers.CharField(required=False, allow_blank=True)
+    issue_date = serializers.DateField(required=False, allow_null=True)
+    expiry_date = serializers.DateField(required=False, allow_null=True)
+    issuing_country = serializers.CharField(required=False, allow_blank=True)
+    issuing_authority = serializers.CharField(required=False, allow_blank=True)
     
     def validate(self, data):
-        """Validate document verification"""
-        status = data.get('status')
-        rejection_reason = data.get('rejection_reason')
+        """Validate document upload"""
+        # Check KYC verification exists and belongs to user
+        request = self.context.get('request')
+        if request and request.user:
+            try:
+                kyc = KYCVerification.objects.get(
+                    kyc_id=data['kyc_verification_id'],
+                    user=request.user
+                )
+                data['kyc_verification'] = kyc
+                data['user'] = request.user
+            except KYCVerification.DoesNotExist:
+                raise serializers.ValidationError("KYC verification not found")
         
-        if status == VerificationStatus.REJECTED and not rejection_reason:
-            raise serializers.ValidationError({
-                "rejection_reason": "Rejection reason is required when rejecting a document"
-            })
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+        file = data.get('file')
+        if file and file.content_type not in allowed_types:
+            raise serializers.ValidationError(
+                f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+            )
+        
+        # Validate file size (10MB max)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file and file.size > max_size:
+            raise serializers.ValidationError("File size exceeds 10MB limit")
         
         return data
 
 
-class BulkDocumentUploadSerializer(serializers.Serializer):
-    """Serializer for bulk document upload"""
+class TACRequestSerializer(serializers.ModelSerializer):
+    """Serializer for TAC Request model"""
     
-    verification_id = serializers.UUIDField()
-    documents = serializers.ListField(
-        child=serializers.DictField(child=serializers.FileField()),
-        min_length=1,
-        max_length=10
-    )
+    user = UserSerializer(read_only=True)
+    compliance_request = ComplianceRequestSerializer(read_only=True)
+    tac_type_display = serializers.CharField(source='get_tac_type_display', read_only=True)
+    sent_via_display = serializers.CharField(source='get_sent_via_display', read_only=True)
+    delivery_status_display = serializers.CharField(source='get_delivery_status_display', read_only=True)
     
-    def validate_documents(self, value):
-        """Validate documents list"""
-        for doc in value:
-            if 'file' not in doc or 'document_type' not in doc:
-                raise serializers.ValidationError("Each document must have 'file' and 'document_type'")
+    # Calculated fields
+    is_valid = serializers.SerializerMethodField()
+    time_remaining = serializers.SerializerMethodField()
+    masked_sent_to = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TACRequest
+        fields = [
+            'tac_id', 'compliance_request', 'user',
+            
+            # TAC Details
+            'tac_code', 'tac_type', 'tac_type_display', 'purpose',
+            
+            # Status
+            'is_used', 'is_expired', 'attempts', 'max_attempts',
+            
+            # Transaction Details
+            'amount', 'currency', 'transaction_id',
+            
+            # Delivery
+            'sent_via', 'sent_via_display', 'sent_to', 'masked_sent_to',
+            'delivery_status', 'delivery_status_display', 'delivery_attempts',
+            
+            # Verification
+            'verified_by', 'verified_at', 'verification_ip',
+            'verification_user_agent',
+            
+            # Calculated fields
+            'is_valid', 'time_remaining',
+            
+            # Timestamps
+            'created_at', 'expires_at', 'used_at',
+            
+            # Security
+            'ip_address', 'user_agent'
+        ]
+        read_only_fields = [
+            'tac_id', 'tac_code', 'created_at', 'expires_at',
+            'is_used', 'is_expired', 'attempts', 'verified_at',
+            'is_valid', 'time_remaining', 'masked_sent_to'
+        ]
+    
+    def get_is_valid(self, obj):
+        """Check if TAC is valid"""
+        return obj.is_valid()
+    
+    def get_time_remaining(self, obj):
+        """Get time remaining in seconds"""
+        return obj.time_remaining()
+    
+    def get_masked_sent_to(self, obj):
+        """Mask the sent_to field for privacy"""
+        if obj.sent_to:
+            if '@' in obj.sent_to:  # Email
+                parts = obj.sent_to.split('@')
+                if len(parts) == 2:
+                    username, domain = parts
+                    if len(username) > 2:
+                        masked = username[0] + '***' + username[-1] if len(username) > 4 else '***'
+                        return f"{masked}@{domain}"
+            elif len(obj.sent_to) > 6:  # Phone number
+                return f"{obj.sent_to[:3]}***{obj.sent_to[-3:]}"
+        return obj.sent_to
+
+
+class TACGenerateSerializer(serializers.Serializer):
+    """Serializer for TAC generation request"""
+    
+    compliance_request_id = serializers.CharField(required=False)
+    user_id = serializers.CharField(required=False)
+    tac_type = serializers.CharField(default='withdrawal')
+    purpose = serializers.CharField(required=False, allow_blank=True)
+    amount = serializers.DecimalField(max_digits=15, decimal_places=2, required=False)
+    currency = serializers.CharField(default='USD')
+    transaction_id = serializers.CharField(required=False, allow_blank=True)
+    sent_via = serializers.CharField(default='email')
+    
+    def validate(self, data):
+        """Validate TAC generation"""
+        request = self.context.get('request')
         
-        return value
+        # If user_id not provided, use current user
+        if not data.get('user_id') and request and request.user:
+            data['user_id'] = str(request.user.id)
+        
+        # Validate sent_via
+        allowed_sent_via = ['email', 'sms', 'push', 'whatsapp', 'telegram']
+        if data.get('sent_via') not in allowed_sent_via:
+            raise serializers.ValidationError(
+                f"Invalid sent_via. Allowed values: {', '.join(allowed_sent_via)}"
+            )
+        
+        return data
 
 
-class RiskAssessmentSerializer(serializers.Serializer):
-    """Serializer for risk assessment"""
+class TACVerifySerializer(serializers.Serializer):
+    """Serializer for TAC verification"""
     
-    risk_score = serializers.FloatField(min_value=0, max_value=100)
-    risk_level = serializers.CharField(max_length=20)
-    factors = serializers.ListField(child=serializers.DictField())
-    recommendations = serializers.ListField(child=serializers.CharField())
-
-
-class ComplianceSettingsSerializer(serializers.Serializer):
-    """Serializer for compliance settings"""
+    tac_id = serializers.CharField(required=False)
+    tac_code = serializers.CharField()
+    compliance_request_id = serializers.CharField(required=False)
     
-    kyc_auto_approval = serializers.BooleanField(default=False)
-    tac_expiry_minutes = serializers.IntegerField(min_value=1, max_value=60, default=5)
-    tac_max_attempts = serializers.IntegerField(min_value=1, max_value=10, default=3)
-    withdrawal_limit_daily = serializers.FloatField(min_value=0, default=10000)
-    withdrawal_limit_monthly = serializers.FloatField(min_value=0, default=50000)
-    require_tac_above = serializers.FloatField(min_value=0, default=1000)
-    high_risk_countries = serializers.ListField(child=serializers.CharField(), default=list)
-    restricted_occupations = serializers.ListField(child=serializers.CharField(), default=list)
+    def validate(self, data):
+        """Validate TAC verification"""
+        # At least one identifier must be provided
+        if not data.get('tac_id') and not data.get('compliance_request_id'):
+            raise serializers.ValidationError(
+                "Either tac_id or compliance_request_id must be provided"
+            )
+        
+        # Validate TAC code format
+        tac_code = data.get('tac_code')
+        if not tac_code or len(tac_code) != 6 or not tac_code.isdigit():
+            raise serializers.ValidationError("TAC code must be 6 digits")
+        
+        return data
+
+
+class VideoCallSessionSerializer(serializers.ModelSerializer):
+    """Serializer for Video Call Session model"""
+    
+    user = UserSerializer(read_only=True)
+    compliance_request = ComplianceRequestSerializer(read_only=True)
+    agent = UserSerializer(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    platform_display = serializers.CharField(source='get_platform_display', read_only=True)
+    
+    # Calculated fields
+    is_upcoming = serializers.SerializerMethodField()
+    time_until_session = serializers.SerializerMethodField()
+    duration_formatted = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = VideoCallSession
+        fields = [
+            'session_id', 'compliance_request', 'user',
+            
+            # Session Details
+            'status', 'status_display', 'purpose', 'scheduled_for',
+            'duration_minutes', 'duration_formatted',
+            
+            # Participants
+            'agent', 'agent_name', 'agent_title',
+            
+            # Video Call Platform
+            'platform', 'platform_display', 'meeting_link', 'meeting_id',
+            'meeting_password',
+            
+            # Session Data
+            'started_at', 'ended_at', 'actual_duration',
+            
+            # Recording
+            'is_recorded', 'recording_url', 'recording_duration',
+            'transcription',
+            
+            # Verification Outcome
+            'verification_passed', 'verification_notes', 'issues_identified',
+            'follow_up_required', 'follow_up_notes',
+            
+            # Security
+            'ip_address_user', 'ip_address_agent',
+            
+            # Notifications
+            'user_notified', 'agent_notified', 'reminder_sent',
+            
+            # Calculated fields
+            'is_upcoming', 'time_until_session',
+            
+            # Timestamps
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'session_id', 'created_at', 'updated_at',
+            'is_upcoming', 'time_until_session', 'duration_formatted'
+        ]
+    
+    def get_is_upcoming(self, obj):
+        """Check if session is upcoming"""
+        return obj.is_upcoming()
+    
+    def get_time_until_session(self, obj):
+        """Get time until session"""
+        delta = obj.time_until_session()
+        if delta:
+            total_seconds = int(delta.total_seconds())
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            
+            if days > 0:
+                return f"{days}d {hours}h"
+            elif hours > 0:
+                return f"{hours}h {minutes}m"
+            elif minutes > 0:
+                return f"{minutes}m {seconds}s"
+            else:
+                return f"{seconds}s"
+        return None
+    
+    def get_duration_formatted(self, obj):
+        """Format duration"""
+        if obj.actual_duration:
+            return f"{obj.actual_duration} minutes"
+        elif obj.duration_minutes:
+            return f"{obj.duration_minutes} minutes (scheduled)"
+        return "Not set"
+
+
+class VideoCallScheduleSerializer(serializers.Serializer):
+    """Serializer for scheduling video calls"""
+    
+    compliance_request_id = serializers.CharField()
+    purpose = serializers.CharField(required=False, default='KYC Verification')
+    scheduled_for = serializers.DateTimeField()
+    duration_minutes = serializers.IntegerField(default=30, min_value=15, max_value=120)
+    agent_id = serializers.CharField(required=False)
+    platform = serializers.CharField(default='zoom')
+    meeting_link = serializers.URLField()
+    meeting_id = serializers.CharField(required=False, allow_blank=True)
+    meeting_password = serializers.CharField(required=False, allow_blank=True)
+    
+    def validate(self, data):
+        """Validate video call scheduling"""
+        # Validate scheduled time is in the future
+        if data['scheduled_for'] <= timezone.now():
+            raise serializers.ValidationError("Scheduled time must be in the future")
+        
+        # Validate platform
+        allowed_platforms = ['zoom', 'google_meet', 'microsoft_teams', 'custom']
+        if data['platform'] not in allowed_platforms:
+            raise serializers.ValidationError(
+                f"Invalid platform. Allowed: {', '.join(allowed_platforms)}"
+            )
+        
+        return data
+
+
+class ComplianceAuditLogSerializer(serializers.ModelSerializer):
+    """Serializer for Compliance Audit Log model"""
+    
+    user = UserSerializer(read_only=True)
+    compliance_request = ComplianceRequestSerializer(read_only=True)
+    kyc_verification = KYCVerificationSerializer(read_only=True)
+    entity_type_display = serializers.CharField(source='get_entity_type_display', read_only=True)
+    action_type_display = serializers.CharField(source='get_action_type_display', read_only=True)
+    
+    # Calculated fields
+    time_ago = serializers.SerializerMethodField()
+    changes_summary = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ComplianceAuditLog
+        fields = [
+            'log_id',
+            
+            # Entity Information
+            'entity_type', 'entity_type_display', 'entity_id',
+            
+            # Action Information
+            'action_type', 'action_type_display', 'action_description',
+            
+            # User Information
+            'user', 'user_email', 'user_role',
+            
+            # Changes
+            'old_value', 'new_value', 'changed_fields', 'changes_summary',
+            
+            # Metadata
+            'ip_address', 'user_agent', 'location',
+            
+            # Related Data
+            'compliance_request', 'kyc_verification',
+            
+            # Calculated fields
+            'time_ago',
+            
+            # Timestamps
+            'created_at'
+        ]
+        read_only_fields = ['log_id', 'created_at', 'time_ago', 'changes_summary']
+    
+    def get_time_ago(self, obj):
+        """Get human-readable time ago"""
+        delta = timezone.now() - obj.created_at
+        
+        if delta.days > 365:
+            years = delta.days // 365
+            return f"{years} year{'s' if years > 1 else ''} ago"
+        elif delta.days > 30:
+            months = delta.days // 30
+            return f"{months} month{'s' if months > 1 else ''} ago"
+        elif delta.days > 0:
+            return f"{delta.days} day{'s' if delta.days > 1 else ''} ago"
+        elif delta.seconds > 3600:
+            hours = delta.seconds // 3600
+            return f"{hours} hour{'s' if hours > 1 else ''} ago"
+        elif delta.seconds > 60:
+            minutes = delta.seconds // 60
+            return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+        else:
+            return "Just now"
+    
+    def get_changes_summary(self, obj):
+        """Generate summary of changes"""
+        if obj.changed_fields:
+            return f"Changed: {', '.join(obj.changed_fields)}"
+        elif obj.old_value and obj.new_value:
+            return "Values updated"
+        elif obj.new_value and not obj.old_value:
+            return "Record created"
+        elif obj.old_value and not obj.new_value:
+            return "Record deleted"
+        return "No changes"
+
+
+class ComplianceRuleSerializer(serializers.ModelSerializer):
+    """Serializer for Compliance Rule model"""
+    
+    created_by = UserSerializer(read_only=True)
+    rule_type_display = serializers.CharField(source='get_rule_type_display', read_only=True)
+    applicable_apps_display = serializers.CharField(source='get_applicable_apps_display', read_only=True)
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+    time_period_display = serializers.CharField(source='get_time_period_display', read_only=True)
+    
+    # Calculated fields
+    is_effective = serializers.SerializerMethodField()
+    days_until_effective = serializers.SerializerMethodField()
+    days_until_expiry = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ComplianceRule
+        fields = [
+            'rule_id', 'rule_name', 'rule_description',
+            
+            # Rule Configuration
+            'rule_type', 'rule_type_display', 'applicable_apps',
+            'applicable_apps_display', 'priority',
+            
+            # Conditions
+            'condition', 'threshold_amount', 'threshold_currency',
+            'time_period', 'time_period_display',
+            
+            # Actions
+            'action', 'action_display', 'action_details',
+            
+            # Risk Parameters
+            'risk_weight', 'risk_multiplier',
+            
+            # Status
+            'is_active', 'is_automated',
+            
+            # Metadata
+            'created_by', 'notes',
+            
+            # Calculated fields
+            'is_effective', 'days_until_effective', 'days_until_expiry',
+            
+            # Timestamps
+            'created_at', 'updated_at', 'effective_from', 'effective_to'
+        ]
+        read_only_fields = [
+            'rule_id', 'created_at', 'updated_at',
+            'is_effective', 'days_until_effective', 'days_until_expiry'
+        ]
+    
+    def get_is_effective(self, obj):
+        """Check if rule is currently effective"""
+        return obj.is_effective()
+    
+    def get_days_until_effective(self, obj):
+        """Get days until rule becomes effective"""
+        if obj.effective_from > timezone.now():
+            delta = obj.effective_from - timezone.now()
+            return delta.days
+        return 0
+    
+    def get_days_until_expiry(self, obj):
+        """Get days until rule expires"""
+        if obj.effective_to and obj.effective_to > timezone.now():
+            delta = obj.effective_to - timezone.now()
+            return delta.days
+        return None
+
+
+class ComplianceDashboardStatsSerializer(serializers.ModelSerializer):
+    """Serializer for Compliance Dashboard Statistics"""
+    
+    period_type_display = serializers.CharField(source='get_period_type_display', read_only=True)
+    
+    # Calculated fields
+    total_resolved = serializers.SerializerMethodField()
+    resolution_rate = serializers.SerializerMethodField()
+    kyc_approval_rate = serializers.SerializerMethodField()
+    tac_success_rate = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ComplianceDashboardStats
+        fields = [
+            'period_type', 'period_type_display', 'period_start', 'period_end',
+            
+            # Request Statistics
+            'total_requests', 'pending_requests', 'approved_requests',
+            'rejected_requests', 'escalated_requests', 'total_resolved',
+            'resolution_rate',
+            
+            # KYC Statistics
+            'kyc_submissions', 'kyc_approved', 'kyc_rejected', 'kyc_pending',
+            'kyc_approval_rate',
+            
+            # TAC Statistics
+            'tac_generated', 'tac_verified', 'tac_expired', 'tac_failed',
+            'tac_success_rate',
+            
+            # Video Call Statistics
+            'video_calls_scheduled', 'video_calls_completed',
+            'video_calls_cancelled', 'video_call_success_rate',
+            
+            # Risk Statistics
+            'high_risk_count', 'medium_risk_count', 'low_risk_count',
+            'average_risk_score',
+            
+            # Processing Time
+            'avg_processing_time_hours', 'median_processing_time_hours',
+            'p90_processing_time_hours',
+            
+            # App-specific Statistics
+            'payments_requests', 'escrow_requests', 'crypto_requests',
+            'wallet_requests',
+            
+            # Compliance Officer Statistics
+            'requests_per_officer', 'avg_resolution_time_per_officer',
+            
+            # Timestamps
+            'calculated_at', 'updated_at'
+        ]
+        read_only_fields = fields
+    
+    def get_total_resolved(self, obj):
+        """Get total resolved requests"""
+        return obj.approved_requests + obj.rejected_requests
+    
+    def get_resolution_rate(self, obj):
+        """Calculate resolution rate"""
+        if obj.total_requests > 0:
+            return ((obj.approved_requests + obj.rejected_requests) / obj.total_requests) * 100
+        return 0
+    
+    def get_kyc_approval_rate(self, obj):
+        """Calculate KYC approval rate"""
+        if obj.kyc_submissions > 0:
+            return (obj.kyc_approved / obj.kyc_submissions) * 100
+        return 0
+    
+    def get_tac_success_rate(self, obj):
+        """Calculate TAC success rate"""
+        if obj.tac_generated > 0:
+            return (obj.tac_verified / obj.tac_generated) * 100
+        return 0
+
+
+class ComplianceAlertSerializer(serializers.ModelSerializer):
+    """Serializer for Compliance Alert model"""
+    
+    user = UserSerializer(read_only=True)
+    compliance_request = ComplianceRequestSerializer(read_only=True)
+    kyc_verification = KYCVerificationSerializer(read_only=True)
+    acknowledged_by = UserSerializer(read_only=True)
+    resolved_by = UserSerializer(read_only=True)
+    
+    alert_type_display = serializers.CharField(source='get_alert_type_display', read_only=True)
+    severity_display = serializers.CharField(source='get_severity_display', read_only=True)
+    
+    # Calculated fields
+    time_since_created = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+    requires_action = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ComplianceAlert
+        fields = [
+            'alert_id',
+            
+            # Alert Details
+            'alert_type', 'alert_type_display', 'severity', 'severity_display',
+            'title', 'description',
+            
+            # Related Entities
+            'compliance_request', 'kyc_verification', 'user',
+            
+            # Alert Data
+            'alert_data', 'trigger_conditions',
+            
+            # Status
+            'is_resolved', 'is_acknowledged', 'acknowledged_by', 'acknowledged_at',
+            
+            # Resolution
+            'resolution_notes', 'resolved_by', 'resolved_at',
+            
+            # Notification
+            'notified_users', 'notification_sent', 'notification_channels',
+            
+            # Calculated fields
+            'time_since_created', 'is_expired', 'requires_action',
+            
+            # Timestamps
+            'created_at', 'updated_at', 'expires_at'
+        ]
+        read_only_fields = [
+            'alert_id', 'created_at', 'updated_at',
+            'time_since_created', 'is_expired', 'requires_action'
+        ]
+    
+    def get_time_since_created(self, obj):
+        """Get time since alert was created"""
+        delta = timezone.now() - obj.created_at
+        if delta.days > 0:
+            return f"{delta.days} day{'s' if delta.days > 1 else ''} ago"
+        elif delta.seconds > 3600:
+            hours = delta.seconds // 3600
+            return f"{hours} hour{'s' if hours > 1 else ''} ago"
+        elif delta.seconds > 60:
+            minutes = delta.seconds // 60
+            return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+        else:
+            return "Just now"
+    
+    def get_is_expired(self, obj):
+        """Check if alert is expired"""
+        return obj.is_expired()
+    
+    def get_requires_action(self, obj):
+        """Check if alert requires action"""
+        return not obj.is_resolved and not obj.is_acknowledged
+
+
+class ComplianceAlertCreateSerializer(serializers.Serializer):
+    """Serializer for creating compliance alerts"""
+    
+    alert_type = serializers.CharField()
+    severity = serializers.CharField(default='warning')
+    title = serializers.CharField()
+    description = serializers.CharField()
+    compliance_request_id = serializers.CharField(required=False)
+    kyc_verification_id = serializers.CharField(required=False)
+    user_id = serializers.CharField(required=False)
+    alert_data = serializers.JSONField(required=False, default=dict)
+    trigger_conditions = serializers.JSONField(required=False, default=dict)
+    expires_in_hours = serializers.IntegerField(default=24)
+    
+    def validate(self, data):
+        """Validate alert creation"""
+        # Validate alert type
+        allowed_types = [
+            'risk_threshold', 'suspicious_activity', 'rule_violation',
+            'deadline_approaching', 'kyc_expiring', 'document_expiring',
+            'unusual_pattern', 'sanctions_match', 'pep_identified'
+        ]
+        if data['alert_type'] not in allowed_types:
+            raise serializers.ValidationError(
+                f"Invalid alert type. Allowed: {', '.join(allowed_types)}"
+            )
+        
+        # Validate severity
+        allowed_severities = ['info', 'warning', 'error', 'critical']
+        if data['severity'] not in allowed_severities:
+            raise serializers.ValidationError(
+                f"Invalid severity. Allowed: {', '.join(allowed_severities)}"
+            )
+        
+        # Set expires_at
+        if data.get('expires_in_hours'):
+            data['expires_at'] = timezone.now() + timedelta(hours=data['expires_in_hours'])
+        
+        return data
+
+
+class ComplianceDashboardSummarySerializer(serializers.Serializer):
+    """Serializer for compliance dashboard summary"""
+    
+    # Overview
+    total_requests_today = serializers.IntegerField()
+    pending_requests = serializers.IntegerField()
+    high_priority_requests = serializers.IntegerField()
+    
+    # KYC Summary
+    kyc_pending_review = serializers.IntegerField()
+    kyc_expiring_soon = serializers.IntegerField()
+    
+    # Alerts
+    unresolved_alerts = serializers.IntegerField()
+    critical_alerts = serializers.IntegerField()
+    
+    # Performance
+    avg_processing_time = serializers.FloatField()
+    resolution_rate = serializers.FloatField()
+    
+    # Officer Workload
+    officer_workload = serializers.DictField()
+    
+    # Recent Activity
+    recent_requests = ComplianceRequestSerializer(many=True)
+    recent_alerts = ComplianceAlertSerializer(many=True)
+
+
+class ComplianceSearchSerializer(serializers.Serializer):
+    """Serializer for compliance search results"""
+    
+    compliance_requests = ComplianceRequestSerializer(many=True)
+    kyc_verifications = KYCVerificationSerializer(many=True)
+    users = UserSerializer(many=True)
+    
+    # Counts
+    requests_count = serializers.IntegerField()
+    kyc_count = serializers.IntegerField()
+    users_count = serializers.IntegerField()
+    total_count = serializers.IntegerField()
+
+
+class ComplianceBulkActionSerializer(serializers.Serializer):
+    """Serializer for bulk compliance actions"""
+    
+    action = serializers.CharField(choices=['approve', 'reject', 'escalate', 'assign', 'archive'])
+    item_ids = serializers.ListField(child=serializers.CharField())
+    notes = serializers.CharField(required=False, allow_blank=True)
+    assigned_to = serializers.CharField(required=False, allow_blank=True)
+    
+    def validate(self, data):
+        """Validate bulk action"""
+        action = data.get('action')
+        item_ids = data.get('item_ids', [])
+        
+        if not item_ids:
+            raise serializers.ValidationError("At least one item ID must be provided")
+        
+        if action == 'assign' and not data.get('assigned_to'):
+            raise serializers.ValidationError("assigned_to is required for assign action")
+        
+        return data

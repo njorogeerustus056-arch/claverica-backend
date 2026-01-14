@@ -1,3 +1,5 @@
+# escrow/views.py - UPDATED FOR COMPLIANCE AWARENESS
+
 from django.shortcuts import render
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes
@@ -26,7 +28,12 @@ def index(request):
             "create": "/api/escrow/create/",
             "list": "/api/escrow/list/",
             "detail": "/api/escrow/<escrow_id>/",
-            "stats": "/api/escrow/stats/"
+            "stats": "/api/escrow/stats/",
+            "compliance": {  # NEW: Added compliance endpoints
+                "dispute": "/api/escrow/<escrow_id>/compliance/dispute/",
+                "kyc": "/api/escrow/<escrow_id>/compliance/kyc/",
+                "status": "/api/escrow/<escrow_id>/compliance/status/"
+            }
         }
     })
 
@@ -38,6 +45,12 @@ def create_escrow_view(request):
     serializer = EscrowCreateSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
         escrow = serializer.save()
+        
+        # NEW: Check if high-value escrow requires compliance
+        if escrow.amount > Decimal('10000'):
+            escrow.requires_compliance_approval = True
+            escrow.save()
+        
         EscrowLog.objects.create(
             escrow=escrow,
             user_id=escrow.sender_id,
@@ -48,7 +61,8 @@ def create_escrow_view(request):
         )
         return Response({
             "message": "Escrow created successfully",
-            "escrow": EscrowSerializer(escrow).data
+            "escrow": EscrowSerializer(escrow).data,
+            "requires_compliance": escrow.requires_compliance_approval  # NEW
         }, status=status.HTTP_201_CREATED)
     return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -263,6 +277,10 @@ def dispute_escrow_view(request, escrow_id):
         if escrow.dispute_status == 'opened':
             return Response({"error": "Dispute already opened for this escrow"}, status=status.HTTP_400_BAD_REQUEST)
         
+        # NEW: For high-value disputes, mark as requiring compliance
+        if escrow.amount > Decimal('5000'):
+            escrow.requires_compliance_approval = True
+        
         escrow.dispute_status = 'opened'
         escrow.dispute_reason = reason
         escrow.dispute_opened_by = user_id
@@ -278,7 +296,17 @@ def dispute_escrow_view(request, escrow_id):
             details=f"Opened dispute for escrow {escrow.escrow_id}: {reason}",
             ip_address=get_client_ip(request)
         )
-        return Response({"message": "Dispute opened successfully", "escrow": EscrowSerializer(escrow).data})
+        
+        response_data = {
+            "message": "Dispute opened successfully", 
+            "escrow": EscrowSerializer(escrow).data
+        }
+        
+        # NEW: Add compliance note if needed
+        if escrow.requires_compliance_approval:
+            response_data["compliance_note"] = "This dispute requires compliance review. Please use the compliance endpoint for resolution."
+        
+        return Response(response_data)
     except Escrow.DoesNotExist:
         return Response({"error": "Escrow not found"}, status=status.HTTP_404_NOT_FOUND)
 

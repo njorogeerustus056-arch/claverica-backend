@@ -1,3 +1,5 @@
+# escrow/models.py - UPDATED FOR COMPLIANCE INTEGRATION
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -16,13 +18,14 @@ class Escrow(models.Model):
         ('disputed', 'Disputed'),
         ('cancelled', 'Cancelled'),
     ]
+    
     DISPUTE_STATUS_CHOICES = [
         ('none', 'No Dispute'),
         ('opened', 'Dispute Opened'),
         ('under_review', 'Under Review'),
         ('resolved', 'Resolved'),
     ]
-
+    
     # Removed custom UUID PK - use default BigAutoField (integer)
     # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # COMMENTED OUT
 
@@ -56,6 +59,10 @@ class Escrow(models.Model):
     dispute_reason = models.TextField(blank=True, null=True)
     dispute_opened_by = models.CharField(max_length=255, blank=True, null=True)
     dispute_opened_at = models.DateTimeField(null=True, blank=True)
+    
+    # NEW: Compliance integration
+    compliance_reference = models.CharField(max_length=100, blank=True, help_text="Reference to compliance app for dispute handling")
+    requires_compliance_approval = models.BooleanField(default=False)
 
     # Important dates
     expected_release_date = models.DateTimeField(null=True, blank=True)
@@ -74,6 +81,7 @@ class Escrow(models.Model):
             models.Index(fields=['receiver_id', '-created_at']),
             models.Index(fields=['escrow_id']),
             models.Index(fields=['status']),
+            models.Index(fields=['compliance_reference']),  # NEW: Index for compliance lookup
         ]
 
     def __str__(self):
@@ -93,10 +101,7 @@ class Escrow(models.Model):
         return self.status == 'funded' and not self.is_released
 
     def release(self):
-        """
-        OPTION A:
-        Simple, safe release logic
-        """
+        """Release escrow funds"""
         if not self.can_release():
             return False
         self.status = 'released'
@@ -109,6 +114,13 @@ class Escrow(models.Model):
             'updated_at'
         ])
         return True
+    
+    def requires_compliance_check(self):
+        """Determine if escrow requires compliance check"""
+        # High-value escrows or disputed escrows need compliance
+        return (self.amount > Decimal('10000') or 
+                self.dispute_status != 'none' or
+                self.requires_compliance_approval)
 
 
 class EscrowLog(models.Model):
@@ -122,6 +134,8 @@ class EscrowLog(models.Model):
         ('funded', 'Funded'),
         ('released', 'Released'),
         ('disputed', 'Disputed'),
+        ('compliance_requested', 'Compliance Requested'),  # NEW
+        ('compliance_approved', 'Compliance Approved'),    # NEW
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -1,14 +1,14 @@
 """
-compliance/views.py - Django REST Framework views for compliance app
+compliance/views.py - Django REST Framework views for central compliance app
 """
 
-import logging  # ADD THIS LINE
+import logging
 from rest_framework import status, viewsets, permissions
 from rest_framework.decorators import api_view, parser_classes, permission_classes, action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.utils import timezone
 from datetime import timedelta
 from django.db import transaction
@@ -18,392 +18,737 @@ from django.core.cache import cache
 from django.conf import settings
 
 from .models import (
-    KYCVerification, KYCDocument, TACCode,
-    ComplianceAuditLog, WithdrawalRequest, VerificationStatus,
-    DocumentType, ComplianceLevel
+    ComplianceRequest, KYCVerification, KYCDocument,
+    TACRequest, VideoCallSession, ComplianceAuditLog,
+    ComplianceRule, ComplianceDashboardStats, ComplianceAlert
 )
 from .serializers import (
-    KYCSubmissionSerializer, KYCVerificationSerializer,
-    DocumentUploadSerializer, TACVerificationSerializer,
-    WithdrawalRequestSerializer, WithdrawalModelSerializer,
-    KYCDocumentSerializer, TACCodeSerializer,
-    ComplianceAuditLogSerializer, KYCVerificationDetailSerializer
+    ComplianceRequestSerializer, ComplianceRequestCreateSerializer,
+    KYCVerificationSerializer, KYCDocumentSerializer, KYCDocumentUploadSerializer,
+    TACRequestSerializer, TACGenerateSerializer, TACVerifySerializer,
+    VideoCallSessionSerializer, VideoCallScheduleSerializer,
+    ComplianceAuditLogSerializer, ComplianceRuleSerializer,
+    ComplianceDashboardStatsSerializer, ComplianceAlertSerializer,
+    ComplianceAlertCreateSerializer, ComplianceDashboardSummarySerializer,
+    ComplianceSearchSerializer, ComplianceBulkActionSerializer,
+    UserSerializer
 )
 from .services import (
-    generate_tac_code, save_upload_file,
-    log_compliance_action, get_client_ip
+    ComplianceService, KYCService, TACService,
+    VideoCallService, AuditService, AlertService
 )
-from .email_service import (
-    send_tac_email, send_kyc_submitted_email,
-    send_kyc_approved_email, send_withdrawal_confirmation_email,
-    send_kyc_rejected_email
+from .permissions import (
+    IsComplianceOfficer, IsOwnerOrAdmin, HasKYCApproved,
+    CanViewAuditLogs, CanManageDocuments, CanApproveKYC
 )
-from .permissions import IsOwnerOrAdmin, HasKYCApproved
-from .utils import calculate_risk_score, validate_id_number, check_sanctions
 
-logger = logging.getLogger(__name__)  # ADD THIS LINE
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-class KYCVerificationViewSet(viewsets.ModelViewSet):
+class ComplianceRequestViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for managing KYC verifications
+    API endpoint for managing compliance requests
     """
-    queryset = KYCVerification.objects.all()
-    permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
+    queryset = ComplianceRequest.objects.all()
+    permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
         if self.action == 'create':
-            return KYCSubmissionSerializer
-        elif self.action == 'retrieve':
-            return KYCVerificationDetailSerializer
-        return KYCVerificationSerializer
+            return ComplianceRequestCreateSerializer
+        return ComplianceRequestSerializer
+    
+    def get_permissions(self):
+        """Set permissions based on action"""
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [IsAuthenticated]
+        elif self.action == 'create':
+            permission_classes = [IsAuthenticated]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            permission_classes = [IsComplianceOfficer]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
     
     def get_queryset(self):
         """
-        Users can only see their own verifications
-        Admins can see all verifications
+        Users can see their own requests
+        Compliance officers can see all requests
         """
         user = self.request.user
-        if user.is_staff:
-            return KYCVerification.objects.all()
-        return KYCVerification.objects.filter(user_id=str(user.id))
+        
+        if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
+            # Compliance officers see all requests
+            queryset = ComplianceRequest.objects.all()
+        else:
+            # Regular users see only their own requests
+            queryset = ComplianceRequest.objects.filter(user=user)
+        
+        # Apply filters
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        app_filter = self.request.query_params.get('app')
+        if app_filter:
+            queryset = queryset.filter(app_name=app_filter)
+        
+        type_filter = self.request.query_params.get('type')
+        if type_filter:
+            queryset = queryset.filter(request_type=type_filter)
+        
+        priority_filter = self.request.query_params.get('priority')
+        if priority_filter:
+            queryset = queryset.filter(priority=priority_filter)
+        
+        # Date filters
+        date_from = self.request.query_params.get('date_from')
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        
+        date_to = self.request.query_params.get('date_to')
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+        
+        return queryset.order_by('-created_at')
     
-    def create(self, request):
-        """Submit KYC verification request"""
-        serializer = KYCSubmissionSerializer(data=request.data)
-        
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        data = serializer.validated_data
-        user_id = str(request.user.id)
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        """Get dashboard statistics for compliance requests"""
+        user = request.user
         
         try:
-            # Check if user already has pending verification
-            existing = KYCVerification.objects.filter(
-                user_id=user_id,
-                verification_status__in=[VerificationStatus.PENDING, VerificationStatus.IN_REVIEW]
-            ).first()
+            # Get statistics
+            total_requests = self.get_queryset().count()
+            pending_requests = self.get_queryset().filter(status='pending').count()
+            high_priority = self.get_queryset().filter(priority='high').count()
             
-            if existing:
-                return Response(
-                    {"detail": "Verification already in progress"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Calculate risk score
-            risk_score, risk_level = calculate_risk_score(data)
-            
-            # Check sanctions (simplified)
-            if check_sanctions(f"{data['first_name']} {data['last_name']}", data['country_of_residence']):
-                risk_score += 50
-                risk_level = 'high'
-            
-            # Validate ID number
-            if not validate_id_number(data['id_number'], data['id_type']):
-                return Response(
-                    {"detail": "Invalid ID number format"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Create new verification
-            verification = KYCVerification.objects.create(
-                user_id=user_id,
-                first_name=data['first_name'],
-                middle_name=data.get('middle_name'),
-                last_name=data['last_name'],
-                date_of_birth=data['date_of_birth'],
-                nationality=data['nationality'],
-                country_of_residence=data['country_of_residence'],
-                email=data['email'],
-                phone_number=data['phone_number'],
-                address_line1=data['address_line1'],
-                address_line2=data.get('address_line2'),
-                city=data['city'],
-                state_province=data.get('state_province'),
-                postal_code=data['postal_code'],
-                id_number=data['id_number'],
-                id_type=data['id_type'],
-                occupation=data.get('occupation'),
-                source_of_funds=data.get('source_of_funds'),
-                purpose_of_account=data.get('purpose_of_account'),
-                ip_address=get_client_ip(request),
-                user_agent=request.META.get('HTTP_USER_AGENT'),
-                risk_score=risk_score,
-                risk_level=risk_level
-            )
-            
-            # Log action
-            log_compliance_action(
-                user_id,
-                "KYC Submitted",
-                "submission",
-                "verification",
-                str(verification.id),
-                new_value={"status": "pending", "risk_level": risk_level},
-                ip_address=get_client_ip(request)
-            )
-            
-            # Send confirmation email
-            send_kyc_submitted_email(
-                data['email'],
-                data['first_name'],
-                str(verification.id)
-            )
+            # Get recent requests
+            recent_requests = self.get_queryset()[:10]
             
             return Response({
-                "success": True,
-                "verification_id": str(verification.id),
-                "status": verification.verification_status,
-                "risk_level": verification.risk_level,
-                "message": "KYC verification submitted successfully"
-            }, status=status.HTTP_201_CREATED)
+                'success': True,
+                'statistics': {
+                    'total_requests': total_requests,
+                    'pending_requests': pending_requests,
+                    'high_priority_requests': high_priority,
+                    'in_review': self.get_queryset().filter(status='under_review').count(),
+                    'awaiting_tac': self.get_queryset().filter(status='awaiting_tac').count(),
+                },
+                'recent_requests': ComplianceRequestSerializer(recent_requests, many=True).data
+            })
         
         except Exception as e:
+            logger.error(f"Dashboard error: {str(e)}")
             return Response(
-                {"detail": str(e)},
+                {'error': 'Failed to load dashboard'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """Approve a KYC verification (admin only)"""
-        if not request.user.is_staff:
+        """Approve a compliance request"""
+        if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
             return Response(
-                {"detail": "Permission denied"},
+                {'error': 'Permission denied'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        verification = self.get_object()
+        compliance_request = self.get_object()
+        notes = request.data.get('notes', '')
         
-        if verification.verification_status != VerificationStatus.PENDING:
-            return Response(
-                {"detail": "Verification is not pending"},
-                status=status.HTTP_400_BAD_REQUEST
+        try:
+            result = ComplianceService.approve_request(
+                compliance_request=compliance_request,
+                approved_by=request.user,
+                notes=notes
             )
+            
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Approval failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
-        verification.verification_status = VerificationStatus.APPROVED
-        verification.verified_by = str(request.user.id)
-        verification.verified_at = timezone.now()
-        verification.save()
-        
-        # Send approval email
-        send_kyc_approved_email(
-            verification.email,
-            f"{verification.first_name} {verification.last_name}",
-            verification.compliance_level
-        )
-        
-        # Log action
-        log_compliance_action(
-            str(request.user.id),
-            "KYC Approved",
-            "approval",
-            "verification",
-            str(verification.id),
-            old_value={"status": "pending"},
-            new_value={"status": "approved"},
-            ip_address=get_client_ip(request)
-        )
-        
-        return Response({
-            "success": True,
-            "message": "KYC verification approved successfully",
-            "verification": KYCVerificationSerializer(verification).data
-        })
+        except Exception as e:
+            logger.error(f"Approval error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
-        """Reject a KYC verification (admin only)"""
-        if not request.user.is_staff:
+        """Reject a compliance request"""
+        if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
             return Response(
-                {"detail": "Permission denied"},
+                {'error': 'Permission denied'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        verification = self.get_object()
-        rejection_reason = request.data.get('rejection_reason', '')
+        compliance_request = self.get_object()
+        reason = request.data.get('reason', '')
+        notes = request.data.get('notes', '')
         
-        if not rejection_reason:
+        if not reason:
             return Response(
-                {"detail": "Rejection reason is required"},
+                {'error': 'Rejection reason is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        verification.verification_status = VerificationStatus.REJECTED
-        verification.rejection_reason = rejection_reason
-        verification.verified_by = str(request.user.id)
-        verification.verified_at = timezone.now()
-        verification.save()
+        try:
+            result = ComplianceService.reject_request(
+                compliance_request=compliance_request,
+                rejected_by=request.user,
+                reason=reason,
+                notes=notes
+            )
+            
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Rejection failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
-        # Send rejection email
-        send_kyc_rejected_email(
-            verification.email,
-            f"{verification.first_name} {verification.last_name}",
-            rejection_reason
-        )
-        
-        # Log action
-        log_compliance_action(
-            str(request.user.id),
-            "KYC Rejected",
-            "rejection",
-            "verification",
-            str(verification.id),
-            old_value={"status": "pending"},
-            new_value={"status": "rejected", "reason": rejection_reason},
-            ip_address=get_client_ip(request)
-        )
-        
-        return Response({
-            "success": True,
-            "message": "KYC verification rejected",
-            "verification": KYCVerificationSerializer(verification).data
-        })
+        except Exception as e:
+            logger.error(f"Rejection error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
-    @action(detail=False, methods=['get'])
-    def my_status(self, request):
-        """Get current user's KYC status"""
-        user_id = str(request.user.id)
+    @action(detail=True, methods=['post'])
+    def escalate(self, request, pk=None):
+        """Escalate a compliance request"""
+        compliance_request = self.get_object()
+        reason = request.data.get('reason', '')
         
         try:
-            verification = KYCVerification.objects.filter(
-                user_id=user_id
-            ).order_by('-created_at').first()
+            result = ComplianceService.escalate_request(
+                compliance_request=compliance_request,
+                escalated_by=request.user,
+                reason=reason
+            )
             
-            if not verification:
-                return Response({
-                    "verified": False,
-                    "status": "not_started",
-                    "message": "KYC verification not initiated"
-                })
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Escalation failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            logger.error(f"Escalation error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def assign(self, request, pk=None):
+        """Assign a compliance request to an officer"""
+        if not request.user.is_staff:
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        compliance_request = self.get_object()
+        officer_id = request.data.get('officer_id')
+        
+        if not officer_id:
+            return Response(
+                {'error': 'officer_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            officer = User.objects.get(id=officer_id)
             
-            # Get documents
-            documents = KYCDocument.objects.filter(verification=verification)
+            # Check if user is a compliance officer
+            if not officer.is_staff and not officer.groups.filter(name='Compliance Officers').exists():
+                return Response(
+                    {'error': 'User is not a compliance officer'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            compliance_request.assigned_to = officer
+            compliance_request.save()
+            
+            # Log the assignment
+            AuditService.log_action(
+                user=request.user,
+                action=f"Assigned compliance request {compliance_request.compliance_id} to {officer.email}",
+                entity_type='compliance_request',
+                entity_id=compliance_request.compliance_id,
+                old_value={'assigned_to': None},
+                new_value={'assigned_to': officer.email}
+            )
             
             return Response({
-                "verified": verification.verification_status == VerificationStatus.APPROVED,
-                "status": verification.verification_status,
-                "verification_id": str(verification.id),
-                "compliance_level": verification.compliance_level,
-                "risk_level": verification.risk_level,
-                "documents": [
-                    {
-                        "id": str(doc.id),
-                        "type": doc.document_type,
-                        "status": doc.status,
-                        "uploaded_at": doc.uploaded_at.isoformat()
-                    }
-                    for doc in documents
-                ],
-                "created_at": verification.created_at.isoformat(),
-                "verified_at": verification.verified_at.isoformat() if verification.verified_at else None
+                'success': True,
+                'message': f'Request assigned to {officer.email}',
+                'assigned_to': officer.email
+            })
+        
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Officer not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Assignment error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def request_info(self, request, pk=None):
+        """Request additional information for a compliance request"""
+        if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        compliance_request = self.get_object()
+        info_required = request.data.get('info_required', '')
+        
+        if not info_required:
+            return Response(
+                {'error': 'info_required is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            result = ComplianceService.request_additional_info(
+                compliance_request=compliance_request,
+                requested_by=request.user,
+                info_required=info_required
+            )
+            
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Request failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            logger.error(f"Info request error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'])
+    def bulk_action(self, request):
+        """Perform bulk actions on compliance requests"""
+        if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = ComplianceBulkActionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        action_type = data['action']
+        item_ids = data['item_ids']
+        
+        try:
+            # Get requests that belong to the user or are unassigned
+            requests = ComplianceRequest.objects.filter(compliance_id__in=item_ids)
+            
+            if action_type == 'approve':
+                for req in requests:
+                    ComplianceService.approve_request(
+                        compliance_request=req,
+                        approved_by=request.user,
+                        notes=data.get('notes', '')
+                    )
+            
+            elif action_type == 'reject':
+                for req in requests:
+                    ComplianceService.reject_request(
+                        compliance_request=req,
+                        rejected_by=request.user,
+                        reason=data.get('notes', 'Bulk rejection'),
+                        notes=data.get('notes', '')
+                    )
+            
+            elif action_type == 'assign':
+                officer = User.objects.get(id=data['assigned_to'])
+                for req in requests:
+                    req.assigned_to = officer
+                    req.save()
+            
+            return Response({
+                'success': True,
+                'message': f'Performed {action_type} on {len(requests)} requests',
+                'processed': len(requests)
             })
         
         except Exception as e:
+            logger.error(f"Bulk action error: {str(e)}")
             return Response(
-                {"detail": str(e)},
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        """Search compliance requests"""
+        query = request.query_params.get('q', '')
+        
+        if not query:
+            return Response(
+                {'error': 'Search query is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Search in compliance requests
+            requests = ComplianceRequest.objects.filter(
+                models.Q(compliance_id__icontains=query) |
+                models.Q(user__email__icontains=query) |
+                models.Q(user__first_name__icontains=query) |
+                models.Q(user__last_name__icontains=query) |
+                models.Q(description__icontains=query)
+            )[:20]
+            
+            return Response({
+                'success': True,
+                'results': ComplianceRequestSerializer(requests, many=True).data,
+                'count': requests.count()
+            })
+        
+        except Exception as e:
+            logger.error(f"Search error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class KYCVerificationViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for KYC verifications
+    """
+    queryset = KYCVerification.objects.all()
+    serializer_class = KYCVerificationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        """Set permissions based on action"""
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [IsAuthenticated]
+        elif self.action in ['create', 'update', 'partial_update']:
+            permission_classes = [IsAuthenticated]
+        elif self.action in ['destroy', 'approve', 'reject']:
+            permission_classes = [IsComplianceOfficer]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
+    
+    def get_queryset(self):
+        """Filter queryset based on user role"""
+        user = self.request.user
+        
+        if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
+            # Officers see all verifications
+            queryset = KYCVerification.objects.all()
+        else:
+            # Users see only their own verifications
+            queryset = KYCVerification.objects.filter(user=user)
+        
+        # Apply filters
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(verification_status=status_filter)
+        
+        risk_filter = self.request.query_params.get('risk_level')
+        if risk_filter:
+            queryset = queryset.filter(risk_level=risk_filter)
+        
+        date_from = self.request.query_params.get('date_from')
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        
+        date_to = self.request.query_params.get('date_to')
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+        
+        return queryset.order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        """Create KYC verification with additional processing"""
+        kyc_verification = serializer.save()
+        
+        # Run initial compliance checks
+        KYCService.perform_initial_checks(kyc_verification)
+        
+        # Log the creation
+        AuditService.log_action(
+            user=self.request.user,
+            action='KYC Verification Created',
+            entity_type='kyc_verification',
+            entity_id=kyc_verification.kyc_id,
+            new_value={'status': kyc_verification.verification_status}
+        )
+    
+    @action(detail=True, methods=['post'])
+    def submit_document(self, request, pk=None):
+        """Submit document for KYC verification"""
+        kyc_verification = self.get_object()
+        
+        # Check if user owns this KYC
+        if kyc_verification.user != request.user:
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = KYCDocumentUploadSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            result = KYCService.upload_document(
+                kyc_verification=kyc_verification,
+                user=request.user,
+                document_data=serializer.validated_data,
+                file=serializer.validated_data['file']
+            )
+            
+            if result['success']:
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Document upload failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            logger.error(f"Document upload error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Approve KYC verification"""
+        if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        kyc_verification = self.get_object()
+        notes = request.data.get('notes', '')
+        compliance_level = request.data.get('compliance_level', 'standard')
+        
+        try:
+            result = KYCService.approve_verification(
+                kyc_verification=kyc_verification,
+                approved_by=request.user,
+                notes=notes,
+                compliance_level=compliance_level
+            )
+            
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Approval failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            logger.error(f"KYC approval error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Reject KYC verification"""
+        if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        kyc_verification = self.get_object()
+        reason = request.data.get('reason', '')
+        
+        if not reason:
+            return Response(
+                {'error': 'Rejection reason is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            result = KYCService.reject_verification(
+                kyc_verification=kyc_verification,
+                rejected_by=request.user,
+                reason=reason
+            )
+            
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Rejection failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            logger.error(f"KYC rejection error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['get'])
+    def documents(self, request, pk=None):
+        """Get documents for KYC verification"""
+        kyc_verification = self.get_object()
+        
+        # Check permission
+        if kyc_verification.user != request.user and not request.user.is_staff:
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        documents = kyc_verification.documents.all()
+        return Response({
+            'success': True,
+            'documents': KYCDocumentSerializer(documents, many=True).data,
+            'count': documents.count()
+        })
+    
+    @action(detail=False, methods=['get'])
+    def status(self, request):
+        """Get current user's KYC status"""
+        try:
+            kyc = KYCVerification.objects.filter(user=request.user).order_by('-created_at').first()
+            
+            if not kyc:
+                return Response({
+                    'success': True,
+                    'has_kyc': False,
+                    'message': 'No KYC verification found'
+                })
+            
+            return Response({
+                'success': True,
+                'has_kyc': True,
+                'kyc': KYCVerificationSerializer(kyc).data,
+                'compliance_level': kyc.compliance_level,
+                'is_approved': kyc.verification_status == 'approved'
+            })
+        
+        except Exception as e:
+            logger.error(f"KYC status error: {str(e)}")
+            return Response(
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
 class KYCDocumentViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for managing KYC documents
+    API endpoint for KYC documents
     """
     queryset = KYCDocument.objects.all()
     serializer_class = KYCDocumentSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
-    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated, CanManageDocuments]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):
+        """Filter documents based on user role"""
         user = self.request.user
-        if user.is_staff:
-            return KYCDocument.objects.all()
-        return KYCDocument.objects.filter(user_id=str(user.id))
+        
+        if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
+            queryset = KYCDocument.objects.all()
+        else:
+            queryset = KYCDocument.objects.filter(user=user)
+        
+        # Apply filters
+        type_filter = self.request.query_params.get('type')
+        if type_filter:
+            queryset = queryset.filter(document_type=type_filter)
+        
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        kyc_id = self.request.query_params.get('kyc_id')
+        if kyc_id:
+            queryset = queryset.filter(kyc_verification__kyc_id=kyc_id)
+        
+        return queryset.order_by('-uploaded_at')
     
-    def create(self, request):
-        """Upload KYC document"""
-        serializer = DocumentUploadSerializer(data=request.data)
+    @action(detail=True, methods=['post'])
+    def verify(self, request, pk=None):
+        """Verify a document"""
+        if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        document = self.get_object()
+        status = request.data.get('status')
+        notes = request.data.get('notes', '')
+        rejection_reason = request.data.get('rejection_reason', '')
         
-        data = serializer.validated_data
-        user_id = str(request.user.id)
+        if status not in ['approved', 'rejected']:
+            return Response(
+                {'error': 'Status must be either approved or rejected'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if status == 'rejected' and not rejection_reason:
+            return Response(
+                {'error': 'Rejection reason is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
-            # Verify verification exists and belongs to user
-            verification = KYCVerification.objects.filter(
-                id=data['verification_id'],
-                user_id=user_id
-            ).first()
+            result = KYCService.verify_document(
+                document=document,
+                verified_by=request.user,
+                status=status,
+                notes=notes,
+                rejection_reason=rejection_reason
+            )
             
-            if not verification:
+            if result['success']:
+                return Response(result)
+            else:
                 return Response(
-                    {"detail": "Verification not found"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            # Validate file type
-            file = data['file']
-            allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
-            if file.content_type not in allowed_types:
-                return Response(
-                    {"detail": "Invalid file type. Allowed: JPEG, PNG, PDF"},
+                    {'error': result.get('error', 'Verification failed')},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
-            # Check file size (10MB limit)
-            max_size = 10 * 1024 * 1024  # 10MB
-            if file.size > max_size:
-                return Response(
-                    {"detail": "File too large. Maximum size is 10MB"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Save file
-            file_path, file_hash, file_size = save_upload_file(
-                file,
-                user_id,
-                data['document_type']
-            )
-            
-            # Create document record
-            document = KYCDocument.objects.create(
-                verification=verification,
-                user_id=user_id,
-                document_type=data['document_type'],
-                file_name=file_path.split('/')[-1],
-                original_file_name=file.name,
-                file_path=file_path,
-                file_size=file_size,
-                file_type=file.content_type,
-                file_hash=file_hash
-            )
-            
-            # Log action
-            log_compliance_action(
-                user_id,
-                "Document Uploaded",
-                "document_upload",
-                "document",
-                str(document.id),
-                new_value={"type": data['document_type'], "file_name": file.name},
-                ip_address=get_client_ip(request)
-            )
-            
-            return Response({
-                "document_id": str(document.id),
-                "file_name": document.file_name,
-                "status": "uploaded",
-                "message": "Document uploaded successfully"
-            }, status=status.HTTP_201_CREATED)
         
         except Exception as e:
+            logger.error(f"Document verification error: {str(e)}")
             return Response(
-                {"detail": str(e)},
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
@@ -412,640 +757,1118 @@ class KYCDocumentViewSet(viewsets.ModelViewSet):
         """Download a document"""
         document = self.get_object()
         
-        # Only allow download if user owns the document or is staff
-        if not request.user.is_staff and str(document.user_id) != str(request.user.id):
+        # Check permission
+        if document.user != request.user and not request.user.is_staff:
             return Response(
-                {"detail": "Permission denied"},
+                {'error': 'Permission denied'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # In a real app, you would serve the file here
-        # For now, return the file path
+        # In production, this would serve the file
+        # For now, return file information
         return Response({
-            "file_path": document.file_path,
-            "file_name": document.original_file_name,
-            "file_type": document.file_type
+            'success': True,
+            'file_name': document.original_file_name,
+            'file_type': document.file_type,
+            'file_size': document.file_size,
+            'file_url': document.file_url,
+            'download_url': f'/api/compliance/documents/{document.document_id}/download-file/'
         })
 
 
-class TACCodeViewSet(viewsets.ViewSet):
+class TACRequestViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for TAC code operations
+    API endpoint for TAC requests
     """
+    queryset = TACRequest.objects.all()
+    serializer_class = TACRequestSerializer
     permission_classes = [IsAuthenticated]
     
-    @action(detail=False, methods=['post'])
-    def generate(self, request):
-        """Generate TAC code for transaction"""
-        user_id = str(request.user.id)
-        transaction_id = request.data.get('transaction_id')
-        amount = request.data.get('amount')
+    def get_queryset(self):
+        """Filter TAC requests based on user role"""
+        user = self.request.user
         
-        # Rate limiting check
-        cache_key = f"tac_generate:{user_id}"
-        request_count = cache.get(cache_key, 0)
+        if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
+            queryset = TACRequest.objects.all()
+        else:
+            queryset = TACRequest.objects.filter(user=user)
         
-        max_requests = getattr(settings, 'TAC_MAX_REQUESTS_PER_HOUR', 10)
-        if request_count >= max_requests:
-            return Response({
-                "error": "Rate limit exceeded",
-                "message": f"Maximum {max_requests} TAC requests per hour allowed",
-                "retry_after": cache.ttl(cache_key) if cache.ttl(cache_key) else 3600
-            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
-        
-        try:
-            # Check for existing active TAC
-            existing_tac = TACCode.objects.filter(
-                user_id=user_id,
+        # Filter by status
+        is_valid = self.request.query_params.get('is_valid')
+        if is_valid == 'true':
+            queryset = queryset.filter(
                 is_used=False,
                 is_expired=False,
                 expires_at__gt=timezone.now()
-            ).first()
-            
-            if existing_tac:
-                return Response({
-                    "success": True,
-                    "message": "TAC code already sent",
-                    "expires_at": existing_tac.expires_at.isoformat(),
-                    "time_remaining": (existing_tac.expires_at - timezone.now()).total_seconds(),
-                    "code": existing_tac.code if settings.DEBUG else None  # Only show in debug mode
-                })
-            
-            # Generate new TAC
-            code = generate_tac_code()
-            expires_at = timezone.now() + timedelta(minutes=5)
-            
-            tac = TACCode.objects.create(
-                user_id=user_id,
-                code=code,
-                transaction_id=transaction_id,
-                amount=amount,
-                expires_at=expires_at,
-                ip_address=get_client_ip(request),
-                user_agent=request.META.get('HTTP_USER_AGENT')
+            )
+        elif is_valid == 'false':
+            queryset = queryset.filter(
+                models.Q(is_used=True) | models.Q(is_expired=True) | models.Q(expires_at__lte=timezone.now())
+            )
+        
+        # Filter by type
+        tac_type = self.request.query_params.get('type')
+        if tac_type:
+            queryset = queryset.filter(tac_type=tac_type)
+        
+        return queryset.order_by('-created_at')
+    
+    @action(detail=False, methods=['post'])
+    def generate(self, request):
+        """Generate a new TAC"""
+        serializer = TACGenerateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            result = TACService.generate_tac(
+                user=request.user,
+                **serializer.validated_data
             )
             
-            # Increment rate limit counter
-            cache.set(cache_key, request_count + 1, timeout=3600)
-            
-            # Get user email and send TAC
-            try:
-                user = User.objects.get(id=user_id)
-                send_tac_email(user.email, code, user.get_full_name() or user.username)
-            except Exception as email_error:
-                logger.error(f"Failed to send TAC email: {email_error}")
-                # Continue even if email fails
-            
-            return Response({
-                "success": True,
-                "message": "TAC code sent to your email",
-                "tac_id": str(tac.id),
-                "expires_at": expires_at.isoformat(),
-                "time_remaining": 300,  # 5 minutes in seconds
-                "code": code if settings.DEBUG else None  # Only show in debug mode
-            })
+            if result['success']:
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(
+                    {'error': result.get('error', 'TAC generation failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
         except Exception as e:
+            logger.error(f"TAC generation error: {str(e)}")
             return Response(
-                {"detail": str(e)},
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
     @action(detail=False, methods=['post'])
     def verify(self, request):
-        """Verify TAC code"""
-        serializer = TACVerificationSerializer(data=request.data)
-        
+        """Verify a TAC"""
+        serializer = TACVerifySerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        data = serializer.validated_data
-        user_id = str(request.user.id)
-        
         try:
-            # Find TAC
-            tac = TACCode.objects.filter(
-                user_id=user_id,
-                code=data['code'],
-                is_used=False,
-                is_expired=False
-            ).first()
-            
-            if not tac:
-                # Log failed attempt
-                failed_tac = TACCode.objects.filter(
-                    user_id=user_id,
-                    code=data['code']
-                ).first()
-                
-                if failed_tac:
-                    failed_tac.attempts += 1
-                    if failed_tac.attempts >= failed_tac.max_attempts:
-                        failed_tac.is_expired = True
-                    failed_tac.save()
-                
-                return Response(
-                    {"detail": "Invalid or expired TAC code"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Check expiry
-            if tac.expires_at < timezone.now():
-                tac.is_expired = True
-                tac.save()
-                return Response(
-                    {"detail": "TAC code has expired"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Mark as used
-            tac.is_used = True
-            tac.used_at = timezone.now()
-            tac.save()
-            
-            # Log action
-            log_compliance_action(
-                user_id,
-                "TAC Verified",
-                "tac_verification",
-                "tac",
-                str(tac.id),
-                new_value={"verified": True},
-                ip_address=get_client_ip(request)
+            result = TACService.verify_tac(
+                user=request.user,
+                **serializer.validated_data
             )
             
-            return Response({
-                "success": True,
-                "message": "TAC verified successfully",
-                "verified_at": tac.used_at.isoformat(),
-                "transaction_id": tac.transaction_id
-            })
-        
-        except Exception as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
-class WithdrawalRequestViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for withdrawal requests
-    """
-    queryset = WithdrawalRequest.objects.all()
-    serializer_class = WithdrawalModelSerializer
-    permission_classes = [IsAuthenticated, HasKYCApproved]
-    
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_staff:
-            return WithdrawalRequest.objects.all()
-        return WithdrawalRequest.objects.filter(user_id=str(user.id))
-    
-    def create(self, request):
-        """Request withdrawal"""
-        serializer = WithdrawalRequestSerializer(data=request.data)
-        
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        data = serializer.validated_data
-        user_id = str(request.user.id)
-        
-        try:
-            # Check KYC status
-            verification = KYCVerification.objects.filter(
-                user_id=user_id,
-                verification_status=VerificationStatus.APPROVED
-            ).first()
-            
-            if not verification:
+            if result['success']:
+                return Response(result)
+            else:
                 return Response(
-                    {"detail": "KYC verification required"},
+                    {'error': result.get('error', 'TAC verification failed')},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
-            with transaction.atomic():
-                # Create withdrawal request
-                withdrawal_req = WithdrawalRequest.objects.create(
-                    user_id=user_id,
-                    amount=data['amount'],
-                    currency=data['currency'],
-                    destination_type=data['destination_type'],
-                    destination_details=data['destination_details'],
-                    kyc_status="verified"
-                )
-                
-                # Generate TAC
-                code = generate_tac_code()
-                expires_at = timezone.now() + timedelta(minutes=5)
-                
-                tac = TACCode.objects.create(
-                    user_id=user_id,
-                    code=code,
-                    transaction_id=str(withdrawal_req.id),
-                    amount=data['amount'],
-                    expires_at=expires_at,
-                    ip_address=get_client_ip(request),
-                    user_agent=request.META.get('HTTP_USER_AGENT')
-                )
-                
-                # Update withdrawal with TAC ID
-                withdrawal_req.tac_code_id = str(tac.id)
-                withdrawal_req.status = "tac_sent"
-                withdrawal_req.save()
-                
-                # Send TAC email
-                try:
-                    user = User.objects.get(id=user_id)
-                    send_tac_email(user.email, code, user.get_full_name() or user.username)
-                except Exception as email_error:
-                    logger.error(f"Failed to send TAC email: {email_error}")
-                    # Continue even if email fails
-            
-            return Response({
-                "success": True,
-                "withdrawal_id": str(withdrawal_req.id),
-                "status": withdrawal_req.status,
-                "tac_sent": True,
-                "message": "Withdrawal request created. Please verify with TAC code.",
-                "code": code if settings.DEBUG else None  # Only show in debug mode
-            }, status=status.HTTP_201_CREATED)
         
         except Exception as e:
+            logger.error(f"TAC verification error: {str(e)}")
             return Response(
-                {"detail": str(e)},
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
     @action(detail=True, methods=['post'])
-    def verify_tac(self, request, pk=None):
-        """Verify TAC for withdrawal"""
-        withdrawal = self.get_object()
-        code = request.data.get('code')
+    def resend(self, request, pk=None):
+        """Resend a TAC"""
+        tac_request = self.get_object()
         
-        if not code:
+        # Check if user owns this TAC
+        if tac_request.user != request.user and not request.user.is_staff:
             return Response(
-                {"detail": "TAC code is required"},
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if TAC is still valid
+        if not tac_request.is_valid():
+            return Response(
+                {'error': 'TAC is no longer valid'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         try:
-            # Find and verify TAC
-            tac = TACCode.objects.filter(
-                id=withdrawal.tac_code_id,
-                code=code,
-                is_used=False,
-                is_expired=False
-            ).first()
+            result = TACService.resend_tac(tac_request)
             
-            if not tac:
+            if result['success']:
+                return Response(result)
+            else:
                 return Response(
-                    {"detail": "Invalid TAC code"},
+                    {'error': result.get('error', 'TAC resend failed')},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
-            if tac.expires_at < timezone.now():
-                tac.is_expired = True
-                tac.save()
-                return Response(
-                    {"detail": "TAC code has expired"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Mark TAC as used
-            tac.is_used = True
-            tac.used_at = timezone.now()
-            tac.save()
-            
-            # Update withdrawal status
-            withdrawal.tac_verified = True
-            withdrawal.status = "processing"
-            withdrawal.save()
-            
-            # Log action
-            log_compliance_action(
-                withdrawal.user_id,
-                "Withdrawal TAC Verified",
-                "tac_verification",
-                "withdrawal",
-                str(withdrawal.id),
-                new_value={"status": "processing"},
-                ip_address=get_client_ip(request)
-            )
-            
-            # Send confirmation email
-            try:
-                user = User.objects.get(id=withdrawal.user_id)
-                send_withdrawal_confirmation_email(
-                    user.email,
-                    user.get_full_name() or user.username,
-                    withdrawal.amount,
-                    withdrawal.currency
-                )
-            except Exception as email_error:
-                logger.error(f"Failed to send withdrawal confirmation email: {email_error}")
-            
-            return Response({
-                "success": True,
-                "message": "Withdrawal verified and is being processed",
-                "withdrawal_id": str(withdrawal.id),
-                "status": withdrawal.status
-            })
         
         except Exception as e:
+            logger.error(f"TAC resend error: {str(e)}")
             return Response(
-                {"detail": str(e)},
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class VideoCallSessionViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for video call sessions
+    """
+    queryset = VideoCallSession.objects.all()
+    serializer_class = VideoCallSessionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter video calls based on user role"""
+        user = self.request.user
+        
+        if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
+            queryset = VideoCallSession.objects.all()
+        else:
+            queryset = VideoCallSession.objects.filter(user=user)
+        
+        # Apply filters
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        upcoming = self.request.query_params.get('upcoming')
+        if upcoming == 'true':
+            queryset = queryset.filter(
+                status__in=['scheduled', 'rescheduled'],
+                scheduled_for__gt=timezone.now()
+            )
+        
+        return queryset.order_by('scheduled_for')
+    
+    @action(detail=False, methods=['post'])
+    def schedule(self, request):
+        """Schedule a new video call"""
+        serializer = VideoCallScheduleSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            result = VideoCallService.schedule_call(
+                requested_by=request.user,
+                **serializer.validated_data
+            )
+            
+            if result['success']:
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Scheduling failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            logger.error(f"Video call scheduling error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def start(self, request, pk=None):
+        """Start a video call session"""
+        video_call = self.get_object()
+        
+        # Check if user is allowed to start this call
+        if video_call.user != request.user and video_call.agent != request.user:
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            result = VideoCallService.start_call(video_call)
+            
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Failed to start call')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            logger.error(f"Video call start error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        """Complete a video call session"""
+        video_call = self.get_object()
+        
+        # Only agent can complete the call
+        if video_call.agent != request.user:
+            return Response(
+                {'error': 'Only the assigned agent can complete the call'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        verification_passed = request.data.get('verification_passed', False)
+        notes = request.data.get('notes', '')
+        
+        try:
+            result = VideoCallService.complete_call(
+                video_call=video_call,
+                completed_by=request.user,
+                verification_passed=verification_passed,
+                notes=notes
+            )
+            
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Failed to complete call')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            logger.error(f"Video call completion error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def reschedule(self, request, pk=None):
+        """Reschedule a video call"""
+        video_call = self.get_object()
+        new_time = request.data.get('scheduled_for')
+        
+        if not new_time:
+            return Response(
+                {'error': 'scheduled_for is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            result = VideoCallService.reschedule_call(
+                video_call=video_call,
+                new_time=new_time,
+                rescheduled_by=request.user
+            )
+            
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Rescheduling failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            logger.error(f"Video call reschedule error: {str(e)}")
+            return Response(
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
-        """Cancel a withdrawal request"""
-        withdrawal = self.get_object()
+        """Cancel a video call"""
+        video_call = self.get_object()
+        reason = request.data.get('reason', '')
         
-        if withdrawal.status not in ['pending', 'tac_sent']:
+        # Check if user is allowed to cancel
+        if video_call.user != request.user and video_call.agent != request.user and not request.user.is_staff:
             return Response(
-                {"detail": "Cannot cancel withdrawal in current status"},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
             )
         
-        withdrawal.status = "cancelled"
-        withdrawal.save()
+        try:
+            result = VideoCallService.cancel_call(
+                video_call=video_call,
+                cancelled_by=request.user,
+                reason=reason
+            )
+            
+            if result['success']:
+                return Response(result)
+            else:
+                return Response(
+                    {'error': result.get('error', 'Cancellation failed')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
-        # Log action
-        log_compliance_action(
-            withdrawal.user_id,
-            "Withdrawal Cancelled",
-            "cancellation",
-            "withdrawal",
-            str(withdrawal.id),
-            old_value={"status": withdrawal._original_status if hasattr(withdrawal, '_original_status') else "unknown"},
-            new_value={"status": "cancelled"}
-        )
-        
-        return Response({
-            "success": True,
-            "message": "Withdrawal cancelled successfully"
-        })
+        except Exception as e:
+            logger.error(f"Video call cancellation error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class ComplianceAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    API endpoint for viewing compliance audit logs
+    API endpoint for compliance audit logs (read-only)
     """
     queryset = ComplianceAuditLog.objects.all()
     serializer_class = ComplianceAuditLogSerializer
+    permission_classes = [IsAuthenticated, CanViewAuditLogs]
+    
+    def get_queryset(self):
+        """Filter audit logs based on user role"""
+        user = self.request.user
+        
+        if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
+            queryset = ComplianceAuditLog.objects.all()
+        else:
+            queryset = ComplianceAuditLog.objects.filter(user=user)
+        
+        # Apply filters
+        entity_type = self.request.query_params.get('entity_type')
+        if entity_type:
+            queryset = queryset.filter(entity_type=entity_type)
+        
+        entity_id = self.request.query_params.get('entity_id')
+        if entity_id:
+            queryset = queryset.filter(entity_id=entity_id)
+        
+        action_type = self.request.query_params.get('action_type')
+        if action_type:
+            queryset = queryset.filter(action_type=action_type)
+        
+        date_from = self.request.query_params.get('date_from')
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        
+        date_to = self.request.query_params.get('date_to')
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+        
+        return queryset.order_by('-created_at')
+    
+    @action(detail=False, methods=['get'])
+    def recent(self, request):
+        """Get recent audit logs"""
+        limit = int(request.query_params.get('limit', 50))
+        
+        logs = self.get_queryset()[:limit]
+        return Response({
+            'success': True,
+            'logs': self.get_serializer(logs, many=True).data,
+            'count': logs.count()
+        })
+
+
+class ComplianceRuleViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for compliance rules
+    """
+    queryset = ComplianceRule.objects.all()
+    serializer_class = ComplianceRuleSerializer
+    permission_classes = [IsAdminUser]  # Only admins can manage rules
+    
+    def get_queryset(self):
+        """Filter rules"""
+        queryset = ComplianceRule.objects.all()
+        
+        # Filter by active status
+        is_active = self.request.query_params.get('is_active')
+        if is_active == 'true':
+            queryset = queryset.filter(is_active=True)
+        elif is_active == 'false':
+            queryset = queryset.filter(is_active=False)
+        
+        # Filter by rule type
+        rule_type = self.request.query_params.get('rule_type')
+        if rule_type:
+            queryset = queryset.filter(rule_type=rule_type)
+        
+        # Filter by applicable apps
+        app = self.request.query_params.get('app')
+        if app:
+            queryset = queryset.filter(
+                models.Q(applicable_apps='all') | models.Q(applicable_apps=app)
+            )
+        
+        return queryset.order_by('priority', 'rule_name')
+    
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """Activate a compliance rule"""
+        rule = self.get_object()
+        rule.is_active = True
+        rule.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Rule activated',
+            'rule': self.get_serializer(rule).data
+        })
+    
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        """Deactivate a compliance rule"""
+        rule = self.get_object()
+        rule.is_active = False
+        rule.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Rule deactivated',
+            'rule': self.get_serializer(rule).data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def evaluate(self, request):
+        """Evaluate compliance rules against a transaction"""
+        amount = request.query_params.get('amount')
+        currency = request.query_params.get('currency', 'USD')
+        user_id = request.query_params.get('user_id')
+        app = request.query_params.get('app')
+        
+        if not all([amount, user_id, app]):
+            return Response(
+                {'error': 'amount, user_id, and app are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user = User.objects.get(id=user_id)
+            amount_decimal = float(amount)
+            
+            # Get active rules for this app
+            rules = ComplianceRule.objects.filter(
+                is_active=True,
+                is_effective=True
+            ).filter(
+                models.Q(applicable_apps='all') | models.Q(applicable_apps=app)
+            ).order_by('priority')
+            
+            evaluation_results = []
+            triggered_rules = []
+            
+            for rule in rules:
+                # Evaluate rule conditions
+                triggered = ComplianceService.evaluate_rule(
+                    rule=rule,
+                    amount=amount_decimal,
+                    currency=currency,
+                    user=user,
+                    app=app
+                )
+                
+                if triggered:
+                    triggered_rules.append({
+                        'rule_id': rule.rule_id,
+                        'rule_name': rule.rule_name,
+                        'action': rule.action,
+                        'action_details': rule.action_details
+                    })
+                
+                evaluation_results.append({
+                    'rule_id': rule.rule_id,
+                    'rule_name': rule.rule_name,
+                    'triggered': triggered,
+                    'action': rule.action if triggered else None
+                })
+            
+            return Response({
+                'success': True,
+                'evaluation': evaluation_results,
+                'triggered_rules': triggered_rules,
+                'requires_review': any(r['action'] == 'review' for r in triggered_rules),
+                'requires_escalation': any(r['action'] == 'escalate' for r in triggered_rules),
+                'is_allowed': not any(r['action'] == 'deny' for r in triggered_rules)
+            })
+        
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Rule evaluation error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ComplianceAlertViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for compliance alerts
+    """
+    queryset = ComplianceAlert.objects.all()
+    serializer_class = ComplianceAlertSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
+        """Filter alerts based on user role"""
         user = self.request.user
-        if user.is_staff:
-            return ComplianceAuditLog.objects.all()
-        return ComplianceAuditLog.objects.filter(user_id=str(user.id))
-
-
-# Legacy function-based views (for backward compatibility)
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def submit_kyc_legacy(request):
-    """Legacy KYC submission endpoint"""
-    viewset = KYCVerificationViewSet()
-    viewset.request = request
-    viewset.format_kwarg = None
-    return viewset.create(request)
-
-
-@api_view(['POST'])
-@parser_classes([MultiPartParser, FormParser])
-@permission_classes([IsAuthenticated])
-def upload_kyc_document_legacy(request):
-    """Legacy document upload endpoint"""
-    viewset = KYCDocumentViewSet()
-    viewset.request = request
-    viewset.format_kwarg = None
-    return viewset.create(request)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_kyc_status_legacy(request, user_id):
-    """Legacy KYC status endpoint"""
-    viewset = KYCVerificationViewSet()
-    viewset.request = request
-    viewset.format_kwarg = None
-    viewset.kwargs = {'pk': user_id}
-    return viewset.my_status(request)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def generate_tac_legacy(request):
-    """Legacy TAC generation endpoint"""
-    viewset = TACCodeViewSet()
-    viewset.request = request
-    viewset.format_kwarg = None
-    return viewset.generate(request)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def verify_tac_legacy(request):
-    """Legacy TAC verification endpoint"""
-    viewset = TACCodeViewSet()
-    viewset.request = request
-    viewset.format_kwarg = None
-    return viewset.verify(request)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def request_withdrawal_legacy(request):
-    """Legacy withdrawal request endpoint"""
-    viewset = WithdrawalRequestViewSet()
-    viewset.request = request
-    viewset.format_kwarg = None
-    return viewset.create(request)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_verification_documents_legacy(request, verification_id):
-    """Get all documents for a verification"""
-    user_id = str(request.user.id)
-    
-    try:
-        verification = KYCVerification.objects.filter(
-            id=verification_id,
-            user_id=user_id
-        ).first()
         
-        if not verification:
-            return Response(
-                {"detail": "Verification not found"},
-                status=status.HTTP_404_NOT_FOUND
+        if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
+            queryset = ComplianceAlert.objects.all()
+        else:
+            # Users see alerts related to them
+            queryset = ComplianceAlert.objects.filter(
+                models.Q(user=user) |
+                models.Q(compliance_request__user=user) |
+                models.Q(kyc_verification__user=user)
             )
         
-        documents = KYCDocument.objects.filter(verification=verification)
+        # Apply filters
+        is_resolved = self.request.query_params.get('is_resolved')
+        if is_resolved == 'true':
+            queryset = queryset.filter(is_resolved=True)
+        elif is_resolved == 'false':
+            queryset = queryset.filter(is_resolved=False)
+        
+        severity = self.request.query_params.get('severity')
+        if severity:
+            queryset = queryset.filter(severity=severity)
+        
+        alert_type = self.request.query_params.get('alert_type')
+        if alert_type:
+            queryset = queryset.filter(alert_type=alert_type)
+        
+        # Unresolved alerts first
+        queryset = queryset.order_by('is_resolved', '-created_at')
+        
+        return queryset
+    
+    @action(detail=True, methods=['post'])
+    def acknowledge(self, request, pk=None):
+        """Acknowledge an alert"""
+        alert = self.get_object()
+        
+        # Check if user has permission to acknowledge
+        if alert.user != request.user and not request.user.is_staff:
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        alert.is_acknowledged = True
+        alert.acknowledged_by = request.user
+        alert.acknowledged_at = timezone.now()
+        alert.save()
+        
+        # Log the acknowledgment
+        AuditService.log_action(
+            user=request.user,
+            action=f"Acknowledged alert {alert.alert_id}",
+            entity_type='alert',
+            entity_id=alert.alert_id,
+            old_value={'is_acknowledged': False},
+            new_value={'is_acknowledged': True}
+        )
         
         return Response({
-            "verification_id": str(verification_id),
-            "documents": [
-                {
-                    "id": str(doc.id),
-                    "type": doc.document_type,
-                    "file_name": doc.original_file_name,
-                    "status": doc.status,
-                    "uploaded_at": doc.uploaded_at.isoformat(),
-                    "verified_at": doc.verified_at.isoformat() if doc.verified_at else None
-                }
-                for doc in documents
-            ]
+            'success': True,
+            'message': 'Alert acknowledged',
+            'alert': self.get_serializer(alert).data
         })
     
-    except Exception as e:
-        return Response(
-            {"detail": str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    @action(detail=True, methods=['post'])
+    def resolve(self, request, pk=None):
+        """Resolve an alert"""
+        if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        alert = self.get_object()
+        resolution_notes = request.data.get('resolution_notes', '')
+        
+        alert.is_resolved = True
+        alert.resolved_by = request.user
+        alert.resolved_at = timezone.now()
+        alert.resolution_notes = resolution_notes
+        alert.save()
+        
+        # Log the resolution
+        AuditService.log_action(
+            user=request.user,
+            action=f"Resolved alert {alert.alert_id}",
+            entity_type='alert',
+            entity_id=alert.alert_id,
+            old_value={'is_resolved': False},
+            new_value={'is_resolved': True, 'resolution_notes': resolution_notes}
         )
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_audit_log_legacy(request, user_id):
-    """Get compliance audit log for user"""
-    limit = int(request.query_params.get('limit', 50))
-    
-    try:
-        logs = ComplianceAuditLog.objects.filter(
-            user_id=user_id
-        ).order_by('-created_at')[:limit]
         
         return Response({
-            "user_id": user_id,
-            "logs": [
-                {
-                    "id": str(log.id),
-                    "action": log.action,
-                    "action_type": log.action_type,
-                    "entity_type": log.entity_type,
-                    "created_at": log.created_at.isoformat(),
-                    "ip_address": log.ip_address
-                }
-                for log in logs
-            ]
+            'success': True,
+            'message': 'Alert resolved',
+            'alert': self.get_serializer(alert).data
         })
     
-    except Exception as e:
-        return Response(
-            {"detail": str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    @action(detail=False, methods=['get'])
+    def unresolved_count(self, request):
+        """Get count of unresolved alerts"""
+        count = self.get_queryset().filter(is_resolved=False).count()
+        
+        return Response({
+            'success': True,
+            'unresolved_count': count
+        })
 
 
-# Dashboard views
 class ComplianceDashboardView(APIView):
-    """Compliance dashboard for admins"""
-    permission_classes = [permissions.IsAdminUser]
+    """
+    API endpoint for compliance dashboard
+    """
+    permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """Get compliance dashboard statistics"""
+        """Get comprehensive dashboard data"""
         try:
-            total_verifications = KYCVerification.objects.count()
-            pending_verifications = KYCVerification.objects.filter(
-                verification_status=VerificationStatus.PENDING
-            ).count()
-            approved_verifications = KYCVerification.objects.filter(
-                verification_status=VerificationStatus.APPROVED
-            ).count()
+            # Only compliance officers and admins get full dashboard
+            if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
+                return Response(
+                    {'error': 'Permission denied'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
             
-            recent_withdrawals = WithdrawalRequest.objects.order_by('-created_at')[:10]
+            # Get time ranges
+            today = timezone.now().date()
+            week_ago = today - timedelta(days=7)
+            month_ago = today - timedelta(days=30)
             
-            return Response({
-                "statistics": {
-                    "total_verifications": total_verifications,
-                    "pending_verifications": pending_verifications,
-                    "approved_verifications": approved_verifications,
-                    "rejected_verifications": KYCVerification.objects.filter(
-                        verification_status=VerificationStatus.REJECTED
+            # Get statistics
+            stats = {
+                'today': {
+                    'requests': ComplianceRequest.objects.filter(created_at__date=today).count(),
+                    'approved': ComplianceRequest.objects.filter(
+                        created_at__date=today,
+                        status='approved'
                     ).count(),
-                    "total_withdrawals": WithdrawalRequest.objects.count(),
-                    "pending_withdrawals": WithdrawalRequest.objects.filter(
+                    'rejected': ComplianceRequest.objects.filter(
+                        created_at__date=today,
+                        status='rejected'
+                    ).count(),
+                    'pending': ComplianceRequest.objects.filter(
+                        created_at__date=today,
                         status='pending'
                     ).count(),
-                    "completed_withdrawals": WithdrawalRequest.objects.filter(
-                        status='completed'
+                },
+                'this_week': {
+                    'requests': ComplianceRequest.objects.filter(created_at__gte=week_ago).count(),
+                    'kyc_submissions': KYCVerification.objects.filter(created_at__gte=week_ago).count(),
+                    'kyc_approved': KYCVerification.objects.filter(
+                        created_at__gte=week_ago,
+                        verification_status='approved'
                     ).count(),
                 },
-                "recent_activity": {
-                    "withdrawals": WithdrawalModelSerializer(recent_withdrawals, many=True).data,
-                    "tac_codes": TACCode.objects.order_by('-created_at')[:10].count(),
-                    "audit_logs": ComplianceAuditLog.objects.order_by('-created_at')[:10].count(),
+                'this_month': {
+                    'requests': ComplianceRequest.objects.filter(created_at__gte=month_ago).count(),
+                    'video_calls': VideoCallSession.objects.filter(created_at__gte=month_ago).count(),
+                    'tac_requests': TACRequest.objects.filter(created_at__gte=month_ago).count(),
                 }
-            })
-        
-        except Exception as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
-class UserComplianceStatusView(APIView):
-    """Get comprehensive compliance status for a user"""
-    permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
-    
-    def get(self, request, user_id=None):
-        """Get user compliance status"""
-        if user_id is None:
-            user_id = str(request.user.id)
-        
-        try:
-            # Get KYC verification
-            verification = KYCVerification.objects.filter(
-                user_id=user_id
-            ).order_by('-created_at').first()
+            }
             
-            # Get documents
-            documents = []
-            if verification:
-                documents = KYCDocument.objects.filter(verification=verification)
+            # Get pending requests by priority
+            pending_by_priority = {
+                'high': ComplianceRequest.objects.filter(status='pending', priority='high').count(),
+                'normal': ComplianceRequest.objects.filter(status='pending', priority='normal').count(),
+                'low': ComplianceRequest.objects.filter(status='pending', priority='low').count(),
+            }
             
-            # Get withdrawal history
-            withdrawals = WithdrawalRequest.objects.filter(
-                user_id=user_id
-            ).order_by('-created_at')[:10]
+            # Get requests by app
+            requests_by_app = {}
+            for app_code, app_name in ComplianceRequest.APPS:
+                count = ComplianceRequest.objects.filter(app_name=app_code).count()
+                if count > 0:
+                    requests_by_app[app_name] = count
             
-            # Get audit logs
-            audit_logs = ComplianceAuditLog.objects.filter(
-                user_id=user_id
-            ).order_by('-created_at')[:20]
+            # Get recent requests
+            recent_requests = ComplianceRequest.objects.order_by('-created_at')[:10]
+            
+            # Get unresolved alerts
+            unresolved_alerts = ComplianceAlert.objects.filter(is_resolved=False).order_by('-severity', '-created_at')[:10]
+            
+            # Get officer workload
+            officer_workload = {}
+            officers = User.objects.filter(
+                models.Q(is_staff=True) | models.Q(groups__name='Compliance Officers')
+            ).distinct()
+            
+            for officer in officers:
+                assigned_count = ComplianceRequest.objects.filter(
+                    assigned_to=officer,
+                    status__in=['pending', 'under_review', 'info_required']
+                ).count()
+                completed_today = ComplianceRequest.objects.filter(
+                    reviewed_by=officer,
+                    resolved_at__date=today
+                ).count()
+                
+                if assigned_count > 0 or completed_today > 0:
+                    officer_workload[officer.email] = {
+                        'assigned': assigned_count,
+                        'completed_today': completed_today
+                    }
             
             return Response({
-                "user_id": user_id,
-                "kyc": {
-                    "verified": verification.verification_status == VerificationStatus.APPROVED if verification else False,
-                    "status": verification.verification_status if verification else "not_started",
-                    "compliance_level": verification.compliance_level if verification else None,
-                    "risk_level": verification.risk_level if verification else None,
-                    "documents_count": documents.count(),
-                    "documents_approved": documents.filter(status=VerificationStatus.APPROVED).count(),
-                    "verification_date": verification.verified_at.isoformat() if verification and verification.verified_at else None,
-                },
-                "withdrawals": {
-                    "total": withdrawals.count(),
-                    "pending": withdrawals.filter(status='pending').count(),
-                    "completed": withdrawals.filter(status='completed').count(),
-                    "recent": WithdrawalModelSerializer(withdrawals, many=True).data
-                },
-                "audit_logs": {
-                    "total": audit_logs.count(),
-                    "recent": ComplianceAuditLogSerializer(audit_logs, many=True).data
-                }
+                'success': True,
+                'stats': stats,
+                'pending_by_priority': pending_by_priority,
+                'requests_by_app': requests_by_app,
+                'officer_workload': officer_workload,
+                'recent_requests': ComplianceRequestSerializer(recent_requests, many=True).data,
+                'unresolved_alerts': ComplianceAlertSerializer(unresolved_alerts, many=True).data,
+                'timestamp': timezone.now()
             })
         
         except Exception as e:
+            logger.error(f"Dashboard error: {str(e)}")
             return Response(
-                {"detail": str(e)},
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class ComplianceSearchView(APIView):
+    """
+    API endpoint for searching compliance data
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Search across compliance data"""
+        query = request.query_params.get('q', '')
+        
+        if not query:
+            return Response(
+                {'error': 'Search query is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            results = {
+                'compliance_requests': [],
+                'kyc_verifications': [],
+                'users': [],
+                'total_count': 0
+            }
+            
+            # Only compliance officers and admins can search everything
+            if request.user.is_staff or request.user.groups.filter(name='Compliance Officers').exists():
+                # Search compliance requests
+                requests = ComplianceRequest.objects.filter(
+                    models.Q(compliance_id__icontains=query) |
+                    models.Q(user__email__icontains=query) |
+                    models.Q(user__first_name__icontains=query) |
+                    models.Q(user__last_name__icontains=query) |
+                    models.Q(description__icontains=query)
+                )[:10]
+                results['compliance_requests'] = ComplianceRequestSerializer(requests, many=True).data
+                
+                # Search KYC verifications
+                kyc_verifications = KYCVerification.objects.filter(
+                    models.Q(kyc_id__icontains=query) |
+                    models.Q(user__email__icontains=query) |
+                    models.Q(first_name__icontains=query) |
+                    models.Q(last_name__icontains=query) |
+                    models.Q(id_number__icontains=query)
+                )[:10]
+                results['kyc_verifications'] = KYCVerificationSerializer(kyc_verifications, many=True).data
+                
+                # Search users
+                users = User.objects.filter(
+                    models.Q(email__icontains=query) |
+                    models.Q(first_name__icontains=query) |
+                    models.Q(last_name__icontains=query) |
+                    models.Q(username__icontains=query)
+                )[:10]
+                results['users'] = UserSerializer(users, many=True).data
+                
+            else:
+                # Regular users can only search their own data
+                requests = ComplianceRequest.objects.filter(
+                    user=request.user,
+                    models.Q(compliance_id__icontains=query) |
+                    models.Q(description__icontains=query)
+                )[:10]
+                results['compliance_requests'] = ComplianceRequestSerializer(requests, many=True).data
+                
+                kyc_verifications = KYCVerification.objects.filter(
+                    user=request.user,
+                    models.Q(kyc_id__icontains=query) |
+                    models.Q(first_name__icontains=query) |
+                    models.Q(last_name__icontains=query)
+                )[:10]
+                results['kyc_verifications'] = KYCVerificationSerializer(kyc_verifications, many=True).data
+            
+            # Calculate total count
+            results['total_count'] = (
+                len(results['compliance_requests']) +
+                len(results['kyc_verifications']) +
+                len(results['users'])
+            )
+            
+            return Response({
+                'success': True,
+                'query': query,
+                'results': results
+            })
+        
+        except Exception as e:
+            logger.error(f"Search error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# Service health check endpoint
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def health_check(request):
+    """Check compliance service health"""
+    try:
+        # Check database connectivity
+        compliance_count = ComplianceRequest.objects.count()
+        kyc_count = KYCVerification.objects.count()
+        tac_count = TACRequest.objects.filter(is_valid=True).count()
+        
+        # Check service status
+        services_status = {
+            'database': 'OK',
+            'compliance_service': 'OK',
+            'kyc_service': 'OK',
+            'tac_service': 'OK',
+            'video_call_service': 'OK'
+        }
+        
+        return Response({
+            'status': 'healthy',
+            'timestamp': timezone.now(),
+            'services': services_status,
+            'counts': {
+                'compliance_requests': compliance_count,
+                'kyc_verifications': kyc_count,
+                'active_tac_codes': tac_count
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"Health check error: {str(e)}")
+        return Response(
+            {
+                'status': 'unhealthy',
+                'error': str(e),
+                'timestamp': timezone.now()
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Integration endpoints for other apps
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_compliance_request(request):
+    """
+    Endpoint for other apps to create compliance requests
+    This is the main integration point
+    """
+    serializer = ComplianceRequestCreateSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # Create compliance request
+        compliance_request = serializer.save()
+        
+        # Run initial risk assessment
+        ComplianceService.assess_risk(compliance_request)
+        
+        # Check if automatic approval is possible
+        if compliance_request.risk_level == 'low' and compliance_request.amount < 1000:
+            compliance_request.status = 'approved'
+            compliance_request.decision = 'approve'
+            compliance_request.resolved_at = timezone.now()
+            compliance_request.save()
+            
+            # Log auto-approval
+            AuditService.log_action(
+                user=request.user,
+                action='Compliance Request Auto-Approved',
+                entity_type='compliance_request',
+                entity_id=compliance_request.compliance_id,
+                new_value={'status': 'approved', 'decision': 'approve'}
+            )
+        
+        return Response({
+            'success': True,
+            'compliance_id': compliance_request.compliance_id,
+            'status': compliance_request.status,
+            'risk_level': compliance_request.risk_level,
+            'requires_manual_review': compliance_request.requires_manual_review,
+            'requires_tac': compliance_request.requires_tac,
+            'requires_video_call': compliance_request.requires_video_call,
+            'message': 'Compliance request created successfully'
+        }, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        logger.error(f"Compliance request creation error: {str(e)}")
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_compliance_status(request, compliance_id):
+    """Check status of a compliance request"""
+    try:
+        compliance_request = ComplianceRequest.objects.get(compliance_id=compliance_id)
+        
+        # Check if user has permission to view this request
+        if compliance_request.user != request.user and not request.user.is_staff:
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return Response({
+            'success': True,
+            'compliance_id': compliance_request.compliance_id,
+            'status': compliance_request.status,
+            'decision': compliance_request.decision,
+            'risk_level': compliance_request.risk_level,
+            'requires_tac': compliance_request.requires_tac,
+            'requires_video_call': compliance_request.requires_video_call,
+            'tac_verified': compliance_request.tac_verified_at is not None,
+            'video_call_completed': compliance_request.video_call_completed_at is not None,
+            'created_at': compliance_request.created_at,
+            'resolved_at': compliance_request.resolved_at
+        })
+    
+    except ComplianceRequest.DoesNotExist:
+        return Response(
+            {'error': 'Compliance request not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Compliance status check error: {str(e)}")
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_tac_for_request(request, compliance_id):
+    """Generate TAC for a compliance request"""
+    try:
+        compliance_request = ComplianceRequest.objects.get(compliance_id=compliance_id)
+        
+        # Check if user has permission
+        if compliance_request.user != request.user and not request.user.is_staff:
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Generate TAC
+        result = TACService.generate_tac(
+            user=compliance_request.user,
+            compliance_request=compliance_request,
+            tac_type='compliance',
+            purpose=f"Compliance request: {compliance_request.request_type}",
+            amount=compliance_request.amount,
+            currency=compliance_request.currency
+        )
+        
+        if result['success']:
+            # Update compliance request
+            compliance_request.tac_code = result['tac_code']
+            compliance_request.tac_generated_at = timezone.now()
+            compliance_request.status = 'awaiting_tac'
+            compliance_request.save()
+            
+            return Response(result)
+        else:
+            return Response(
+                {'error': result.get('error', 'TAC generation failed')},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    except ComplianceRequest.DoesNotExist:
+        return Response(
+            {'error': 'Compliance request not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"TAC generation error: {str(e)}")
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_tac_for_request(request, compliance_id):
+    """Verify TAC for a compliance request"""
+    try:
+        compliance_request = ComplianceRequest.objects.get(compliance_id=compliance_id)
+        
+        # Check if user has permission
+        if compliance_request.user != request.user:
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        tac_code = request.data.get('tac_code')
+        if not tac_code:
+            return Response(
+                {'error': 'TAC code is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verify TAC
+        result = TACService.verify_tac(
+            user=compliance_request.user,
+            tac_code=tac_code,
+            compliance_request_id=compliance_id
+        )
+        
+        if result['success']:
+            # Update compliance request
+            compliance_request.tac_verified_at = timezone.now()
+            
+            # If TAC was the only requirement, mark as ready for approval
+            if (compliance_request.requires_tac and 
+                not compliance_request.requires_video_call and 
+                not compliance_request.requires_manual_review):
+                compliance_request.status = 'under_review'
+            
+            compliance_request.save()
+            
+            return Response({
+                'success': True,
+                'message': 'TAC verified successfully',
+                'compliance_id': compliance_request.compliance_id,
+                'status': compliance_request.status,
+                'next_steps': 'Waiting for compliance officer review' if compliance_request.requires_manual_review else 'Ready for processing'
+            })
+        else:
+            return Response(
+                {'error': result.get('error', 'TAC verification failed')},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    except ComplianceRequest.DoesNotExist:
+        return Response(
+            {'error': 'Compliance request not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"TAC verification error: {str(e)}")
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

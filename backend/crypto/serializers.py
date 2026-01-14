@@ -1,8 +1,11 @@
+# crypto/serializers.py - UPDATED WITH COMPLIANCE SERIALIZERS
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
     CryptoAsset, CryptoWallet, CryptoTransaction,
-    PriceHistory, CryptoAddress, FiatPlatform, UserFiatAccount
+    PriceHistory, CryptoAddress, FiatPlatform, UserFiatAccount,
+    CryptoComplianceFlag, CryptoAuditLog
 )
 
 User = get_user_model()
@@ -35,12 +38,17 @@ class CryptoWalletSerializer(serializers.ModelSerializer):
             'id', 'user', 'user_email', 'asset', 'asset_symbol', 'asset_name',
             'asset_logo', 'wallet_address', 'wallet_type', 'label',
             'balance', 'available_balance', 'locked_balance', 'balance_usd',
-            'current_price_usd', 'is_active', 'is_verified', 'created_at',
+            'current_price_usd', 
+            # COMPLIANCE FIELDS
+            'compliance_reference', 'requires_compliance_approval', 
+            'compliance_status', 'is_suspicious',
+            # STATUS FIELDS
+            'is_active', 'is_verified', 'created_at',
             'updated_at', 'last_transaction_at'
         ]
         read_only_fields = [
             'id', 'user', 'balance_usd', 'created_at', 'updated_at',
-            'last_transaction_at'
+            'last_transaction_at', 'compliance_reference', 'compliance_status'
         ]
 
 
@@ -57,7 +65,13 @@ class CryptoTransactionSerializer(serializers.ModelSerializer):
             'transaction_type', 'status', 'from_wallet', 'from_wallet_address',
             'to_wallet', 'to_wallet_address', 'from_address', 'to_address',
             'amount', 'amount_usd', 'fee', 'fee_usd', 'network_fee',
-            'price_at_transaction', 'transaction_hash', 'block_number',
+            'price_at_transaction', 
+            # COMPLIANCE FIELDS
+            'compliance_reference', 'requires_compliance_approval',
+            'compliance_status', 'is_high_value', 'is_suspicious',
+            'compliance_notes',
+            # BLOCKCHAIN FIELDS
+            'transaction_hash', 'block_number',
             'confirmations', 'required_confirmations', 'gas_price',
             'gas_used', 'gas_limit', 'swap_from_asset', 'swap_to_asset',
             'swap_rate', 'error_message', 'description', 'ip_address',
@@ -66,7 +80,8 @@ class CryptoTransactionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'user', 'amount_usd', 'created_at', 'updated_at',
-            'completed_at', 'confirmed_at'
+            'completed_at', 'confirmed_at', 'compliance_reference',
+            'compliance_status'
         ]
 
 
@@ -166,3 +181,63 @@ class UserFiatAccountCreateSerializer(serializers.ModelSerializer):
             user=self.context['request'].user,
             **validated_data
         )
+
+
+# COMPLIANCE SERIALIZERS
+
+class CryptoComplianceFlagSerializer(serializers.ModelSerializer):
+    transaction_id = serializers.UUIDField(source='transaction.id', read_only=True)
+    asset_symbol = serializers.CharField(source='transaction.asset.symbol', read_only=True)
+    
+    class Meta:
+        model = CryptoComplianceFlag
+        fields = [
+            'id', 'transaction', 'transaction_id', 'asset_symbol',
+            'flag_type', 'priority', 'description', 'indicators',
+            'is_resolved', 'resolved_at', 'resolved_by', 'resolution_notes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ComplianceRequestSerializer(serializers.Serializer):
+    transaction_id = serializers.UUIDField(required=True)
+    reason = serializers.CharField(required=False, allow_blank=True)
+    indicators = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=[]
+    )
+
+
+class TACVerificationSerializer(serializers.Serializer):
+    compliance_reference = serializers.CharField(max_length=100, required=True)
+    tac_code = serializers.CharField(max_length=10, min_length=6, required=True)
+
+
+class KYCRequestSerializer(serializers.Serializer):
+    transaction_id = serializers.UUIDField(required=True)
+    reason = serializers.CharField(required=False, allow_blank=True)
+    documents = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        default=[]
+    )
+
+
+class ScheduleVideoCallSerializer(serializers.Serializer):
+    compliance_reference = serializers.CharField(max_length=100, required=True)
+    preferred_time = serializers.DateTimeField(required=True)
+    timezone = serializers.CharField(max_length=50, default="UTC")
+
+
+class CryptoAuditLogSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source='user.email', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = CryptoAuditLog
+        fields = [
+            'id', 'user', 'user_email', 'action', 'transaction', 'wallet',
+            'details', 'ip_address', 'user_agent', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']

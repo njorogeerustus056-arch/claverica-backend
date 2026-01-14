@@ -1,4 +1,4 @@
-# payments/apps.py
+# payments/apps.py - UPDATED
 
 from django.apps import AppConfig
 import logging
@@ -29,6 +29,14 @@ class PaymentsConfig(AppConfig):
             # Import and register signals
             import payments.signals
             logger.debug("Payments signals successfully registered")
+            
+            # Import wallet signals if they exist
+            try:
+                import payments.wallet_signals
+                logger.debug("Wallet signals successfully registered")
+            except ImportError:
+                logger.debug("No wallet signals found, skipping")
+                
         except ImportError as e:
             logger.error(f"Failed to import payments signals: {e}")
         except Exception as e:

@@ -1,17 +1,29 @@
+# escrow/admin.py - UPDATED FOR COMPLIANCE INTEGRATION
+
 from django.contrib import admin
-from .models import Escrow  # Only import Escrow
+from .models import Escrow, EscrowLog
 
 @admin.register(Escrow)
 class EscrowAdmin(admin.ModelAdmin):
     list_display = [
         'escrow_id', 'sender_name', 'receiver_name', 'amount',
-        'currency', 'status', 'is_released', 'created_at'
+        'currency', 'status', 'is_released', 'requires_compliance_approval',  # NEW
+        'compliance_reference',  # NEW
+        'created_at'
     ]
-    list_filter = ['status', 'is_released', 'dispute_status', 'created_at']
-    search_fields = ['escrow_id', 'sender_name', 'receiver_name', 'title', 'description']
+    list_filter = [
+        'status', 'is_released', 'dispute_status', 
+        'requires_compliance_approval',  # NEW
+        'created_at'
+    ]
+    search_fields = [
+        'escrow_id', 'sender_name', 'receiver_name', 
+        'title', 'description', 'compliance_reference'  # NEW
+    ]
     readonly_fields = [
         'id', 'escrow_id', 'total_amount', 'created_at',
-        'updated_at', 'funded_at', 'released_at'
+        'updated_at', 'funded_at', 'released_at',
+        'compliance_reference'  # NEW
     ]
     date_hierarchy = 'created_at'
 
@@ -24,6 +36,10 @@ class EscrowAdmin(admin.ModelAdmin):
         }),
         ('Financial Details', {
             'fields': ('amount', 'currency', 'fee', 'total_amount')
+        }),
+        ('Compliance', {  # NEW: Compliance section
+            'fields': ('compliance_reference', 'requires_compliance_approval'),
+            'classes': ('collapse',)
         }),
         ('Status & Release', {
             'fields': (
