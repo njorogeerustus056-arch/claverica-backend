@@ -1,8 +1,8 @@
-# escrow/urls.py - UPDATED WITH COMPLIANCE INTEGRATION
+# escrow/urls.py - UPDATED TO USE CENTRAL COMPLIANCE SYSTEM
 
 from django.urls import path
 from . import views
-from . import compliance_views  # NEW: Import compliance views
+# REMOVED: from . import compliance_views  # No longer needed
 
 urlpatterns = [
     # Base endpoint
@@ -19,17 +19,11 @@ urlpatterns = [
     path('<int:escrow_id>/release/', views.release_escrow_view, name='release_escrow'),
     path('<int:escrow_id>/dispute/', views.dispute_escrow_view, name='dispute_escrow'),
     
-    # NEW: Compliance Integration Routes
-    path('<int:escrow_id>/compliance/dispute/', compliance_views.request_dispute_resolution, name='compliance-dispute'),
-    path('<int:escrow_id>/compliance/kyc/', compliance_views.request_kyc_verification, name='compliance-kyc'),
-    path('<int:escrow_id>/compliance/verify-tac/', compliance_views.verify_tac_for_release, name='compliance-verify-tac'),
-    path('<int:escrow_id>/compliance/submit-form/', compliance_views.submit_compliance_form, name='compliance-submit-form'),
-    path('<int:escrow_id>/compliance/manual-release/', compliance_views.request_manual_release_approval, name='compliance-manual-release'),
-    path('<int:escrow_id>/compliance/status/', compliance_views.get_escrow_compliance_status, name='compliance-status'),
-    
-    # NEW: Admin Compliance Routes
-    path('admin/compliance/dashboard/', compliance_views.admin_escrow_compliance_dashboard, name='admin-compliance-dashboard'),
-    
     # Stats
     path('stats/', views.get_escrow_stats_view, name='escrow_stats'),
+    
+    # ALL COMPLIANCE ROUTES REMOVED - USE CENTRAL COMPLIANCE APP
+    # To create a compliance request for escrow dispute:
+    # POST /api/compliance/api/integration/create-request/
+    # with payload: {app_name: 'escrow', app_transaction_id: escrow_id, request_type: 'dispute_resolution'}
 ]

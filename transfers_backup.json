@@ -1,0 +1,3 @@
+[OK] AUTH_USER_MODEL set to: accounts.Account
+[OK] Using SQLite for local development
+Warning: Pusher env vars are missing

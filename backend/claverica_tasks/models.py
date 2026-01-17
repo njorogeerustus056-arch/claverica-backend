@@ -11,7 +11,7 @@ User = get_user_model()  # Works with custom user model (like your Account model
 # -------------------------
 # Task Model
 # -------------------------
-class Task(models.Model):
+class ClavericaTask(models.Model):
     """Model for available tasks"""
     
     TASK_TYPES = (
@@ -66,7 +66,7 @@ class Task(models.Model):
     expires_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
-        app_label = 'tasks'
+        app_label = 'claverica_tasks'
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['status', 'task_type']),
@@ -104,7 +104,7 @@ class UserTask(models.Model):
     
     # CHANGED: related_name='user_tasks' to 'tasks'
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tasks')
-    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='user_completions')
+    task = models.ForeignKey(ClavericaTask, on_delete=models.CASCADE, related_name='user_completions')
     
     # Status
     status = models.CharField(max_length=20, choices=COMPLETION_STATUS, default='pending')
@@ -135,7 +135,7 @@ class UserTask(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
-        app_label = 'tasks'
+        app_label = 'claverica_tasks'
         ordering = ['-started_at']
         unique_together = ['user', 'task']
         db_table = 'tasks_usertask'
@@ -179,7 +179,7 @@ class TaskCategory(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        app_label = 'tasks'
+        app_label = 'claverica_tasks'
         ordering = ['display_order', 'name']
         verbose_name_plural = 'Task Categories'
     
@@ -235,7 +235,7 @@ class RewardWithdrawal(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
-        app_label = 'tasks'
+        app_label = 'claverica_tasks'
         ordering = ['-requested_at']
         indexes = [
             models.Index(fields=['user', 'status']),
@@ -271,7 +271,7 @@ class UserRewardBalance(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        app_label = 'tasks'
+        app_label = 'claverica_tasks'
         verbose_name = 'User Reward Balance'
         verbose_name_plural = 'User Reward Balances'
     

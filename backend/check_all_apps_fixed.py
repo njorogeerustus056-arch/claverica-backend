@@ -133,7 +133,7 @@ def check_app_health():
     print("\n🔍 APPLICATION HEALTH STATUS")
     print("-" * 40)
     
-    custom_apps = ['accounts', 'cards', 'tasks', 'compliance', 'crypto', 
+    custom_apps = ['accounts', 'cards', 'backend.claverica_tasks', 'compliance', 'crypto', 
                    'escrow', 'notifications', 'payments', 'receipts', 
                    'transactions', 'transfers']
     

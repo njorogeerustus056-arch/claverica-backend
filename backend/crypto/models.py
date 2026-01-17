@@ -1,7 +1,6 @@
 # crypto/models.py - UPDATED FOR CENTRALIZED COMPLIANCE
 
 from django.db import models
-from django.conf import settings
 import uuid
 from decimal import Decimal
 
@@ -103,7 +102,7 @@ class CryptoWallet(models.Model):
     """Model for user crypto wallets"""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="crypto_wallets")
+    user = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, related_name="crypto_wallets")
     asset = models.ForeignKey(CryptoAsset, on_delete=models.CASCADE, related_name="wallets")
     
     # Wallet Details
@@ -180,7 +179,7 @@ class CryptoTransaction(models.Model):
     """Model for crypto transactions"""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="crypto_transactions")
+    user = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, related_name="crypto_transactions")
     asset = models.ForeignKey(CryptoAsset, on_delete=models.CASCADE, related_name="transactions")
     
     # Transaction Type
@@ -366,7 +365,7 @@ class CryptoComplianceFlag(models.Model):
     indicators = models.JSONField(blank=True, null=True)
     is_resolved = models.BooleanField(default=False)
     resolved_at = models.DateTimeField(blank=True, null=True)
-    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    resolved_by = models.ForeignKey('accounts.Account', on_delete=models.SET_NULL, null=True, blank=True)
     resolution_notes = models.TextField(blank=True, null=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
@@ -392,7 +391,7 @@ class CryptoAuditLog(models.Model):
         ('tac_verified', 'TAC Verified'),
     ]
     
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey('accounts.Account', on_delete=models.SET_NULL, null=True)
     action = models.CharField(max_length=50, choices=ACTION_CHOICES)
     transaction = models.ForeignKey(CryptoTransaction, on_delete=models.SET_NULL, 
                                    null=True, blank=True)

@@ -2,7 +2,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from decimal import Decimal
-from .models import Task, UserTask, UserRewardBalance, RewardWithdrawal, TaskCategory
+from .models import ClavericaTask as Task, UserTask, UserRewardBalance, RewardWithdrawal, TaskCategory
 from django.utils import timezone
 from datetime import timedelta
 import json

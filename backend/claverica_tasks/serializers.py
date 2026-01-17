@@ -1,9 +1,28 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Task, UserTask, TaskCategory, RewardWithdrawal, UserRewardBalance
+from .models import ClavericaTask, UserTask, TaskCategory, RewardWithdrawal, UserRewardBalance
 
 User = get_user_model()
 
+
+
+class UserTaskSerializer(serializers.ModelSerializer):
+    """Serializer for UserTask model"""
+    task_title = serializers.CharField(source='task.title', read_only=True)
+    task_description = serializers.CharField(source='task.description', read_only=True)
+    task_reward_points = serializers.IntegerField(source='task.reward_points', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    
+    class Meta:
+        model = UserTask
+        fields = [
+            'id', 'user', 'task', 'status', 'submitted_at', 
+            'submission_text', 'submission_image', 'reviewed_at',
+            'review_status', 'review_notes', 'awarded_points',
+            'task_title', 'task_description', 'task_reward_points',
+            'user_email', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['user', 'created_at', 'updated_at']
 
 class TaskCategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -11,12 +30,12 @@ class TaskCategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'icon', 'color', 'is_active', 'display_order']
 
 
-class TaskSerializer(serializers.ModelSerializer):
+class ClavericaTaskSerializer(serializers.ModelSerializer):
     is_available = serializers.SerializerMethodField()
     completion_rate = serializers.SerializerMethodField()
     
     class Meta:
-        model = Task
+        model = ClavericaTask
         fields = [
             'id', 'title', 'description', 'task_type', 'reward_amount', 'currency',
             'estimated_time', 'max_completions', 'current_completions',
@@ -34,8 +53,8 @@ class TaskSerializer(serializers.ModelSerializer):
         return 0
 
 
-class UserTaskSerializer(serializers.ModelSerializer):
-    task_details = TaskSerializer(source='task', read_only=True)
+class UserClavericaTaskSerializer(serializers.ModelSerializer):
+    task_details = ClavericaTaskSerializer(source='task', read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
     
     class Meta:
@@ -65,7 +84,7 @@ class UserTaskCreateSerializer(serializers.ModelSerializer):
         user = request.user
         
         # Check if user already started/completed this task
-        if UserTask.objects.filter(user=user, task=value).exists():
+        if UserClavericaTask.objects.filter(user=user, task=value).exists():
             raise serializers.ValidationError("You have already started or completed this task.")
         
         # Check if task is available
@@ -79,7 +98,7 @@ class UserTaskCreateSerializer(serializers.ModelSerializer):
         if not request:
             raise serializers.ValidationError("Request context is missing")
         
-        return UserTask.objects.create(
+        return UserClavericaTask.objects.create(
             user=request.user,
             task=validated_data['task'],
             status='in_progress'

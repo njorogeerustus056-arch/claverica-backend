@@ -1,116 +1,210 @@
+"""
+transfers/admin.py - Updated admin interface
+"""
+
 from django.contrib import admin
-from .models import Recipient, Transfer, TransferLog, TACCode
-
-@admin.register(Recipient)
-class RecipientAdmin(admin.ModelAdmin):
-    list_display = ['name', 'recipient_type', 'country', 'user', 'is_favorite', 'is_verified', 'created_at']
-    list_filter = ['recipient_type', 'is_favorite', 'is_verified', 'country']
-    search_fields = ['name', 'country', 'account_number', 'wallet_address', 'user__username']
-    readonly_fields = ['created_at', 'updated_at']
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('user', 'recipient_type', 'name', 'country', 'logo')
-        }),
-        ('Bank/Fintech Details', {
-            'fields': ('account_number', 'account_holder', 'swift_code', 'iban', 'routing_number', 'bank_name'),
-            'classes': ('collapse',)
-        }),
-        ('Crypto Details', {
-            'fields': ('wallet_address', 'network'),
-            'classes': ('collapse',)
-        }),
-        ('Status', {
-            'fields': ('is_favorite', 'is_verified')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-
-
-class TransferLogInline(admin.TabularInline):
-    model = TransferLog
-    extra = 0
-    readonly_fields = ['status', 'message', 'created_by', 'created_at']
-    can_delete = False
+from django.utils.html import format_html
+from .models import Transfer, TransferLog, TransferLimit
 
 
 @admin.register(Transfer)
 class TransferAdmin(admin.ModelAdmin):
-    list_display = ['transfer_id', 'sender', 'recipient_name', 'amount', 'currency', 'status', 'transfer_type', 'created_at']
-    list_filter = ['status', 'transfer_type', 'currency', 'requires_tac', 'tac_verified']
-    search_fields = ['transfer_id', 'sender__username', 'recipient_name', 'reference_number']
-    readonly_fields = ['transfer_id', 'total_amount', 'created_at', 'updated_at', 'completed_at']
-    inlines = [TransferLogInline]
+    """Admin interface for transfers"""
     
+    list_display = [
+        'transfer_id', 'user_email', 'amount_currency', 'recipient_name',
+        'status_badge', 'risk_level_badge', 'created_at', 'admin_actions'
+    ]
+    list_filter = ['status', 'risk_level', 'currency', 'created_at']
+    search_fields = ['transfer_id', 'user__email', 'recipient_name', 'recipient_account']
+    readonly_fields = ['transfer_id', 'created_at', 'updated_at', 'tac_verified_at', 'processed_at', 'completed_at']
     fieldsets = (
         ('Transfer Information', {
-            'fields': ('transfer_id', 'sender', 'recipient', 'transfer_type')
+            'fields': ('transfer_id', 'user', 'amount', 'currency', 'description')
         }),
-        ('Amount Details', {
-            'fields': ('amount', 'currency', 'fee', 'total_amount')
+        ('Recipient Information', {
+            'fields': ('recipient_name', 'recipient_account', 'recipient_bank', 'recipient_country', 'recipient_phone', 'recipient_email')
         }),
-        ('Recipient Details', {
-            'fields': ('recipient_name', 'recipient_account', 'recipient_bank'),
-            'classes': ('collapse',)
+        ('Compliance Information', {
+            'fields': ('compliance_request', 'risk_level', 'tac_required', 'tac_verified', 'video_call_required', 'video_call_completed')
         }),
-        ('Status & Tracking', {
-            'fields': ('status', 'description', 'reference_number')
+        ('Status & Timeline', {
+            'fields': ('status', 'priority', 'created_at', 'updated_at', 'submitted_at', 'processed_at', 'completed_at')
         }),
-        ('Compliance', {
-            'fields': ('requires_tac', 'tac_verified', 'tac_verified_at', 'compliance_status', 'compliance_notes'),
-            'classes': ('collapse',)
+        ('Fees & Charges', {
+            'fields': ('fee', 'tax', 'total_amount')
         }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at', 'completed_at'),
-            'classes': ('collapse',)
+        ('Additional Information', {
+            'fields': ('reference', 'notes', 'ip_address', 'user_agent', 'device_id')
         }),
     )
+    actions = ['approve_transfers', 'reject_transfers', 'generate_tac', 'mark_as_completed']
     
-    actions = ['mark_as_completed', 'mark_as_failed', 'mark_as_cancelled']
+    def user_email(self, obj):
+        return obj.user.email
+    user_email.short_description = 'User'
+    
+    def amount_currency(self, obj):
+        return f"{obj.amount} {obj.currency}"
+    amount_currency.short_description = 'Amount'
+    
+    def status_badge(self, obj):
+        color_map = {
+            'draft': 'gray',
+            'pending': 'blue',
+            'processing': 'orange',
+            'completed': 'green',
+            'failed': 'red',
+            'cancelled': 'gray',
+            'compliance_review': 'yellow',
+            'awaiting_tac': 'purple',
+            'awaiting_video_call': 'teal',
+        }
+        color = color_map.get(obj.status, 'gray')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 2px 6px; border-radius: 10px; font-size: 12px;">{}</span>',
+            color, obj.get_status_display()
+        )
+    status_badge.short_description = 'Status'
+    
+    def risk_level_badge(self, obj):
+        color_map = {
+            'low': 'green',
+            'medium': 'orange',
+            'high': 'red',
+        }
+        color = color_map.get(obj.risk_level, 'gray')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 2px 6px; border-radius: 10px; font-size: 12px;">{}</span>',
+            color, obj.risk_level.upper()
+        )
+    risk_level_badge.short_description = 'Risk'
+    
+    def admin_actions(self, obj):
+        return format_html(
+            '<a href="/admin/transfers/transfer/{}/change/" class="button">Edit</a>&nbsp;'
+            '<a href="/admin/transfers/transfer/{}/history/" class="button">History</a>',
+            obj.id, obj.id
+        )
+
+    def approve_transfers(self, request, queryset):
+        """Approve selected transfers"""
+        from .services import TransferComplianceService
+        
+        for transfer in queryset:
+            if transfer.status in ['pending', 'compliance_review']:
+                # Update compliance request if exists
+                if transfer.compliance_request:
+                    transfer.compliance_request.status = 'approved'
+                    transfer.compliance_request.save()
+                
+                transfer.status = 'pending'
+                transfer.save()
+                
+                # Create log
+                TransferLog.objects.create(
+                    transfer=transfer,
+                    log_type='status_change',
+                    message='Transfer approved by admin',
+                    created_by=request.user,
+                    metadata={'new_status': 'pending', 'approved_by': request.user.email}
+                )
+        
+        self.message_user(request, f"{queryset.count()} transfers approved.")
+    approve_transfers.short_description = "Approve selected transfers"
+    
+    def reject_transfers(self, request, queryset):
+        """Reject selected transfers"""
+        for transfer in queryset:
+            if transfer.status in ['pending', 'compliance_review']:
+                # Update compliance request if exists
+                if transfer.compliance_request:
+                    transfer.compliance_request.status = 'rejected'
+                    transfer.compliance_request.save()
+                
+                transfer.status = 'cancelled'
+                transfer.save()
+                
+                # Create log
+                TransferLog.objects.create(
+                    transfer=transfer,
+                    log_type='status_change',
+                    message='Transfer rejected by admin',
+                    created_by=request.user,
+                    metadata={'new_status': 'cancelled', 'rejected_by': request.user.email}
+                )
+        
+        self.message_user(request, f"{queryset.count()} transfers rejected.")
+    reject_transfers.short_description = "Reject selected transfers"
+    
+    def generate_tac(self, request, queryset):
+        """Generate TAC for selected transfers"""
+        from .services import TransferComplianceService
+        
+        for transfer in queryset:
+            if transfer.tac_required and not transfer.tac_verified:
+                try:
+                    result = TransferComplianceService.generate_tac_for_transfer(transfer)
+                    if result['success']:
+                        self.message_user(request, f"TAC generated for {transfer.transfer_id}")
+                except Exception as e:
+                    self.message_user(request, f"Failed to generate TAC for {transfer.transfer_id}: {str(e)}", level='error')
+        
+        self.message_user(request, "TAC generation process completed.")
+    generate_tac.short_description = "Generate TAC for selected transfers"
     
     def mark_as_completed(self, request, queryset):
-        from django.utils import timezone
-        updated = queryset.update(status='completed', completed_at=timezone.now())
-        self.message_user(request, f'{updated} transfer(s) marked as completed.')
-    mark_as_completed.short_description = "Mark selected transfers as completed"
-    
-    def mark_as_failed(self, request, queryset):
-        updated = queryset.update(status='failed')
-        self.message_user(request, f'{updated} transfer(s) marked as failed.')
-    mark_as_failed.short_description = "Mark selected transfers as failed"
-    
-    def mark_as_cancelled(self, request, queryset):
-        updated = queryset.update(status='cancelled')
-        self.message_user(request, f'{updated} transfer(s) marked as cancelled.')
-    mark_as_cancelled.short_description = "Mark selected transfers as cancelled"
+        """Mark selected transfers as completed"""
+        for transfer in queryset:
+            if transfer.status == 'processing':
+                transfer.status = 'completed'
+                transfer.completed_at = timezone.now()
+                transfer.save()
+                
+                # Create log
+                TransferLog.objects.create(
+                    transfer=transfer,
+                    log_type='status_change',
+                    message='Transfer marked as completed by admin',
+                    created_by=request.user,
+                    metadata={'new_status': 'completed', 'completed_by': request.user.email}
+                )
+        
+        self.message_user(request, f"{queryset.count()} transfers marked as completed.")
+    mark_as_completed.short_description = "Mark as completed"
 
 
+    admin_actions.short_description = 'Actions'
 @admin.register(TransferLog)
 class TransferLogAdmin(admin.ModelAdmin):
-    list_display = ['transfer', 'status', 'created_at', 'created_by']
-    list_filter = ['status', 'created_at']
-    search_fields = ['transfer__transfer_id', 'message']
-    readonly_fields = ['transfer', 'status', 'message', 'created_by', 'created_at']
-
-
-@admin.register(TACCode)
-class TACCodeAdmin(admin.ModelAdmin):
-    list_display = ['code', 'user', 'transfer', 'is_used', 'expires_at', 'created_at']
-    list_filter = ['is_used', 'created_at', 'expires_at']
-    search_fields = ['code', 'user__username', 'transfer__transfer_id']
-    readonly_fields = ['created_at', 'used_at']
+    """Admin interface for transfer logs"""
     
-    fieldsets = (
-        ('TAC Information', {
-            'fields': ('user', 'transfer', 'code')
-        }),
-        ('Status', {
-            'fields': ('is_used', 'used_at', 'expires_at')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at',)
-        }),
-    )
+    list_display = ['transfer_id', 'log_type', 'message_short', 'created_by_email', 'created_at']
+    list_filter = ['log_type', 'created_at']
+    search_fields = ['transfer__transfer_id', 'message', 'created_by__email']
+    readonly_fields = ['created_at']
+    
+    def transfer_id(self, obj):
+        return obj.transfer.transfer_id
+    transfer_id.short_description = 'Transfer ID'
+    
+    def created_by_email(self, obj):
+        return obj.created_by.email if obj.created_by else 'System'
+    created_by_email.short_description = 'Created By'
+    
+    def message_short(self, obj):
+        return obj.message[:50] + '...' if len(obj.message) > 50 else obj.message
+    message_short.short_description = 'Message'
+
+
+@admin.register(TransferLimit)
+class TransferLimitAdmin(admin.ModelAdmin):
+    """Admin interface for transfer limits"""
+    
+    list_display = ['user_email', 'country', 'currency', 'limit_type', 'amount', 'is_active']
+    list_filter = ['limit_type', 'currency', 'is_active', 'country']
+    search_fields = ['user__email', 'country', 'limit_type']
+    
+    def user_email(self, obj):
+        return obj.user.email if obj.user else 'Global'
+    user_email.short_description = 'User'

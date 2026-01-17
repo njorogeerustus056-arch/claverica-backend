@@ -1,7 +1,7 @@
 # tasks/admin.py
 from django.contrib import admin
 from django.utils import timezone
-from .models import Task, UserTask, TaskCategory, RewardWithdrawal, UserRewardBalance
+from .models import ClavericaTask, UserTask, TaskCategory, RewardWithdrawal, UserRewardBalance
 
 
 @admin.register(TaskCategory)
@@ -12,8 +12,8 @@ class TaskCategoryAdmin(admin.ModelAdmin):
     ordering = ['display_order', 'name']
 
 
-@admin.register(Task)
-class TaskAdmin(admin.ModelAdmin):
+@admin.register(ClavericaTask)
+class ClavericaTaskAdmin(admin.ModelAdmin):
     list_display = [
         'title', 'task_type', 'reward_amount', 'currency',
         'status', 'current_completions', 'max_completions', 'created_at'

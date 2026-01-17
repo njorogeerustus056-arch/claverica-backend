@@ -59,11 +59,11 @@ def api_root(request):
         },
         'features': {
             'transactions': '/api/transactions/',
-            'payments': '/api/payments/',
-            'transfers': '/api/transfers/',
-            'cards': '/api/cards/',
-            'crypto': '/api/crypto/',
-            'escrow': '/api/escrow/',
+            'backend.payments': '/api/payments/',
+            'backend.transfers': '/api/transfers/',
+            'backend.cards': '/api/cards/',
+            'backend.crypto': '/api/crypto/',
+            'backend.escrow': '/api/escrow/',
             'receipts': '/api/receipts/',
             'notifications': '/api/notifications/',
         }
@@ -163,7 +163,7 @@ urlpatterns = [
     path('auth/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
     
     # Custom Auth Endpoints (from accounts app)
-    path('auth/', include('accounts.urls')),
+    path('auth/', include('backend.accounts.urls')),
     
     # Pusher Authentication
     path('pusher/auth/', pusher_auth, name='pusher-auth'),
@@ -174,16 +174,16 @@ urlpatterns = [
 # ======================
 feature_apps = [
     ('users', 'users/'),
-    ('tasks', 'tasks/'),
-    ('cards', 'cards/'),
-    ('compliance', 'compliance/'),
-    ('crypto', 'crypto/'),
-    ('escrow', 'escrow/'),
+    ('backend.claverica_tasks', 'tasks/'),
+    ('backend.cards', 'cards/'),
+    ('backend.compliance', 'compliance/'),
+    ('backend.crypto', 'crypto/'),
+    ('backend.escrow', 'escrow/'),
     ('notifications', 'notifications/'),
-    ('payments', 'payments/'),
+    ('backend.payments', 'payments/'),
     ('receipts', 'receipts/'),
     ('transactions', 'transactions/'),
-    ('transfers', 'transfers/'),
+    ('backend.transfers', 'transfers/'),
 ]
 
 for app_name, url_prefix in feature_apps:

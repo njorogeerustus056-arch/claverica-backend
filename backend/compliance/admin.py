@@ -836,12 +836,12 @@ class ComplianceAuditLogAdmin(admin.ModelAdmin):
     ]
     
     search_fields = [
-        'log_id', 'user_email', 'action', 'entity_id',
+        'log_id', 'user_email', 'entity_id',
         'ip_address'
     ]
     
     readonly_fields = [
-        'log_id', 'user_email', 'action', 'entity_type',
+        'log_id', 'user_email', 'entity_type',
         'entity_id', 'old_value_prettified', 'new_value_prettified',
         'changed_fields', 'ip_address', 'user_agent', 'location',
         'created_at', 'compliance_request_link', 'kyc_verification_link'
@@ -849,7 +849,7 @@ class ComplianceAuditLogAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('log_id', 'user_email', 'action', 'action_type')
+            'fields': ('log_id', 'user_email', 'action_type')
         }),
         ('Entity Information', {
             'fields': ('entity_type', 'entity_id', 'compliance_request_link',
@@ -954,42 +954,40 @@ class ComplianceRuleAdmin(admin.ModelAdmin):
     
     readonly_fields = [
         'rule_id', 'created_at', 'updated_at', 'is_effective',
-        'days_until_effective', 'days_until_expiry'
     ]
     
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('rule_id', 'rule_name', 'rule_description')
+    fieldsets = [
+        ("Basic Information", {
+            "fields": ("rule_id", "rule_name", "rule_description")
         }),
-        ('Configuration', {
-            'fields': ('rule_type', 'applicable_apps', 'priority')
+        ("Configuration", {
+            "fields": ("rule_type", "applicable_apps", "priority")
         }),
-        ('Conditions', {
-            'fields': ('condition', 'threshold_amount', 'threshold_currency',
-                      'time_period')
+        ("Conditions", {
+            "fields": ("condition", "threshold_amount", "threshold_currency",
+                      "time_period")
         }),
-        ('Actions', {
-            'fields': ('action', 'action_details')
+        ("Actions", {
+            "fields": ("action_details",)  # Comma makes it a tuple
         }),
-        ('Risk Parameters', {
-            'fields': ('risk_weight', 'risk_multiplier')
+        ("Risk Parameters", {
+            "fields": ("risk_weight", "risk_multiplier")
         }),
-        ('Status', {
-            'fields': ('is_active', 'is_automated', 'is_effective',
-                      'days_until_effective', 'days_until_expiry')
+        ("Status", {
+            "fields": ("is_active", "is_automated", "is_effective")
         }),
-        ('Metadata', {
-            'fields': ('created_by', 'notes')
+        ("Metadata", {
+            "fields": ("created_by", "notes")
         }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at', 'effective_from', 'effective_to')
+        ("Timestamps", {
+            "fields": ("created_at", "updated_at", "effective_from", "effective_to")
         }),
-    )
+    ]
     
     list_per_page = 50
     
     def rule_id_short(self, obj):
-        return obj.rule_id[:12]
+        return obj.rule_id[:12] if obj.rule_id else ""
     rule_id_short.short_description = 'ID'
     
     def rule_type_display(self, obj):
@@ -1001,6 +999,7 @@ class ComplianceRuleAdmin(admin.ModelAdmin):
     applicable_apps_display.short_description = 'Apps'
     
     def is_active_badge(self, obj):
+        from django.utils.html import format_html
         if obj.is_active:
             return format_html(
                 '<span style="background-color: green; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">ACTIVE</span>'
@@ -1012,6 +1011,7 @@ class ComplianceRuleAdmin(admin.ModelAdmin):
     is_active_badge.short_description = 'Active'
     
     def is_automated_badge(self, obj):
+        from django.utils.html import format_html
         if obj.is_automated:
             return format_html(
                 '<span style="background-color: blue; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">AUTO</span>'
@@ -1021,7 +1021,6 @@ class ComplianceRuleAdmin(admin.ModelAdmin):
                 '<span style="background-color: orange; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">MANUAL</span>'
             )
     is_automated_badge.short_description = 'Automated'
-
 
 class ComplianceAlertAdmin(admin.ModelAdmin):
     """Admin for Compliance Alerts"""
@@ -1042,8 +1041,7 @@ class ComplianceAlertAdmin(admin.ModelAdmin):
     ]
     
     readonly_fields = [
-        'alert_id', 'created_at', 'updated_at', 'time_since_created',
-        'is_expired', 'requires_action', 'user_link',
+        'alert_id', 'created_at', 'updated_at', 'is_expired', 'user_link',
         'compliance_request_link', 'kyc_verification_link',
         'acknowledged_by_link', 'resolved_by_link'
     ]
@@ -1061,7 +1059,7 @@ class ComplianceAlertAdmin(admin.ModelAdmin):
         }),
         ('Status', {
             'fields': ('is_resolved', 'is_acknowledged', 'acknowledged_by_link',
-                      'acknowledged_at', 'requires_action')
+                      'acknowledged_at')
         }),
         ('Resolution', {
             'fields': ('resolution_notes', 'resolved_by_link', 'resolved_at')
@@ -1071,7 +1069,7 @@ class ComplianceAlertAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Timestamps', {
-            'fields': ('created_at', 'updated_at', 'expires_at', 'time_since_created', 'is_expired')
+            'fields': ('created_at', 'updated_at', 'expires_at', 'is_expired')
         }),
     )
     

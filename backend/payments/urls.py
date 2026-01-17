@@ -1,9 +1,9 @@
-# payments/urls.py - UPDATED FOR COMPLIANCE INTEGRATION
+# payments/urls.py - UPDATED TO USE CENTRAL COMPLIANCE SYSTEM
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from . import compliance_views  # Updated compliance views
+# REMOVED: from . import compliance_views  # No longer needed
 
 router = DefaultRouter()
 router.register(r'accounts', views.AccountViewSet, basename='account')
@@ -17,7 +17,7 @@ router.register(r'withdrawals', views.WithdrawalRequestViewSet, basename='withdr
 router.register(r'notifications', views.PaymentTransactionNotificationViewSet, basename='notification')
 router.register(r'activity-feed', views.ActivityFeedViewSet, basename='activity-feed')
 
-# Compliance endpoints - UPDATED
+# COMPLIANCE ENDPOINTS REMOVED - USE CENTRAL COMPLIANCE APP INSTEAD
 urlpatterns = [
     path('', include(router.urls)),
     
@@ -30,17 +30,7 @@ urlpatterns = [
     path('schedule-agent-call/', views.schedule_agent_call, name='schedule-agent-call'),
     path('wallet-dashboard/', views.get_wallet_dashboard, name='wallet-dashboard'),
     
-    # COMPLIANCE ENDPOINTS - UPDATED TO USE CENTRAL COMPLIANCE
-    path('compliance/request-manual-payment/', compliance_views.request_manual_payment, name='request-manual-payment'),
-    path('compliance/verify-tac/', compliance_views.verify_tac, name='verify-tac'),
-    path('compliance/submit-kyc-form/', compliance_views.submit_kyc_form, name='submit-kyc-form'),
-    path('compliance/user/status/', compliance_views.user_compliance_status, name='user-compliance-status'),
-    
-    # ADMIN COMPLIANCE ENDPOINTS - UPDATED
-    path('compliance/admin/dashboard/', compliance_views.admin_compliance_dashboard, name='admin-compliance-dashboard'),
-    path('compliance/admin/generate-tac/', compliance_views.admin_generate_tac, name='admin-generate-tac'),
-    path('compliance/admin/schedule-video-call/', compliance_views.admin_schedule_video_call, name='admin-schedule-video-call'),
-    path('compliance/admin/complete-video-call/', compliance_views.admin_complete_video_call, name='admin-complete-video-call'),
-    path('compliance/admin/approve-request/', compliance_views.admin_approve_request, name='admin-approve-request'),
-    path('compliance/admin/reject-request/', compliance_views.admin_reject_request, name='admin-reject-request'),
+    # ALL COMPLIANCE ENDPOINTS REMOVED - USE CENTRAL COMPLIANCE AT /api/compliance/
+    # Example: To create a compliance request for a payment:
+    # POST /api/compliance/api/integration/create-request/
 ]

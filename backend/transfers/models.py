@@ -1,179 +1,286 @@
-from django.db import models
-from django.conf import settings
-from django.core.validators import MinValueValidator
-from decimal import Decimal
+"""
+transfers/models.py - Updated to integrate with compliance system
+"""
 
-class Recipient(models.Model):
-    """Model for storing transfer recipients (banks, fintech, crypto)"""
-    
-    RECIPIENT_TYPES = (
-        ('bank', 'Bank'),
-        ('fintech', 'Fintech'),
-        ('crypto', 'Cryptocurrency'),
-    )
-    
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='recipients')
-    recipient_type = models.CharField(max_length=20, choices=RECIPIENT_TYPES)
-    
-    # Basic Info
-    name = models.CharField(max_length=255, help_text="Recipient name or institution")
-    country = models.CharField(max_length=100)
-    logo = models.CharField(max_length=10, default="🏦", help_text="Emoji or icon")
-    
-    # Bank/Fintech Details
-    account_number = models.CharField(max_length=100, blank=True, null=True)
-    account_holder = models.CharField(max_length=255, blank=True, null=True)
-    swift_code = models.CharField(max_length=50, blank=True, null=True)
-    iban = models.CharField(max_length=50, blank=True, null=True)
-    routing_number = models.CharField(max_length=50, blank=True, null=True)
-    bank_name = models.CharField(max_length=255, blank=True, null=True)
-    
-    # Crypto Details
-    wallet_address = models.CharField(max_length=255, blank=True, null=True)
-    network = models.CharField(max_length=50, blank=True, null=True, help_text="e.g., TRC20, ERC20, BTC")
-    
-    # Metadata
-    is_favorite = models.BooleanField(default=False)
-    is_verified = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        ordering = ['-is_favorite', '-created_at']
-        indexes = [
-            models.Index(fields=['user', 'recipient_type']),
-            models.Index(fields=['is_favorite']),
-        ]
-    
-    def __str__(self):
-        return f"{self.name} ({self.country}) - {self.get_recipient_type_display()}"
+import uuid
+from django.db import models
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+from django.core.validators import MinValueValidator, MaxValueValidator
+
+from backend.compliance.models import ComplianceRequest, ComplianceProfile
+
+User = get_user_model()
 
 
 class Transfer(models.Model):
-    """Model for transfer transactions"""
+    """Money transfer model integrated with compliance"""
     
-    TRANSFER_STATUS = (
+    TRANSFER_STATUS_CHOICES = [
+        ('draft', 'Draft'),
         ('pending', 'Pending'),
         ('processing', 'Processing'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
         ('cancelled', 'Cancelled'),
         ('compliance_review', 'Compliance Review'),
+        ('awaiting_tac', 'Awaiting TAC'),
+        ('awaiting_video_call', 'Awaiting Video Call'),
+    ]
+    
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('normal', 'Normal'),
+        ('high', 'High'),
+    ]
+    
+    # Basic transfer info
+    transfer_id = models.CharField(max_length=50, unique=True, default=uuid.uuid4)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transfers')
+    amount = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(0.01)])
+    currency = models.CharField(max_length=3, default='USD')
+    
+    # Recipient info
+    recipient_name = models.CharField(max_length=255)
+    recipient_account = models.CharField(max_length=100)
+    recipient_bank = models.CharField(max_length=255, blank=True)
+    recipient_country = models.CharField(max_length=2, blank=True)
+    recipient_phone = models.CharField(max_length=20, blank=True)
+    recipient_email = models.EmailField(blank=True)
+    
+    # Compliance integration
+    compliance_request = models.ForeignKey(
+        'compliance.ComplianceRequest',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transfer_requests'
     )
     
-    TRANSFER_TYPES = (
-        ('bank', 'Bank Transfer'),
-        ('fintech', 'Fintech Transfer'),
-        ('crypto', 'Crypto Transfer'),
-        ('international', 'International Transfer'),
-        ('internal', 'Internal Transfer'),
-    )
+    # Status fields
+    status = models.CharField(max_length=20, choices=TRANSFER_STATUS_CHOICES, default='draft')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='normal')
     
-    # Transfer ID
-    transfer_id = models.CharField(max_length=100, unique=True, editable=False)
-    
-    # Parties
-    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_transfers')
-    recipient = models.ForeignKey(Recipient, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_transfers')
-    
-    # Transfer Details
-    transfer_type = models.CharField(max_length=30, choices=TRANSFER_TYPES)
-    amount = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    currency = models.CharField(max_length=10, default='USD')
-    
-    # Fee & Total
-    fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    total_amount = models.DecimalField(max_digits=15, decimal_places=2, editable=False)
-    
-    # Status & Tracking
-    status = models.CharField(max_length=30, choices=TRANSFER_STATUS, default='pending')
-    description = models.TextField(blank=True, null=True)
-    reference_number = models.CharField(max_length=100, blank=True, null=True)
-    
-    # Compliance
-    requires_tac = models.BooleanField(default=False, help_text="Requires Transfer Authorization Code")
+    # TAC fields (linked to compliance)
+    tac_required = models.BooleanField(default=False)
     tac_verified = models.BooleanField(default=False)
     tac_verified_at = models.DateTimeField(null=True, blank=True)
     
-    compliance_status = models.CharField(max_length=50, default='pending', help_text="KYC/AML status")
-    compliance_notes = models.TextField(blank=True, null=True)
+    # Video call fields
+    video_call_required = models.BooleanField(default=False)
+    video_call_completed = models.BooleanField(default=False)
+    video_call_session = models.ForeignKey(
+        'compliance.VideoCallSession',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transfers'
+    )
+    
+    # Risk assessment
+    risk_level = models.CharField(max_length=20, default='low', choices=[
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High')
+    ])
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     
-    # Additional recipient info (if not using Recipient model)
-    recipient_name = models.CharField(max_length=255, blank=True, null=True)
-    recipient_account = models.CharField(max_length=255, blank=True, null=True)
-    recipient_bank = models.CharField(max_length=255, blank=True, null=True)
+    # Additional info
+    description = models.TextField(blank=True)
+    reference = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    
+    # Fees and charges
+    fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    tax = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    
+    # Metadata
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    device_id = models.CharField(max_length=100, blank=True)
     
     class Meta:
+        app_label = "transfers"
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['sender', 'status']),
             models.Index(fields=['transfer_id']),
-            models.Index(fields=['created_at']),
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['compliance_request']),
         ]
     
+    def __str__(self):
+        return f"{self.transfer_id} - {self.user.email} - {self.amount} {self.currency}"
+    
     def save(self, *args, **kwargs):
-        # Generate transfer ID if not exists
-        if not self.transfer_id:
-            import uuid
-            from datetime import datetime
-            date_str = datetime.now().strftime('%Y%m%d')
-            unique_id = str(uuid.uuid4())[:8].upper()
-            self.transfer_id = f"TRF-{date_str}-{unique_id}"
-        
         # Calculate total amount
-        self.total_amount = self.amount + self.fee
+        if not self.total_amount:
+            self.total_amount = self.amount + self.fee + self.tax
+        
+        # Generate transfer ID if not set
+        if not self.transfer_id:
+            self.transfer_id = f"TRF-{uuid.uuid4().hex[:12].upper()}"
         
         super().save(*args, **kwargs)
     
-    def __str__(self):
-        return f"{self.transfer_id} - {self.sender.email} → {self.recipient_name or 'Unknown'} - {self.amount} {self.currency}"
+    def requires_compliance_check(self):
+        """Check if transfer requires compliance review"""
+        return self.status in ['draft', 'pending', 'awaiting_tac', 'awaiting_video_call', 'compliance_review']
+    
+    def can_process(self):
+        """Check if transfer can be processed"""
+        return (
+            self.status in ['pending', 'processing'] and
+            not self.tac_required and
+            not self.video_call_required and
+            self.risk_level != 'high'
+        )
+    
+    def check_kyc_status(self):
+        """Check user's KYC status"""
+        try:
+            profile = ComplianceProfile.objects.get(user=self.user)
+            return profile.kyc_status == 'approved'
+        except ComplianceProfile.DoesNotExist:
+            return False
+
+        """Check user's KYC status"""
+        try:
+            profile = ComplianceProfile.objects.get(user=self.user)
+            return profile.kyc_status == 'approved'
+        except ComplianceProfile.DoesNotExist:
+            return False
+
+    @property
+
+
+    def is_high_risk(self):
+        """Check if transfer is high risk"""
+        return self.risk_level in ['high', 'very_high', 'extreme']
+
+    @property
+
+
+    def is_pending(self):
+        """Check if transfer is in pending state"""
+        return self.status in ['pending', 'awaiting_tac', 'awaiting_video_call', 'compliance_review']
+
+    @property
+
+
+    def is_completed(self):
+        """Check if transfer is completed"""
+        return self.status == 'completed'
+
+    @property
+
+
+    def is_high_risk(self):
+        """Check if transfer is high risk"""
+        return self.risk_level in ['high', 'very_high', 'extreme']
+
+    @property
+
+
+    def is_pending(self):
+        """Check if transfer is in pending state"""
+        return self.status in ['pending', 'awaiting_tac', 'awaiting_video_call', 'compliance_review']
+
+    @property
+
+
+    def is_completed(self):
+        """Check if transfer is completed"""
+        return self.status == 'completed'
+
+    @property
+
+
+    def is_high_risk(self):
+        """Check if transfer is high risk"""
+        return self.risk_level in ['high', 'very_high', 'extreme']
+
+    @property
+
+
+    def is_pending(self):
+        """Check if transfer is in pending state"""
+        return self.status in ['pending', 'awaiting_tac', 'awaiting_video_call', 'compliance_review']
+
+    @property
+
+
+    def is_completed(self):
+        """Check if transfer is completed"""
+        return self.status == 'completed'
+
+        try:
+            profile = ComplianceProfile.objects.get(user=self.user)
+            return profile.kyc_status == 'approved'
+        except ComplianceProfile.DoesNotExist:
+            return False
 
 
 class TransferLog(models.Model):
-    """Model for tracking transfer status changes"""
+    """Audit log for transfer actions"""
+    LOG_TYPE_CHOICES = [
+        ('created', 'Created'),
+        ('updated', 'Updated'),
+        ('status_change', 'Status Change'),
+        ('tac_generated', 'TAC Generated'),
+        ('tac_verified', 'TAC Verified'),
+        ('video_call_scheduled', 'Video Call Scheduled'),
+        ('video_call_completed', 'Video Call Completed'),
+        ('compliance_check', 'Compliance Check'),
+        ('processed', 'Processed'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+    ]
     
     transfer = models.ForeignKey(Transfer, on_delete=models.CASCADE, related_name='logs')
-    status = models.CharField(max_length=30)
+    log_type = models.CharField(max_length=50, choices=LOG_TYPE_CHOICES)
     message = models.TextField()
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.transfer.transfer_id} - {self.status} at {self.created_at}"
+        return f"{self.transfer.transfer_id} - {self.log_type}"
 
 
-class TACCode(models.Model):
-    """Model for Transfer Authorization Codes"""
+class TransferLimit(models.Model):
+    """Transfer limits per user/country/currency"""
+    LIMIT_TYPE_CHOICES = [
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'),
+        ('per_transaction', 'Per Transaction'),
+        ('lifetime', 'Lifetime'),
+    ]
     
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tac_codes')
-    transfer = models.ForeignKey(Transfer, on_delete=models.CASCADE, related_name='tac_codes', null=True, blank=True)
-    
-    code = models.CharField(max_length=6)
-    is_used = models.BooleanField(default=False)
-    used_at = models.DateTimeField(null=True, blank=True)
-    
-    expires_at = models.DateTimeField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='transfer_limits')
+    country = models.CharField(max_length=2, blank=True)
+    currency = models.CharField(max_length=3, default='USD')
+    limit_type = models.CharField(max_length=20, choices=LIMIT_TYPE_CHOICES)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['user', 'is_used']),
-            models.Index(fields=['code']),
-        ]
+        unique_together = ['user', 'country', 'currency', 'limit_type']
     
     def __str__(self):
-        return f"TAC-{self.code} for {self.user.email}"
-    
-    def is_valid(self):
-        """Check if TAC code is still valid"""
-        from django.utils import timezone
-        return not self.is_used and self.expires_at > timezone.now()
+        user_str = self.user.email if self.user else 'Global'
+        return f"{user_str} - {self.limit_type} - {self.amount} {self.currency}"

@@ -36,7 +36,7 @@ if str(PROJECT_DIR) not in sys.path:
 
 # Print debug info (only in development)
 if os.environ.get('DEBUG') == 'True':
-    print(f"✓ Python path configured")
+    print(f"[OK] Python path configured")
     print(f"  Backend dir: {BACKEND_DIR}")
     print(f"  Project dir: {PROJECT_DIR}")
     print(f"  Current sys.path: {sys.path[:3]}...")
@@ -55,8 +55,8 @@ from django.core.exceptions import ImproperlyConfigured
 # ------------------------------
 def is_test_environment():
     """Check if we're running tests"""
-    return ('test' in sys.argv or 
-            'pytest' in sys.modules or 
+    return ('test' in sys.argv or
+            'pytest' in sys.modules or
             os.environ.get('DJANGO_TEST') == 'True' or
             os.environ.get('RUNNING_TESTS') == 'True')
 
@@ -105,7 +105,7 @@ SECRET_KEY = get_env_variable(
 if is_test_environment():
     # Tests should run in development-like environment
     DEBUG = True
-    print("✓ Test environment detected, DEBUG set to True for testing")
+    print("[OK] Test environment detected, DEBUG set to True for testing")
 else:
     DEBUG = get_env_variable('DEBUG', 'False') == 'True'
 
@@ -130,7 +130,7 @@ APP_VERSION = f"{API_VERSION}-{GIT_COMMIT[:8]}" if GIT_COMMIT != 'local' else AP
 # ============================================================================
 # This MUST be defined BEFORE INSTALLED_APPS to work properly
 AUTH_USER_MODEL = 'accounts.Account'
-print(f"✓ AUTH_USER_MODEL set to: {AUTH_USER_MODEL}")
+print(f"[OK] AUTH_USER_MODEL set to: {AUTH_USER_MODEL}")
 # ============================================================================
 
 # ------------------------------
@@ -148,7 +148,7 @@ ALLOWED_HOSTS.append('.claverica-backend-rniq.onrender.com')
 #     ALLOWED_HOSTS.extend([host.strip() for host in additional_hosts.split(',')])
 
 # ------------------------------
-# INSTALLED APPS - FIXED ORDER FOR CUSTOM USER MODEL
+# INSTALLED APPS - FIXED WITH backend. PREFIX
 # ------------------------------
 INSTALLED_APPS = [
     # Django Core Apps
@@ -157,40 +157,40 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    
+
     # Static files
     'django.contrib.staticfiles',
-    
+
     # Health checks
     'health_check',
     'health_check.db',
     'health_check.cache',
     'health_check.storage',
-    
+
     # Third-party apps
     'django_extensions',
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
     'django_filters',
-    
+
     # ============================================
-    # YOUR CUSTOM APPS - ACCOUNTS MUST BE FIRST!
+    # YOUR CUSTOM APPS - WITH backend. PREFIX!
     # ============================================
-    'accounts',  # ← CRITICAL: Must be before any other custom app
-    
+    'backend.accounts',  # CRITICAL: Must be first and have backend. prefix
+
     # Other custom apps (order matters for dependencies)
-    'users',
-    'tasks',
-    'cards',
-    'compliance',
-    'crypto',
-    'escrow',
-    'notifications',
-    'payments',
-    'receipts',
-    'transactions',
-    'transfers',
+    'backend.users',
+    'backend.claverica_tasks',  # CHANGED FROM 'backend.tasks' TO 'backend.claverica_tasks'
+    'backend.cards',
+    'backend.compliance',
+    'backend.crypto',
+    'backend.escrow',
+    'backend.notifications',
+    'backend.payments',
+    'backend.receipts',
+    'backend.transactions',
+    'backend.transfers',
 ]
 
 # Add development tools (skip for tests) - ONLY drf_spectacular
@@ -248,11 +248,11 @@ if is_test_environment():
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-    print("✓ Using SQLite for testing")
+    print("[OK] Using SQLite for testing")
 else:
     # Check if we have a PostgreSQL database URL (for Render)
     database_url = get_env_variable('DATABASE_URL')
-    
+
     if database_url and 'postgres' in database_url:
         # PostgreSQL for Render/Production
         try:
@@ -263,15 +263,15 @@ else:
                     ssl_require=not DEBUG
                 )
             }
-            
+
             # Remove any sslmode parameter that might cause issues
             if 'OPTIONS' in DATABASES['default'] and 'sslmode' in DATABASES['default']['OPTIONS']:
                 del DATABASES['default']['OPTIONS']['sslmode']
-            
+
             if not DEBUG:
                 DATABASES['default']['CONN_MAX_AGE'] = 600
                 DATABASES['default']['CONN_HEALTH_CHECKS'] = True
-            
+
             # Add PostgreSQL-specific optimizations
             DATABASES['default']['OPTIONS'] = {
                 'connect_timeout': 10,
@@ -280,8 +280,8 @@ else:
                 'keepalives_interval': 10,
                 'keepalives_count': 5,
             }
-            print("✓ Using PostgreSQL database (Render)")
-            
+            print("[OK] Using PostgreSQL database (Render)")
+
             # DEBUG: Print database info for troubleshooting
             if DEBUG:
                 print(f"  Database: {DATABASES['default']['NAME']}")
@@ -304,7 +304,7 @@ else:
                 'NAME': BASE_DIR / 'db.sqlite3',
             }
         }
-        print("✓ Using SQLite for local development")
+        print("[OK] Using SQLite for local development")
 
 # ------------------------------
 # PASSWORD HASHING
@@ -320,7 +320,7 @@ PASSWORD_HASHERS = [
 # AUTHENTICATION BACKENDS
 # ------------------------------
 AUTHENTICATION_BACKENDS = [
-    'accounts.backends.EmailBackend',
+    'backend.accounts.backends.EmailBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
 
@@ -452,19 +452,19 @@ SIMPLE_JWT = {
     'ISSUER': None,
     'JWK_URL': None,
     'LEEWAY': 0,
-    
+
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
     'USER_AUTHENTICATION_RULES': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
-    
+
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
     'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
-    
+
     'JTI_CLAIM': 'jti',
-    
+
     'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
     'SLIDING_TOKEN_LIFETIME': timedelta(minutes=60),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=7),
@@ -490,13 +490,13 @@ CORS_ALLOWED_ORIGINS.append('https://claverica-backend-rniq.onrender.com')
 frontend_domains = get_frontend_domains()
 if frontend_domains:
     CORS_ALLOWED_ORIGINS.extend(frontend_domains)
-    print(f"✓ Frontend domains added to CORS: {frontend_domains}")
+    print(f"[OK] Frontend domains added to CORS: {frontend_domains}")
 
 # For production, ensure we don't allow all origins
 if not DEBUG and not is_test_environment():
     # Disable CORS_ALLOW_ALL_ORIGINS in production
     CORS_ALLOW_ALL_ORIGINS = False
-    
+
     # Fallback to environment variable if no frontend domains set
     if not CORS_ALLOWED_ORIGINS:
         cors_origins = get_env_variable(
@@ -505,7 +505,7 @@ if not DEBUG and not is_test_environment():
         )
         if cors_origins:
             CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
-            print(f"✓ CORS origins from env: {CORS_ALLOWED_ORIGINS}")
+            print(f"[OK] CORS origins from env: {CORS_ALLOWED_ORIGINS}")
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
@@ -665,7 +665,7 @@ if not DEBUG and redis_url and not is_test_environment():
             }
         }
     }
-    
+
     # Configure DRF to use Redis for throttling
     REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
         'rest_framework.throttling.ScopedRateThrottle',
@@ -687,7 +687,7 @@ if not DEBUG and sentry_dsn and not is_test_environment():
     try:
         import sentry_sdk
         from sentry_sdk.integrations.django import DjangoIntegration
-        
+
         sentry_sdk.init(
             dsn=sentry_dsn,
             integrations=[DjangoIntegration()],
@@ -852,13 +852,13 @@ EMAIL_TIMEOUT = 30
 # Auto-switch to console backend in development if no SendGrid API key
 if DEBUG and not get_env_variable('SENDGRID_API_KEY'):
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    print("📧 Email backend set to Console (no SENDGRID_API_KEY in development)")
+    print("≡ƒôº Email backend set to Console (no SENDGRID_API_KEY in development)")
 elif get_env_variable('SENDGRID_API_KEY'):
-    print("📧 SendGrid email configuration loaded successfully")
+    print("≡ƒôº SendGrid email configuration loaded successfully")
     print(f"   Using sender: {DEFAULT_FROM_EMAIL}")
     print(f"   Support email: {SUPPORT_EMAIL}")
 else:
-    print("⚠️ Warning: SENDGRID_API_KEY not set. Email sending will fail.")
+    print("ΓÜá∩╕Å Warning: SENDGRID_API_KEY not set. Email sending will fail.")
 # ============================================================================
 # ------------------------------
 # OTP CONFIGURATION
@@ -879,32 +879,32 @@ TEST_RUNNER = 'django.test.runner.DiscoverRunner'
 # CRITICAL: DIAGNOSTIC OUTPUT FOR USER MODEL DEBUGGING
 # ============================================================================
 print("=" * 60)
-print("🚀 SYSTEM DIAGNOSTICS")
+print("≡ƒÜÇ SYSTEM DIAGNOSTICS")
 print("=" * 60)
-print(f"🔧 AUTH_USER_MODEL: {AUTH_USER_MODEL}")
-print(f"🐛 DEBUG: {DEBUG}")
-print(f"🌐 ALLOWED_HOSTS: {ALLOWED_HOSTS}")
-print(f"🗄️  DATABASE ENGINE: {DATABASES['default']['ENGINE']}")
-print(f"📦 ACCOUNTS in INSTALLED_APPS: {'accounts' in INSTALLED_APPS}")
-print(f"📌 ACCOUNTS position: {INSTALLED_APPS.index('accounts') if 'accounts' in INSTALLED_APPS else 'NOT FOUND'}")
-print(f"📁 STATIC_ROOT: {STATIC_ROOT}")
-print(f"📁 STATICFILES_DIRS: {STATICFILES_DIRS}")
-print(f"📦 WHITENOISE ENABLED: {'whitenoise.middleware.WhiteNoiseMiddleware' in MIDDLEWARE}")
-print(f"🔐 THROTTLE RATES: {REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']}")
-print(f"💾 CACHE BACKEND: {CACHES['default']['BACKEND']}")
-print(f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS[:3]}..." if len(CORS_ALLOWED_ORIGINS) > 3 else f"🌍 CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS}")
-print(f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS[:3]}..." if len(CSRF_TRUSTED_ORIGINS) > 3 else f"🔒 CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS}")
-print(f"📧 EMAIL BACKEND: {EMAIL_BACKEND}")
-print(f"📧 DEFAULT FROM: {DEFAULT_FROM_EMAIL}")
-print(f"📧 SUPPORT EMAIL: {SUPPORT_EMAIL}")
-print(f"🔢 OTP EXPIRY: {OTP_EXPIRY_MINUTES} minutes")
-print(f"🔢 OTP MAX ATTEMPTS: {OTP_MAX_ATTEMPTS}")
-print(f"🔢 OTP COOLDOWN: {OTP_RESEND_COOLDOWN_SECONDS} seconds")
-print(f"🔐 COMPLIANCE - TAC MAX REQUESTS/HOUR: {TAC_MAX_REQUESTS_PER_HOUR}")
-print(f"💰 WITHDRAWAL DAILY LIMIT: ${WITHDRAWAL_DAILY_LIMIT}")
-print(f"💰 WITHDRAWAL MONTHLY LIMIT: ${WITHDRAWAL_MONTHLY_LIMIT}")
-print(f"💰 WITHDRAWAL MINIMUM: ${WITHDRAWAL_MINIMUM_AMOUNT}")
+print(f"≡ƒöº AUTH_USER_MODEL: {AUTH_USER_MODEL}")
+print(f"≡ƒÉ¢ DEBUG: {DEBUG}")
+print(f"≡ƒîÉ ALLOWED_HOSTS: {ALLOWED_HOSTS}")
+print(f"≡ƒùä∩╕Å  DATABASE ENGINE: {DATABASES['default']['ENGINE']}")
+print(f"≡ƒôª ACCOUNTS in INSTALLED_APPS: {'backend.accounts' in INSTALLED_APPS}")
+print(f"≡ƒôî ACCOUNTS position: {INSTALLED_APPS.index('backend.accounts') if 'backend.accounts' in INSTALLED_APPS else 'NOT FOUND'}")
+print(f"≡ƒôü STATIC_ROOT: {STATIC_ROOT}")
+print(f"≡ƒôü STATICFILES_DIRS: {STATICFILES_DIRS}")
+print(f"≡ƒôª WHITENOISE ENABLED: {'whitenoise.middleware.WhiteNoiseMiddleware' in MIDDLEWARE}")
+print(f"≡ƒöÉ THROTTLE RATES: {REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']}")
+print(f"≡ƒÆ╛ CACHE BACKEND: {CACHES['default']['BACKEND']}")
+print(f"≡ƒîì CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS[:3]}..." if len(CORS_ALLOWED_ORIGINS) > 3 else f"≡ƒîì CORS ALLOWED ORIGINS: {CORS_ALLOWED_ORIGINS}")
+print(f"≡ƒöÆ CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS[:3]}..." if len(CSRF_TRUSTED_ORIGINS) > 3 else f"≡ƒöÆ CSRF TRUSTED ORIGINS: {CSRF_TRUSTED_ORIGINS}")
+print(f"≡ƒôº EMAIL BACKEND: {EMAIL_BACKEND}")
+print(f"≡ƒôº DEFAULT FROM: {DEFAULT_FROM_EMAIL}")
+print(f"≡ƒôº SUPPORT EMAIL: {SUPPORT_EMAIL}")
+print(f"≡ƒöó OTP EXPIRY: {OTP_EXPIRY_MINUTES} minutes")
+print(f"≡ƒöó OTP MAX ATTEMPTS: {OTP_MAX_ATTEMPTS}")
+print(f"≡ƒöó OTP COOLDOWN: {OTP_RESEND_COOLDOWN_SECONDS} seconds")
+print(f"≡ƒöÉ COMPLIANCE - TAC MAX REQUESTS/HOUR: {TAC_MAX_REQUESTS_PER_HOUR}")
+print(f"≡ƒÆ░ WITHDRAWAL DAILY LIMIT: ${WITHDRAWAL_DAILY_LIMIT}")
+print(f"≡ƒÆ░ WITHDRAWAL MONTHLY LIMIT: ${WITHDRAWAL_MONTHLY_LIMIT}")
+print(f"≡ƒÆ░ WITHDRAWAL MINIMUM: ${WITHDRAWAL_MINIMUM_AMOUNT}")
 print("=" * 60)
-print("✅ Settings loaded successfully with OTP email configuration!")
+print("Γ£à Settings loaded successfully with OTP email configuration!")
 print("=" * 60)
 # ============================================================================

@@ -1,8 +1,8 @@
 from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta
-from .models import KYCVerification, TACCode, VerificationStatus, DocumentType
-from .services import generate_tac_code
+from backend.compliance.models import KYCVerification, TACCode, VerificationStatus, DocumentType
+from backend.compliance.services import generate_tac_code
 
 
 class KYCVerificationTestCase(TestCase):

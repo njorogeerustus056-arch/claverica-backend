@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.utils import timezone
 from datetime import timedelta
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -20,7 +21,7 @@ from django.conf import settings
 from .models import (
     ComplianceRequest, KYCVerification, KYCDocument,
     TACRequest, VideoCallSession, ComplianceAuditLog,
-    ComplianceRule, ComplianceDashboardStats, ComplianceAlert
+    ComplianceRule, ComplianceDashboardStats, ComplianceAlert, ComplianceProfile
 )
 from .serializers import (
     ComplianceRequestSerializer, ComplianceRequestCreateSerializer,
@@ -40,6 +41,10 @@ from .services import (
 from .permissions import (
     IsComplianceOfficer, IsOwnerOrAdmin, HasKYCApproved,
     CanViewAuditLogs, CanManageDocuments, CanApproveKYC
+)
+from .email_service import (
+    send_compliance_decision_email,
+    send_compliance_escalation_email
 )
 
 logger = logging.getLogger(__name__)
@@ -78,13 +83,10 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
-            # Compliance officers see all requests
             queryset = ComplianceRequest.objects.all()
         else:
-            # Regular users see only their own requests
             queryset = ComplianceRequest.objects.filter(user=user)
         
-        # Apply filters
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
@@ -101,7 +103,6 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
         if priority_filter:
             queryset = queryset.filter(priority=priority_filter)
         
-        # Date filters
         date_from = self.request.query_params.get('date_from')
         if date_from:
             queryset = queryset.filter(created_at__gte=date_from)
@@ -118,12 +119,10 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
         user = request.user
         
         try:
-            # Get statistics
             total_requests = self.get_queryset().count()
             pending_requests = self.get_queryset().filter(status='pending').count()
             high_priority = self.get_queryset().filter(priority='high').count()
             
-            # Get recent requests
             recent_requests = self.get_queryset()[:10]
             
             return Response({
@@ -163,6 +162,20 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
                 approved_by=request.user,
                 notes=notes
             )
+            
+            if result['success']:
+                try:
+                    user = compliance_request.user
+                    user_name = f"{user.first_name} {user.last_name}" if user.first_name else user.email
+                    send_compliance_decision_email(
+                        user.email,
+                        user_name,
+                        "Compliance Request Approved",
+                        "approved",
+                        f"Your compliance request {compliance_request.compliance_id} has been approved."
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send approval email: {e}")
             
             if result['success']:
                 return Response(result)
@@ -207,6 +220,20 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
             )
             
             if result['success']:
+                try:
+                    user = compliance_request.user
+                    user_name = f"{user.first_name} {user.last_name}" if user.first_name else user.email
+                    send_compliance_decision_email(
+                        user.email,
+                        user_name,
+                        "Compliance Request Rejected",
+                        "rejected",
+                        f"Your compliance request {compliance_request.compliance_id} has been rejected. Reason: {reason}"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send rejection email: {e}")
+            
+            if result['success']:
                 return Response(result)
             else:
                 return Response(
@@ -233,6 +260,21 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
                 escalated_by=request.user,
                 reason=reason
             )
+            
+            if result['success']:
+                try:
+                    user = compliance_request.user
+                    user_name = f"{user.first_name} {user.last_name}" if user.first_name else user.email
+                    escalated_to = compliance_request.escalated_to.email if compliance_request.escalated_to else "Senior Compliance Officer"
+                    send_compliance_escalation_email(
+                        user.email,
+                        user_name,
+                        compliance_request.compliance_id,
+                        escalated_to,
+                        reason or ""
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send escalation email: {e}")
             
             if result['success']:
                 return Response(result)
@@ -270,7 +312,6 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
         try:
             officer = User.objects.get(id=officer_id)
             
-            # Check if user is a compliance officer
             if not officer.is_staff and not officer.groups.filter(name='Compliance Officers').exists():
                 return Response(
                     {'error': 'User is not a compliance officer'},
@@ -280,7 +321,6 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
             compliance_request.assigned_to = officer
             compliance_request.save()
             
-            # Log the assignment
             AuditService.log_action(
                 user=request.user,
                 action=f"Assigned compliance request {compliance_request.compliance_id} to {officer.email}",
@@ -366,7 +406,6 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
         item_ids = data['item_ids']
         
         try:
-            # Get requests that belong to the user or are unassigned
             requests = ComplianceRequest.objects.filter(compliance_id__in=item_ids)
             
             if action_type == 'approve':
@@ -417,13 +456,12 @@ class ComplianceRequestViewSet(viewsets.ModelViewSet):
             )
         
         try:
-            # Search in compliance requests
             requests = ComplianceRequest.objects.filter(
-                models.Q(compliance_id__icontains=query) |
-                models.Q(user__email__icontains=query) |
-                models.Q(user__first_name__icontains=query) |
-                models.Q(user__last_name__icontains=query) |
-                models.Q(description__icontains=query)
+                Q(compliance_id__icontains=query) |
+                Q(user__email__icontains=query) |
+                Q(user__first_name__icontains=query) |
+                Q(user__last_name__icontains=query) |
+                Q(description__icontains=query)
             )[:20]
             
             return Response({
@@ -465,13 +503,10 @@ class KYCVerificationViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
-            # Officers see all verifications
             queryset = KYCVerification.objects.all()
         else:
-            # Users see only their own verifications
             queryset = KYCVerification.objects.filter(user=user)
         
-        # Apply filters
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(verification_status=status_filter)
@@ -494,10 +529,8 @@ class KYCVerificationViewSet(viewsets.ModelViewSet):
         """Create KYC verification with additional processing"""
         kyc_verification = serializer.save()
         
-        # Run initial compliance checks
         KYCService.perform_initial_checks(kyc_verification)
         
-        # Log the creation
         AuditService.log_action(
             user=self.request.user,
             action='KYC Verification Created',
@@ -511,7 +544,6 @@ class KYCVerificationViewSet(viewsets.ModelViewSet):
         """Submit document for KYC verification"""
         kyc_verification = self.get_object()
         
-        # Check if user owns this KYC
         if kyc_verification.user != request.user:
             return Response(
                 {'error': 'Permission denied'},
@@ -626,7 +658,6 @@ class KYCVerificationViewSet(viewsets.ModelViewSet):
         """Get documents for KYC verification"""
         kyc_verification = self.get_object()
         
-        # Check permission
         if kyc_verification.user != request.user and not request.user.is_staff:
             return Response(
                 {'error': 'Permission denied'},
@@ -687,7 +718,6 @@ class KYCDocumentViewSet(viewsets.ModelViewSet):
         else:
             queryset = KYCDocument.objects.filter(user=user)
         
-        # Apply filters
         type_filter = self.request.query_params.get('type')
         if type_filter:
             queryset = queryset.filter(document_type=type_filter)
@@ -712,17 +742,17 @@ class KYCDocumentViewSet(viewsets.ModelViewSet):
             )
         
         document = self.get_object()
-        status = request.data.get('status')
+        status_value = request.data.get('status')
         notes = request.data.get('notes', '')
         rejection_reason = request.data.get('rejection_reason', '')
         
-        if status not in ['approved', 'rejected']:
+        if status_value not in ['approved', 'rejected']:
             return Response(
                 {'error': 'Status must be either approved or rejected'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        if status == 'rejected' and not rejection_reason:
+        if status_value == 'rejected' and not rejection_reason:
             return Response(
                 {'error': 'Rejection reason is required'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -732,7 +762,7 @@ class KYCDocumentViewSet(viewsets.ModelViewSet):
             result = KYCService.verify_document(
                 document=document,
                 verified_by=request.user,
-                status=status,
+                status=status_value,
                 notes=notes,
                 rejection_reason=rejection_reason
             )
@@ -757,15 +787,12 @@ class KYCDocumentViewSet(viewsets.ModelViewSet):
         """Download a document"""
         document = self.get_object()
         
-        # Check permission
         if document.user != request.user and not request.user.is_staff:
             return Response(
                 {'error': 'Permission denied'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # In production, this would serve the file
-        # For now, return file information
         return Response({
             'success': True,
             'file_name': document.original_file_name,
@@ -793,7 +820,6 @@ class TACRequestViewSet(viewsets.ModelViewSet):
         else:
             queryset = TACRequest.objects.filter(user=user)
         
-        # Filter by status
         is_valid = self.request.query_params.get('is_valid')
         if is_valid == 'true':
             queryset = queryset.filter(
@@ -803,10 +829,9 @@ class TACRequestViewSet(viewsets.ModelViewSet):
             )
         elif is_valid == 'false':
             queryset = queryset.filter(
-                models.Q(is_used=True) | models.Q(is_expired=True) | models.Q(expires_at__lte=timezone.now())
+                Q(is_used=True) | Q(is_expired=True) | Q(expires_at__lte=timezone.now())
             )
         
-        # Filter by type
         tac_type = self.request.query_params.get('type')
         if tac_type:
             queryset = queryset.filter(tac_type=tac_type)
@@ -874,14 +899,12 @@ class TACRequestViewSet(viewsets.ModelViewSet):
         """Resend a TAC"""
         tac_request = self.get_object()
         
-        # Check if user owns this TAC
         if tac_request.user != request.user and not request.user.is_staff:
             return Response(
                 {'error': 'Permission denied'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Check if TAC is still valid
         if not tac_request.is_valid():
             return Response(
                 {'error': 'TAC is no longer valid'},
@@ -924,7 +947,6 @@ class VideoCallSessionViewSet(viewsets.ModelViewSet):
         else:
             queryset = VideoCallSession.objects.filter(user=user)
         
-        # Apply filters
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
@@ -971,7 +993,6 @@ class VideoCallSessionViewSet(viewsets.ModelViewSet):
         """Start a video call session"""
         video_call = self.get_object()
         
-        # Check if user is allowed to start this call
         if video_call.user != request.user and video_call.agent != request.user:
             return Response(
                 {'error': 'Permission denied'},
@@ -1001,7 +1022,6 @@ class VideoCallSessionViewSet(viewsets.ModelViewSet):
         """Complete a video call session"""
         video_call = self.get_object()
         
-        # Only agent can complete the call
         if video_call.agent != request.user:
             return Response(
                 {'error': 'Only the assigned agent can complete the call'},
@@ -1074,7 +1094,6 @@ class VideoCallSessionViewSet(viewsets.ModelViewSet):
         video_call = self.get_object()
         reason = request.data.get('reason', '')
         
-        # Check if user is allowed to cancel
         if video_call.user != request.user and video_call.agent != request.user and not request.user.is_staff:
             return Response(
                 {'error': 'Permission denied'},
@@ -1121,7 +1140,6 @@ class ComplianceAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             queryset = ComplianceAuditLog.objects.filter(user=user)
         
-        # Apply filters
         entity_type = self.request.query_params.get('entity_type')
         if entity_type:
             queryset = queryset.filter(entity_type=entity_type)
@@ -1163,29 +1181,26 @@ class ComplianceRuleViewSet(viewsets.ModelViewSet):
     """
     queryset = ComplianceRule.objects.all()
     serializer_class = ComplianceRuleSerializer
-    permission_classes = [IsAdminUser]  # Only admins can manage rules
+    permission_classes = [IsAdminUser]
     
     def get_queryset(self):
         """Filter rules"""
         queryset = ComplianceRule.objects.all()
         
-        # Filter by active status
         is_active = self.request.query_params.get('is_active')
         if is_active == 'true':
             queryset = queryset.filter(is_active=True)
         elif is_active == 'false':
             queryset = queryset.filter(is_active=False)
         
-        # Filter by rule type
         rule_type = self.request.query_params.get('rule_type')
         if rule_type:
             queryset = queryset.filter(rule_type=rule_type)
         
-        # Filter by applicable apps
         app = self.request.query_params.get('app')
         if app:
             queryset = queryset.filter(
-                models.Q(applicable_apps='all') | models.Q(applicable_apps=app)
+                Q(applicable_apps='all') | Q(applicable_apps=app)
             )
         
         return queryset.order_by('priority', 'rule_name')
@@ -1234,19 +1249,17 @@ class ComplianceRuleViewSet(viewsets.ModelViewSet):
             user = User.objects.get(id=user_id)
             amount_decimal = float(amount)
             
-            # Get active rules for this app
             rules = ComplianceRule.objects.filter(
                 is_active=True,
                 is_effective=True
             ).filter(
-                models.Q(applicable_apps='all') | models.Q(applicable_apps=app)
+                Q(applicable_apps='all') | Q(applicable_apps=app)
             ).order_by('priority')
             
             evaluation_results = []
             triggered_rules = []
             
             for rule in rules:
-                # Evaluate rule conditions
                 triggered = ComplianceService.evaluate_rule(
                     rule=rule,
                     amount=amount_decimal,
@@ -1307,14 +1320,12 @@ class ComplianceAlertViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.groups.filter(name='Compliance Officers').exists():
             queryset = ComplianceAlert.objects.all()
         else:
-            # Users see alerts related to them
             queryset = ComplianceAlert.objects.filter(
-                models.Q(user=user) |
-                models.Q(compliance_request__user=user) |
-                models.Q(kyc_verification__user=user)
+                Q(user=user) |
+                Q(compliance_request__user=user) |
+                Q(kyc_verification__user=user)
             )
         
-        # Apply filters
         is_resolved = self.request.query_params.get('is_resolved')
         if is_resolved == 'true':
             queryset = queryset.filter(is_resolved=True)
@@ -1329,7 +1340,6 @@ class ComplianceAlertViewSet(viewsets.ModelViewSet):
         if alert_type:
             queryset = queryset.filter(alert_type=alert_type)
         
-        # Unresolved alerts first
         queryset = queryset.order_by('is_resolved', '-created_at')
         
         return queryset
@@ -1339,7 +1349,6 @@ class ComplianceAlertViewSet(viewsets.ModelViewSet):
         """Acknowledge an alert"""
         alert = self.get_object()
         
-        # Check if user has permission to acknowledge
         if alert.user != request.user and not request.user.is_staff:
             return Response(
                 {'error': 'Permission denied'},
@@ -1351,7 +1360,6 @@ class ComplianceAlertViewSet(viewsets.ModelViewSet):
         alert.acknowledged_at = timezone.now()
         alert.save()
         
-        # Log the acknowledgment
         AuditService.log_action(
             user=request.user,
             action=f"Acknowledged alert {alert.alert_id}",
@@ -1385,7 +1393,6 @@ class ComplianceAlertViewSet(viewsets.ModelViewSet):
         alert.resolution_notes = resolution_notes
         alert.save()
         
-        # Log the resolution
         AuditService.log_action(
             user=request.user,
             action=f"Resolved alert {alert.alert_id}",
@@ -1421,19 +1428,16 @@ class ComplianceDashboardView(APIView):
     def get(self, request):
         """Get comprehensive dashboard data"""
         try:
-            # Only compliance officers and admins get full dashboard
             if not request.user.is_staff and not request.user.groups.filter(name='Compliance Officers').exists():
                 return Response(
                     {'error': 'Permission denied'},
                     status=status.HTTP_403_FORBIDDEN
                 )
             
-            # Get time ranges
             today = timezone.now().date()
             week_ago = today - timedelta(days=7)
             month_ago = today - timedelta(days=30)
             
-            # Get statistics
             stats = {
                 'today': {
                     'requests': ComplianceRequest.objects.filter(created_at__date=today).count(),
@@ -1465,30 +1469,26 @@ class ComplianceDashboardView(APIView):
                 }
             }
             
-            # Get pending requests by priority
             pending_by_priority = {
                 'high': ComplianceRequest.objects.filter(status='pending', priority='high').count(),
                 'normal': ComplianceRequest.objects.filter(status='pending', priority='normal').count(),
                 'low': ComplianceRequest.objects.filter(status='pending', priority='low').count(),
             }
             
-            # Get requests by app
             requests_by_app = {}
-            for app_code, app_name in ComplianceRequest.APPS:
-                count = ComplianceRequest.objects.filter(app_name=app_code).count()
-                if count > 0:
-                    requests_by_app[app_name] = count
+            distinct_apps = ComplianceRequest.objects.values_list('app_name', flat=True).distinct()
+            for app in distinct_apps:
+                if app:
+                    count = ComplianceRequest.objects.filter(app_name=app).count()
+                    requests_by_app[app] = count
             
-            # Get recent requests
             recent_requests = ComplianceRequest.objects.order_by('-created_at')[:10]
             
-            # Get unresolved alerts
             unresolved_alerts = ComplianceAlert.objects.filter(is_resolved=False).order_by('-severity', '-created_at')[:10]
             
-            # Get officer workload
             officer_workload = {}
             officers = User.objects.filter(
-                models.Q(is_staff=True) | models.Q(groups__name='Compliance Officers')
+                Q(is_staff=True) | Q(groups__name='Compliance Officers')
             ).distinct()
             
             for officer in officers:
@@ -1550,55 +1550,47 @@ class ComplianceSearchView(APIView):
                 'total_count': 0
             }
             
-            # Only compliance officers and admins can search everything
             if request.user.is_staff or request.user.groups.filter(name='Compliance Officers').exists():
-                # Search compliance requests
                 requests = ComplianceRequest.objects.filter(
-                    models.Q(compliance_id__icontains=query) |
-                    models.Q(user__email__icontains=query) |
-                    models.Q(user__first_name__icontains=query) |
-                    models.Q(user__last_name__icontains=query) |
-                    models.Q(description__icontains=query)
+                    Q(compliance_id__icontains=query) |
+                    Q(user__email__icontains=query) |
+                    Q(user__first_name__icontains=query) |
+                    Q(user__last_name__icontains=query) |
+                    Q(description__icontains=query)
                 )[:10]
                 results['compliance_requests'] = ComplianceRequestSerializer(requests, many=True).data
                 
-                # Search KYC verifications
                 kyc_verifications = KYCVerification.objects.filter(
-                    models.Q(kyc_id__icontains=query) |
-                    models.Q(user__email__icontains=query) |
-                    models.Q(first_name__icontains=query) |
-                    models.Q(last_name__icontains=query) |
-                    models.Q(id_number__icontains=query)
+                    Q(kyc_id__icontains=query) |
+                    Q(user__email__icontains=query) |
+                    Q(first_name__icontains=query) |
+                    Q(last_name__icontains=query) |
+                    Q(id_number__icontains=query)
                 )[:10]
                 results['kyc_verifications'] = KYCVerificationSerializer(kyc_verifications, many=True).data
                 
-                # Search users
                 users = User.objects.filter(
-                    models.Q(email__icontains=query) |
-                    models.Q(first_name__icontains=query) |
-                    models.Q(last_name__icontains=query) |
-                    models.Q(username__icontains=query)
+                    Q(email__icontains=query) |
+                    Q(first_name__icontains=query) |
+                    Q(last_name__icontains=query) |
+                    Q(username__icontains=query)
                 )[:10]
                 results['users'] = UserSerializer(users, many=True).data
                 
             else:
-                # Regular users can only search their own data
-                requests = ComplianceRequest.objects.filter(
-                    user=request.user,
-                    models.Q(compliance_id__icontains=query) |
-                    models.Q(description__icontains=query)
+                requests = ComplianceRequest.objects.filter(user=request.user).filter(
+                    Q(compliance_id__icontains=query) |
+                    Q(description__icontains=query)
                 )[:10]
                 results['compliance_requests'] = ComplianceRequestSerializer(requests, many=True).data
                 
-                kyc_verifications = KYCVerification.objects.filter(
-                    user=request.user,
-                    models.Q(kyc_id__icontains=query) |
-                    models.Q(first_name__icontains=query) |
-                    models.Q(last_name__icontains=query)
+                kyc_verifications = KYCVerification.objects.filter(user=request.user).filter(
+                    Q(kyc_id__icontains=query) |
+                    Q(first_name__icontains=query) |
+                    Q(last_name__icontains=query)
                 )[:10]
                 results['kyc_verifications'] = KYCVerificationSerializer(kyc_verifications, many=True).data
             
-            # Calculate total count
             results['total_count'] = (
                 len(results['compliance_requests']) +
                 len(results['kyc_verifications']) +
@@ -1619,18 +1611,15 @@ class ComplianceSearchView(APIView):
             )
 
 
-# Service health check endpoint
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def health_check(request):
     """Check compliance service health"""
     try:
-        # Check database connectivity
         compliance_count = ComplianceRequest.objects.count()
         kyc_count = KYCVerification.objects.count()
-        tac_count = TACRequest.objects.filter(is_valid=True).count()
+        tac_count = TACRequest.objects.filter(is_used=False, is_expired=False, expires_at__gt=timezone.now()).count()
         
-        # Check service status
         services_status = {
             'database': 'OK',
             'compliance_service': 'OK',
@@ -1662,33 +1651,40 @@ def health_check(request):
         )
 
 
-# Integration endpoints for other apps
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_compliance_request(request):
     """
     Endpoint for other apps to create compliance requests
-    This is the main integration point
     """
     serializer = ComplianceRequestCreateSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     try:
-        # Create compliance request
         compliance_request = serializer.save()
         
-        # Run initial risk assessment
         ComplianceService.assess_risk(compliance_request)
         
-        # Check if automatic approval is possible
         if compliance_request.risk_level == 'low' and compliance_request.amount < 1000:
             compliance_request.status = 'approved'
             compliance_request.decision = 'approve'
             compliance_request.resolved_at = timezone.now()
             compliance_request.save()
             
-            # Log auto-approval
+            try:
+                user = compliance_request.user
+                user_name = f"{user.first_name} {user.last_name}" if user.first_name else user.email
+                send_compliance_decision_email(
+                    user.email,
+                    user_name,
+                    "Compliance Request Auto-Approved",
+                    "approved",
+                    f"Your compliance request {compliance_request.compliance_id} has been automatically approved."
+                )
+            except Exception as e:
+                logger.error(f"Failed to send auto-approval email: {e}")
+            
             AuditService.log_action(
                 user=request.user,
                 action='Compliance Request Auto-Approved',
@@ -1723,7 +1719,6 @@ def check_compliance_status(request, compliance_id):
     try:
         compliance_request = ComplianceRequest.objects.get(compliance_id=compliance_id)
         
-        # Check if user has permission to view this request
         if compliance_request.user != request.user and not request.user.is_staff:
             return Response(
                 {'error': 'Permission denied'},
@@ -1764,14 +1759,12 @@ def generate_tac_for_request(request, compliance_id):
     try:
         compliance_request = ComplianceRequest.objects.get(compliance_id=compliance_id)
         
-        # Check if user has permission
         if compliance_request.user != request.user and not request.user.is_staff:
             return Response(
                 {'error': 'Permission denied'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Generate TAC
         result = TACService.generate_tac(
             user=compliance_request.user,
             compliance_request=compliance_request,
@@ -1782,7 +1775,6 @@ def generate_tac_for_request(request, compliance_id):
         )
         
         if result['success']:
-            # Update compliance request
             compliance_request.tac_code = result['tac_code']
             compliance_request.tac_generated_at = timezone.now()
             compliance_request.status = 'awaiting_tac'
@@ -1815,7 +1807,6 @@ def verify_tac_for_request(request, compliance_id):
     try:
         compliance_request = ComplianceRequest.objects.get(compliance_id=compliance_id)
         
-        # Check if user has permission
         if compliance_request.user != request.user:
             return Response(
                 {'error': 'Permission denied'},
@@ -1829,7 +1820,6 @@ def verify_tac_for_request(request, compliance_id):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Verify TAC
         result = TACService.verify_tac(
             user=compliance_request.user,
             tac_code=tac_code,
@@ -1837,10 +1827,8 @@ def verify_tac_for_request(request, compliance_id):
         )
         
         if result['success']:
-            # Update compliance request
             compliance_request.tac_verified_at = timezone.now()
             
-            # If TAC was the only requirement, mark as ready for approval
             if (compliance_request.requires_tac and 
                 not compliance_request.requires_video_call and 
                 not compliance_request.requires_manual_review):

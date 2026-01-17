@@ -3,8 +3,8 @@
 from django.contrib import admin
 from .models import (
     CryptoAsset, CryptoWallet, CryptoTransaction,
-    PriceHistory, CryptoAddress, FiatPlatform, UserFiatAccount,
     CryptoComplianceFlag, CryptoAuditLog
+    # REMOVED: PriceHistory, CryptoAddress, FiatPlatform, UserFiatAccount
 )
 
 
@@ -20,15 +20,15 @@ class CryptoAssetAdmin(admin.ModelAdmin):
 class CryptoWalletAdmin(admin.ModelAdmin):
     list_display = [
         'user', 'asset', 'balance', 'balance_usd', 'is_active',
-        'compliance_status', 'requires_compliance_approval'  # NEW
+        'compliance_status', 'requires_compliance_approval'
     ]
     list_filter = [
         'wallet_type', 'is_active', 
-        'compliance_status', 'requires_compliance_approval'  # NEW
+        'compliance_status', 'requires_compliance_approval'
     ]
     search_fields = [
         'user__email', 'asset__symbol', 'wallet_address',
-        'compliance_reference'  # NEW
+        'compliance_reference'
     ]
     readonly_fields = ['created_at', 'updated_at']
 
@@ -37,20 +37,20 @@ class CryptoWalletAdmin(admin.ModelAdmin):
 class CryptoTransactionAdmin(admin.ModelAdmin):
     list_display = [
         'user', 'asset', 'transaction_type', 'status', 
-        'amount', 'amount_usd', 'compliance_status',  # NEW
-        'requires_compliance_approval', 'created_at'  # NEW
+        'amount', 'amount_usd', 'compliance_status',
+        'requires_compliance_approval', 'created_at'
     ]
     list_filter = [
-        'transaction_type', 'status', 'compliance_status',  # NEW
-        'requires_compliance_approval', 'is_high_value', 'is_suspicious'  # NEW
+        'transaction_type', 'status', 'compliance_status',
+        'requires_compliance_approval', 'is_high_value', 'is_suspicious'
     ]
     search_fields = [
         'user__email', 'asset__symbol', 'transaction_hash',
-        'compliance_reference'  # NEW
+        'compliance_reference'
     ]
     readonly_fields = [
         'created_at', 'updated_at', 'completed_at', 'confirmed_at',
-        'compliance_reference'  # NEW
+        'compliance_reference'
     ]
 
 
@@ -77,25 +77,5 @@ class CryptoAuditLogAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
 
 
-@admin.register(CryptoAddress)
-class CryptoAddressAdmin(admin.ModelAdmin):
-    list_display = ['user', 'asset', 'address', 'is_verified', 'created_at']
-    list_filter = ['is_verified', 'address_type']
-    search_fields = ['user__email', 'asset__symbol', 'address']
-    readonly_fields = ['created_at', 'updated_at', 'verified_at']
-
-
-@admin.register(FiatPlatform)
-class FiatPlatformAdmin(admin.ModelAdmin):
-    list_display = ['name', 'platform_type', 'supports_deposits', 'supports_withdrawals', 'is_active']
-    list_filter = ['platform_type', 'is_active']
-    search_fields = ['name']
-    readonly_fields = ['created_at', 'updated_at']
-
-
-@admin.register(UserFiatAccount)
-class UserFiatAccountAdmin(admin.ModelAdmin):
-    list_display = ['user', 'platform', 'currency', 'balance', 'is_verified', 'is_active']
-    list_filter = ['currency', 'is_verified', 'is_active']
-    search_fields = ['user__email', 'platform__name', 'account_number']
-    readonly_fields = ['created_at', 'updated_at', 'verified_at']
+# REMOVED: CryptoAddress, FiatPlatform, UserFiatAccount admin registrations
+# because these models don't exist in your models.py

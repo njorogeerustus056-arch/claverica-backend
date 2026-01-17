@@ -3,15 +3,84 @@ compliance/models.py - CENTRAL COMPLIANCE SYSTEM FOR ALL APPS
 """
 
 from django.db import models
-from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 import uuid
 from django.utils import timezone
 
-User = get_user_model()
+# DO NOT call get_user_model() at module level - use string references instead
+
+def generate_compliance_id():
+    """Generate a unique compliance ID"""
+    return f"COMP{uuid.uuid4().hex[:12].upper()}"
 
 
+def generate_kyc_id():
+    """Generate a unique KYC ID"""
+    return f"KYC{uuid.uuid4().hex[:12].upper()}"
+
+
+def generate_document_id():
+    """Generate a unique document ID"""
+    return f"DOC{uuid.uuid4().hex[:12].upper()}"
+
+
+def generate_tac_id():
+    """Generate a unique TAC ID"""
+    return f"TAC{uuid.uuid4().hex[:12].upper()}"
+
+
+def generate_session_id():
+    """Generate a unique session ID"""
+    return f"VID{uuid.uuid4().hex[:12].upper()}"
+
+
+def generate_log_id():
+    """Generate a unique audit log ID"""
+    return f"AUD{uuid.uuid4().hex[:12].upper()}"
+
+
+def generate_rule_id():
+    """Generate a unique rule ID"""
+    return f"RULE{uuid.uuid4().hex[:12].upper()}"
+
+
+def generate_alert_id():
+    """Generate a unique alert ID"""
+    return f"ALT{uuid.uuid4().hex[:12].upper()}"
+
+
+# ADD THIS MISSING MODEL
+
+    class Meta:
+        app_label = 'compliance'
+class ComplianceProfile(models.Model):
+    """Compliance profile for users"""
+    user = models.OneToOneField('accounts.Account', on_delete=models.CASCADE, related_name='compliance_profile', null=True, blank=True)
+    kyc_status = models.CharField(max_length=20, default='pending', choices=[
+        ('pending', 'Pending'),
+        ('in_review', 'In Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ])
+    risk_level = models.CharField(max_length=20, default='low', choices=[
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    ])
+    last_kyc_date = models.DateTimeField(null=True, blank=True)
+    next_kyc_review = models.DateTimeField(null=True, blank=True)
+    restrictions = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+    
+
+    class Meta:
+        app_label = 'compliance'
+        db_table = "compliance_profiles"
+        db_table = 'compliance_profiles'
+    def __str__(self):
+        return f"Compliance Profile for {self.user.email}"
 class ComplianceRequest(models.Model):
     """Central model for all compliance requests across apps"""
     
@@ -49,17 +118,17 @@ class ComplianceRequest(models.Model):
     ]
     
     # Core identifiers
-    compliance_id = models.CharField(max_length=100, unique=True, default=lambda: f"COMP{uuid.uuid4().hex[:12].upper()}")
-    app_name = models.CharField(max_length=50, choices=APPS)
+    compliance_id = models.CharField(max_length=100, default=generate_compliance_id)
+    app_name = models.CharField(max_length=50, choices=APPS, default="")
     app_transaction_id = models.CharField(max_length=100, blank=True, null=True)
     
-    # User information
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='compliance_requests')
+    # User information - using string reference
+    user = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, related_name='compliance_requests', null=True, blank=True)
     user_email = models.EmailField()
     user_phone = models.CharField(max_length=20, blank=True, null=True)
     
     # Request details
-    request_type = models.CharField(max_length=50, choices=REQUEST_TYPES)
+    request_type = models.CharField(max_length=50, choices=REQUEST_TYPES, default="")
     amount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     currency = models.CharField(max_length=3, default='USD')
     description = models.TextField(blank=True, null=True)
@@ -111,14 +180,14 @@ class ComplianceRequest(models.Model):
     
     # Review process
     assigned_to = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='assigned_compliance_requests'
     )
     reviewed_by = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -142,8 +211,8 @@ class ComplianceRequest(models.Model):
     decision_notes = models.TextField(blank=True, null=True)
     
     # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     
@@ -166,11 +235,6 @@ class ComplianceRequest(models.Model):
     
     def __str__(self):
         return f"{self.compliance_id} - {self.app_name} - {self.request_type} - {self.status}"
-    
-    def save(self, *args, **kwargs):
-        if not self.compliance_id:
-            self.compliance_id = f"COMP{uuid.uuid4().hex[:12].upper()}"
-        super().save(*args, **kwargs)
     
     def is_expired(self):
         if self.expires_at:
@@ -213,30 +277,30 @@ class KYCVerification(models.Model):
     ]
     
     # Core identifiers
-    kyc_id = models.CharField(max_length=100, unique=True, default=lambda: f"KYC{uuid.uuid4().hex[:12].upper()}")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='kyc_verifications')
+    kyc_id = models.CharField(max_length=100, default=generate_kyc_id)
+    user = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, related_name='kyc_verifications', null=True, blank=True)
     
     # Personal Information
-    first_name = models.CharField(max_length=100)
+    first_name = models.CharField(max_length=100, default="")
     middle_name = models.CharField(max_length=100, blank=True, null=True)
-    last_name = models.CharField(max_length=100)
-    date_of_birth = models.DateField()
-    nationality = models.CharField(max_length=100)
-    country_of_residence = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100, default="")
+    date_of_birth = models.DateField( null=True, blank=True)
+    nationality = models.CharField(max_length=100, default="")
+    country_of_residence = models.CharField(max_length=100, default="")
     country_of_birth = models.CharField(max_length=100, blank=True, null=True)
     
     # Contact Information
     email = models.EmailField()
-    phone_number = models.CharField(max_length=20)
-    address_line1 = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=20, default="")
+    address_line1 = models.CharField(max_length=255, default="")
     address_line2 = models.CharField(max_length=255, blank=True, null=True)
-    city = models.CharField(max_length=100)
+    city = models.CharField(max_length=100, default="")
     state_province = models.CharField(max_length=100, blank=True, null=True)
-    postal_code = models.CharField(max_length=20)
+    postal_code = models.CharField(max_length=20, default="")
     
     # Identity Information
-    id_number = models.CharField(max_length=100)
-    id_type = models.CharField(max_length=30, choices=DOCUMENT_TYPES)
+    id_number = models.CharField(max_length=100, default="")
+    id_type = models.CharField(max_length=30, choices=DOCUMENT_TYPES, default="")
     id_issue_date = models.DateField(null=True, blank=True)
     id_expiry_date = models.DateField(null=True, blank=True)
     id_issuing_country = models.CharField(max_length=100, blank=True, null=True)
@@ -279,9 +343,9 @@ class KYCVerification(models.Model):
     sanctions_details = models.JSONField(default=dict, blank=True)
     
     # Review Process
-    submitted_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     verified_by = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -303,8 +367,8 @@ class KYCVerification(models.Model):
     document_verification_completed = models.BooleanField(default=False)
     
     # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
     next_review_date = models.DateTimeField(null=True, blank=True)
     
     # Metadata
@@ -325,11 +389,6 @@ class KYCVerification(models.Model):
     
     def __str__(self):
         return f"{self.kyc_id} - {self.first_name} {self.last_name} - {self.verification_status}"
-    
-    def save(self, *args, **kwargs):
-        if not self.kyc_id:
-            self.kyc_id = f"KYC{uuid.uuid4().hex[:12].upper()}"
-        super().save(*args, **kwargs)
     
     def full_name(self):
         if self.middle_name:
@@ -362,26 +421,26 @@ class KYCDocument(models.Model):
     ]
     
     # Core identifiers
-    document_id = models.CharField(max_length=100, unique=True, default=lambda: f"DOC{uuid.uuid4().hex[:12].upper()}")
+    document_id = models.CharField(max_length=100, default=generate_document_id)
     kyc_verification = models.ForeignKey(
         KYCVerification,
         on_delete=models.CASCADE,
         related_name='documents'
-    )
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='kyc_documents')
+    , null=True, blank=True)
+    user = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, related_name='kyc_documents', null=True, blank=True)
     
     # Document Information
-    document_type = models.CharField(max_length=50, choices=KYCVerification.DOCUMENT_TYPES)
+    document_type = models.CharField(max_length=50, choices=KYCVerification.DOCUMENT_TYPES, default="")
     document_number = models.CharField(max_length=100, blank=True, null=True)
-    document_name = models.CharField(max_length=255)
+    document_name = models.CharField(max_length=255, default="Unnamed Document")
     
     # File Information
-    file_name = models.CharField(max_length=255)
-    original_file_name = models.CharField(max_length=255)
-    file_path = models.CharField(max_length=500)
+    file_name = models.CharField(max_length=255, default="")
+    original_file_name = models.CharField(max_length=255, default="")
+    file_path = models.CharField(max_length=500, default="")
     file_url = models.URLField(blank=True, null=True)
-    file_size = models.IntegerField()  # in bytes
-    file_type = models.CharField(max_length=100)
+    file_size = models.IntegerField( default=0)  # in bytes
+    file_type = models.CharField(max_length=100, default="")
     file_hash = models.CharField(max_length=64, blank=True, null=True)
     
     # Document Details
@@ -393,7 +452,7 @@ class KYCDocument(models.Model):
     # Verification Status
     status = models.CharField(max_length=20, choices=DOCUMENT_STATUS, default='pending')
     verified_by = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -420,8 +479,8 @@ class KYCDocument(models.Model):
     encryption_key = models.CharField(max_length=255, blank=True, null=True)
     
     # Timestamps
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
     
     class Meta:
         db_table = 'kyc_documents'
@@ -436,11 +495,6 @@ class KYCDocument(models.Model):
     
     def __str__(self):
         return f"{self.document_id} - {self.document_type} - {self.status}"
-    
-    def save(self, *args, **kwargs):
-        if not self.document_id:
-            self.document_id = f"DOC{uuid.uuid4().hex[:12].upper()}"
-        super().save(*args, **kwargs)
     
     def file_size_mb(self):
         return round(self.file_size / (1024 * 1024), 2) if self.file_size else 0
@@ -463,7 +517,7 @@ class TACRequest(models.Model):
     ]
     
     # Core identifiers
-    tac_id = models.CharField(max_length=100, unique=True, default=lambda: f"TAC{uuid.uuid4().hex[:12].upper()}")
+    tac_id = models.CharField(max_length=100, default=generate_tac_id)
     compliance_request = models.ForeignKey(
         ComplianceRequest,
         on_delete=models.CASCADE,
@@ -471,10 +525,10 @@ class TACRequest(models.Model):
         null=True,
         blank=True
     )
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tac_requests')
+    user = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, related_name='tac_requests', null=True, blank=True)
     
     # TAC Details
-    tac_code = models.CharField(max_length=10)
+    tac_code = models.CharField(max_length=10, default="")
     tac_type = models.CharField(max_length=30, choices=TAC_TYPES, default='withdrawal')
     purpose = models.TextField(blank=True, null=True)
     
@@ -497,7 +551,7 @@ class TACRequest(models.Model):
         ('whatsapp', 'WhatsApp'),
         ('telegram', 'Telegram'),
     ])
-    sent_to = models.CharField(max_length=255)
+    sent_to = models.CharField(max_length=255, default="")
     delivery_status = models.CharField(max_length=50, default='pending', choices=[
         ('pending', 'Pending'),
         ('sent', 'Sent'),
@@ -509,7 +563,7 @@ class TACRequest(models.Model):
     
     # Verification
     verified_by = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -520,8 +574,8 @@ class TACRequest(models.Model):
     verification_user_agent = models.TextField(blank=True, null=True)
     
     # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    expires_at = models.DateTimeField( null=True, blank=True)
     used_at = models.DateTimeField(null=True, blank=True)
     
     # Security
@@ -541,11 +595,6 @@ class TACRequest(models.Model):
     
     def __str__(self):
         return f"{self.tac_id} - {self.tac_type} - {'Used' if self.is_used else 'Active'}"
-    
-    def save(self, *args, **kwargs):
-        if not self.tac_id:
-            self.tac_id = f"TAC{uuid.uuid4().hex[:12].upper()}"
-        super().save(*args, **kwargs)
     
     def is_valid(self):
         return not self.is_used and not self.is_expired and timezone.now() < self.expires_at
@@ -570,23 +619,23 @@ class VideoCallSession(models.Model):
     ]
     
     # Core identifiers
-    session_id = models.CharField(max_length=100, unique=True, default=lambda: f"VID{uuid.uuid4().hex[:12].upper()}")
+    session_id = models.CharField(max_length=100, default=generate_session_id)
     compliance_request = models.ForeignKey(
         ComplianceRequest,
         on_delete=models.CASCADE,
         related_name='video_calls'
     )
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='video_calls')
+    user = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, related_name='video_calls', null=True, blank=True)
     
     # Session Details
     status = models.CharField(max_length=20, choices=SESSION_STATUS, default='scheduled')
     purpose = models.TextField(blank=True, null=True)
-    scheduled_for = models.DateTimeField()
+    scheduled_for = models.DateTimeField( null=True, blank=True)
     duration_minutes = models.IntegerField(default=30)
     
     # Participants
     agent = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -634,8 +683,8 @@ class VideoCallSession(models.Model):
     reminder_sent = models.BooleanField(default=False)
     
     # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
     
     class Meta:
         db_table = 'video_call_sessions'
@@ -651,11 +700,6 @@ class VideoCallSession(models.Model):
     
     def __str__(self):
         return f"{self.session_id} - {self.user.email} - {self.status}"
-    
-    def save(self, *args, **kwargs):
-        if not self.session_id:
-            self.session_id = f"VID{uuid.uuid4().hex[:12].upper()}"
-        super().save(*args, **kwargs)
     
     def is_upcoming(self):
         return self.status in ['scheduled', 'rescheduled'] and timezone.now() < self.scheduled_for
@@ -692,18 +736,18 @@ class ComplianceAuditLog(models.Model):
     ]
     
     # Core identifiers
-    log_id = models.CharField(max_length=100, unique=True, default=lambda: f"AUD{uuid.uuid4().hex[:12].upper()}")
+    log_id = models.CharField(max_length=100, default=generate_log_id)
     
     # Entity Information
-    entity_type = models.CharField(max_length=50, choices=ENTITY_TYPES)
-    entity_id = models.CharField(max_length=100)
+    entity_type = models.CharField(max_length=50, choices=ENTITY_TYPES, default="")
+    entity_id = models.CharField(max_length=100, default="")
     
     # Action Information
-    action_type = models.CharField(max_length=50, choices=ACTION_TYPES)
-    action_description = models.TextField()
+    action_type = models.CharField(max_length=50, choices=ACTION_TYPES, default="")
+    action_description = models.TextField( default="No description provided", blank=True)
     
     # User Information
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='compliance_audit_logs')
+    user = models.ForeignKey('accounts.Account', on_delete=models.SET_NULL, null=True, blank=True, related_name='compliance_audit_logs')
     user_email = models.EmailField(blank=True, null=True)
     user_role = models.CharField(max_length=50, blank=True, null=True)
     
@@ -734,7 +778,7 @@ class ComplianceAuditLog(models.Model):
     )
     
     # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     
     class Meta:
         db_table = 'compliance_audit_logs'
@@ -749,11 +793,6 @@ class ComplianceAuditLog(models.Model):
     
     def __str__(self):
         return f"{self.log_id} - {self.entity_type} - {self.action_type}"
-    
-    def save(self, *args, **kwargs):
-        if not self.log_id:
-            self.log_id = f"AUD{uuid.uuid4().hex[:12].upper()}"
-        super().save(*args, **kwargs)
 
 
 class ComplianceRule(models.Model):
@@ -781,12 +820,12 @@ class ComplianceRule(models.Model):
     ]
     
     # Core identifiers
-    rule_id = models.CharField(max_length=100, unique=True, default=lambda: f"RULE{uuid.uuid4().hex[:12].upper()}")
-    rule_name = models.CharField(max_length=255)
-    rule_description = models.TextField()
+    rule_id = models.CharField(max_length=100, default=generate_rule_id)
+    rule_name = models.CharField(max_length=255, default="")
+    rule_description = models.TextField( default="")
     
     # Rule Configuration
-    rule_type = models.CharField(max_length=50, choices=RULE_TYPES)
+    rule_type = models.CharField(max_length=50, choices=RULE_TYPES, default="")
     applicable_apps = models.CharField(max_length=50, choices=APPLICABLE_APPS, default='all')
     priority = models.IntegerField(default=1)
     
@@ -810,7 +849,7 @@ class ComplianceRule(models.Model):
         ('escalate', 'Escalate'),
         ('notify', 'Notify'),
         ('limit', 'Apply Limit'),
-    ])
+    ], default="")
     action_details = models.JSONField(default=dict, blank=True)
     
     # Risk Parameters
@@ -822,13 +861,13 @@ class ComplianceRule(models.Model):
     is_automated = models.BooleanField(default=True)
     
     # Metadata
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_by = models.ForeignKey('accounts.Account', on_delete=models.SET_NULL, null=True, blank=True)
     notes = models.TextField(blank=True, null=True)
     
     # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    effective_from = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+    effective_from = models.DateTimeField( null=True, blank=True)
     effective_to = models.DateTimeField(null=True, blank=True)
     
     class Meta:
@@ -844,18 +883,122 @@ class ComplianceRule(models.Model):
     def __str__(self):
         return f"{self.rule_id} - {self.rule_name}"
     
-    def save(self, *args, **kwargs):
-        if not self.rule_id:
-            self.rule_id = f"RULE{uuid.uuid4().hex[:12].upper()}"
-        if not self.effective_from:
-            self.effective_from = timezone.now()
-        super().save(*args, **kwargs)
-    
     def is_effective(self):
         now = timezone.now()
         if self.effective_to:
             return self.effective_from <= now <= self.effective_to
         return self.effective_from <= now
+
+
+class ComplianceAlert(models.Model):
+    """Compliance alerts and notifications"""
+    
+    ALERT_TYPES = [
+        ('risk_threshold', 'Risk Threshold Exceeded'),
+        ('suspicious_activity', 'Suspicious Activity'),
+        ('rule_violation', 'Rule Violation'),
+        ('deadline_approaching', 'Deadline Approaching'),
+        ('kyc_expiring', 'KYC Expiring Soon'),
+        ('document_expiring', 'Document Expiring Soon'),
+        ('unusual_pattern', 'Unusual Pattern Detected'),
+        ('sanctions_match', 'Sanctions Match'),
+        ('pep_identified', 'PEP Identified'),
+    ]
+    
+    SEVERITY_LEVELS = [
+        ('info', 'Info'),
+        ('warning', 'Warning'),
+        ('error', 'Error'),
+        ('critical', 'Critical'),
+    ]
+    
+    # Core identifiers
+    alert_id = models.CharField(max_length=100, default=generate_alert_id)
+    
+    # Alert Details
+    alert_type = models.CharField(max_length=50, choices=ALERT_TYPES, default="")
+    severity = models.CharField(max_length=20, choices=SEVERITY_LEVELS, default='warning')
+    title = models.CharField(max_length=255, default="")
+    description = models.TextField( default="")
+    
+    # Related Entities
+    compliance_request = models.ForeignKey(
+        ComplianceRequest,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='alerts'
+    )
+    kyc_verification = models.ForeignKey(
+        KYCVerification,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='alerts'
+    )
+    user = models.ForeignKey(
+        'accounts.Account',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='compliance_alerts'
+    )
+    
+    # Alert Data
+    alert_data = models.JSONField(default=dict, blank=True)
+    trigger_conditions = models.JSONField(default=dict, blank=True)
+    
+    # Status
+    is_resolved = models.BooleanField(default=False)
+    is_acknowledged = models.BooleanField(default=False)
+    acknowledged_by = models.ForeignKey(
+        'accounts.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='acknowledged_alerts'
+    )
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    
+    # Resolution
+    resolution_notes = models.TextField(blank=True, null=True)
+    resolved_by = models.ForeignKey(
+        'accounts.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='resolved_alerts'
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Notification
+    notified_users = models.JSONField(default=list, blank=True)
+    notification_sent = models.BooleanField(default=False)
+    notification_channels = models.JSONField(default=list, blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'compliance_alerts'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['alert_id']),
+            models.Index(fields=['alert_type', 'is_resolved']),
+            models.Index(fields=['severity', 'created_at']),
+            models.Index(fields=['is_resolved', 'created_at']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.alert_id} - {self.alert_type} - {self.severity}"
+    
+    def is_expired(self):
+        if self.expires_at:
+            return timezone.now() > self.expires_at
+        return False
 
 
 class ComplianceDashboardStats(models.Model):
@@ -868,8 +1011,8 @@ class ComplianceDashboardStats(models.Model):
         ('weekly', 'Weekly'),
         ('monthly', 'Monthly'),
     ])
-    period_start = models.DateTimeField()
-    period_end = models.DateTimeField()
+    period_start = models.DateTimeField( null=True, blank=True)
+    period_end = models.DateTimeField( null=True, blank=True)
     
     # Request Statistics
     total_requests = models.IntegerField(default=0)
@@ -918,8 +1061,8 @@ class ComplianceDashboardStats(models.Model):
     avg_resolution_time_per_officer = models.JSONField(default=dict, blank=True)
     
     # Timestamps
-    calculated_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    calculated_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
     
     class Meta:
         db_table = 'compliance_dashboard_stats'
@@ -932,119 +1075,3 @@ class ComplianceDashboardStats(models.Model):
     
     def __str__(self):
         return f"Stats {self.period_type} - {self.period_start.date()} to {self.period_end.date()}"
-
-
-class ComplianceAlert(models.Model):
-    """Compliance alerts and notifications"""
-    
-    ALERT_TYPES = [
-        ('risk_threshold', 'Risk Threshold Exceeded'),
-        ('suspicious_activity', 'Suspicious Activity'),
-        ('rule_violation', 'Rule Violation'),
-        ('deadline_approaching', 'Deadline Approaching'),
-        ('kyc_expiring', 'KYC Expiring Soon'),
-        ('document_expiring', 'Document Expiring Soon'),
-        ('unusual_pattern', 'Unusual Pattern Detected'),
-        ('sanctions_match', 'Sanctions Match'),
-        ('pep_identified', 'PEP Identified'),
-    ]
-    
-    SEVERITY_LEVELS = [
-        ('info', 'Info'),
-        ('warning', 'Warning'),
-        ('error', 'Error'),
-        ('critical', 'Critical'),
-    ]
-    
-    # Core identifiers
-    alert_id = models.CharField(max_length=100, unique=True, default=lambda: f"ALT{uuid.uuid4().hex[:12].upper()}")
-    
-    # Alert Details
-    alert_type = models.CharField(max_length=50, choices=ALERT_TYPES)
-    severity = models.CharField(max_length=20, choices=SEVERITY_LEVELS, default='warning')
-    title = models.CharField(max_length=255)
-    description = models.TextField()
-    
-    # Related Entities
-    compliance_request = models.ForeignKey(
-        ComplianceRequest,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='alerts'
-    )
-    kyc_verification = models.ForeignKey(
-        KYCVerification,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='alerts'
-    )
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='compliance_alerts'
-    )
-    
-    # Alert Data
-    alert_data = models.JSONField(default=dict, blank=True)
-    trigger_conditions = models.JSONField(default=dict, blank=True)
-    
-    # Status
-    is_resolved = models.BooleanField(default=False)
-    is_acknowledged = models.BooleanField(default=False)
-    acknowledged_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='acknowledged_alerts'
-    )
-    acknowledged_at = models.DateTimeField(null=True, blank=True)
-    
-    # Resolution
-    resolution_notes = models.TextField(blank=True, null=True)
-    resolved_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='resolved_alerts'
-    )
-    resolved_at = models.DateTimeField(null=True, blank=True)
-    
-    # Notification
-    notified_users = models.JSONField(default=list, blank=True)
-    notification_sent = models.BooleanField(default=False)
-    notification_channels = models.JSONField(default=list, blank=True)
-    
-    # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    expires_at = models.DateTimeField(null=True, blank=True)
-    
-    class Meta:
-        db_table = 'compliance_alerts'
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['alert_id']),
-            models.Index(fields=['alert_type', 'is_resolved']),
-            models.Index(fields=['severity', 'created_at']),
-            models.Index(fields=['is_resolved', 'created_at']),
-            models.Index(fields=['created_at']),
-        ]
-    
-    def __str__(self):
-        return f"{self.alert_id} - {self.alert_type} - {self.severity}"
-    
-    def save(self, *args, **kwargs):
-        if not self.alert_id:
-            self.alert_id = f"ALT{uuid.uuid4().hex[:12].upper()}"
-        super().save(*args, **kwargs)
-    
-    def is_expired(self):
-        if self.expires_at:
-            return timezone.now() > self.expires_at
-        return False

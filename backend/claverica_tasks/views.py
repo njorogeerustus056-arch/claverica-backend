@@ -8,9 +8,9 @@ from django.db.models import Sum, Q
 from django.contrib.auth import get_user_model
 from django.db import transaction
 
-from .models import Task, UserTask, TaskCategory, RewardWithdrawal, UserRewardBalance
+from .models import ClavericaTask, UserTask, TaskCategory, RewardWithdrawal, UserRewardBalance
 from .serializers import (
-    TaskSerializer,
+    ClavericaTaskSerializer,
     UserTaskSerializer,
     UserTaskCreateSerializer,
     UserTaskSubmitSerializer,
@@ -28,11 +28,11 @@ User = get_user_model()
 # --------------------------------------------------
 class TaskViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
-    serializer_class = TaskSerializer
+    serializer_class = ClavericaTaskSerializer
 
     def get_queryset(self):
         """Get available tasks excluding completed ones"""
-        queryset = Task.objects.filter(status="active")
+        queryset = ClavericaTask.objects.filter(status="active")
         
         # Exclude expired tasks
         queryset = queryset.filter(
@@ -48,7 +48,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
         availability = self.request.query_params.get("available", "").lower()
         if availability == "true":
             # Exclude tasks user has already started/completed
-            completed_task_ids = UserTask.objects.filter(
+            completed_task_ids = UserClavericaTask.objects.filter(
                 user=self.request.user
             ).values_list("task_id", flat=True)
             queryset = queryset.exclude(id__in=completed_task_ids)
@@ -59,7 +59,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
     def available(self, request):
         """Get tasks available to the current user"""
         # Get tasks user hasn't started/completed
-        completed_task_ids = UserTask.objects.filter(
+        completed_task_ids = UserClavericaTask.objects.filter(
             user=request.user
         ).values_list("task_id", flat=True)
         
@@ -70,7 +70,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["get"])
     def stats(self, request):
         """Get task statistics"""
-        active_tasks = Task.objects.filter(status="active")
+        active_tasks = ClavericaTask.objects.filter(status="active")
         total_tasks = active_tasks.count()
         
         # Calculate available reward pool
@@ -96,7 +96,7 @@ class UserTaskViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Get user tasks for the current user"""
-        return UserTask.objects.filter(user=self.request.user).select_related('task')
+        return UserClavericaTask.objects.filter(user=self.request.user).select_related('task')
 
     def get_serializer_class(self):
         """Use appropriate serializer based on action"""
@@ -312,7 +312,7 @@ class UserRewardBalanceViewSet(viewsets.ReadOnlyModelViewSet):
         balance, _ = UserRewardBalance.objects.get_or_create(user=request.user)
 
         # Get recent earnings (last 5 completed tasks)
-        recent_earnings = UserTask.objects.filter(
+        recent_earnings = UserClavericaTask.objects.filter(
             user=request.user,
             status="completed",
         ).select_related('task').order_by("-completed_at")[:5]

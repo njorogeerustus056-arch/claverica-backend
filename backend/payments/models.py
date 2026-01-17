@@ -1,12 +1,11 @@
 # payments/models.py - UPDATED (REMOVED DUPLICATE COMPLIANCE MODELS)
 from django.db import models
-from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 import uuid
 from django.utils import timezone
 
-User = get_user_model()
+# REMOVED: User = get_user_model() - Use string references instead
 
 def generate_account_number():
     """Generate unique account number"""
@@ -31,7 +30,7 @@ class Account(models.Model):
         ('GBP', 'British Pound'),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='accounts')
+    user = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, related_name='accounts')
     account_number = models.CharField(max_length=20, unique=True, default=generate_account_number)
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES, default='checking')
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
@@ -210,7 +209,7 @@ class PaymentMethod(models.Model):
         ('bank', 'Bank Account'),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_methods')
+    user = models.ForeignKey('accounts.Account', on_delete=models.CASCADE, related_name='payment_methods')
     method_type = models.CharField(max_length=20, choices=METHOD_TYPES)
     display_name = models.CharField(max_length=255)
     is_default = models.BooleanField(default=False)
@@ -229,7 +228,7 @@ class PaymentMethod(models.Model):
 
 class AuditLog(models.Model):
     """Audit log model"""
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey('accounts.Account', on_delete=models.SET_NULL, null=True)
     action = models.CharField(max_length=50)
     model_name = models.CharField(max_length=50, blank=True, default="")
     object_id = models.CharField(max_length=100, blank=True, default="")
@@ -261,7 +260,7 @@ class MainBusinessWallet(models.Model):
     
     # Link to user (employer/company owner)
     user = models.OneToOneField(
-        User,
+        'accounts.Account',
         on_delete=models.CASCADE,
         related_name='main_business_wallet'
     )
@@ -326,7 +325,7 @@ class EmployeePlatformWallet(models.Model):
     
     # Link to user (employee)
     user = models.OneToOneField(
-        User,
+        'accounts.Account',
         on_delete=models.CASCADE,
         related_name='employee_platform_wallet'
     )
@@ -422,12 +421,12 @@ class PaymentTransactionNotification(models.Model):
     
     # User information
     sender = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.CASCADE,
         related_name='sent_notifications'
     )
     receiver = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.CASCADE,
         related_name='received_notifications'
     )
@@ -526,7 +525,7 @@ class WithdrawalRequest(models.Model):
     
     # Agent information
     assigned_agent = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -583,7 +582,7 @@ class ActivityFeed(models.Model):
     ]
     
     user = models.ForeignKey(
-        User,
+        'accounts.Account',
         on_delete=models.CASCADE,
         related_name='activity_feed'
     )
