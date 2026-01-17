@@ -18,7 +18,6 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
-User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):

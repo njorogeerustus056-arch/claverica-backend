@@ -15,7 +15,11 @@ from .models import (
     ComplianceRule, ComplianceDashboardStats, ComplianceAlert
 )
 
-User = get_user_model()
+def get_user_model_lazy():
+    """Lazy function to get user model"""
+    from django.contrib.auth import get_user_model
+    return get_user_model()
+
 
 
 class ComplianceRequestAdmin(admin.ModelAdmin):

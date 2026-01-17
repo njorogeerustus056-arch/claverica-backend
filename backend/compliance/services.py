@@ -30,14 +30,13 @@ from .email_service import (
 )
 
 logger = logging.getLogger(__name__)
-User = get_user_model()  # Use Django's user model
 
 
 class BaseService:
     """Base service class with common utilities"""
     
     @staticmethod
-    def handle_exception(method_name: str, e: Exception, user: Optional[User] = None) -> Dict[str, Any]:
+    def handle_exception(method_name: str, e: Exception, user: Optional['User'] = None) -> Dict[str, Any]:
         """Standard exception handler for all services"""
         error_msg = f"Error in {method_name}: {str(e)}"
         user_email = user.email if user and hasattr(user, 'email') else None
@@ -76,7 +75,7 @@ class ComplianceService:
     """Service for compliance request operations"""
     
     @staticmethod
-    def create_request(user: User, app_name: str, request_type: str, **kwargs) -> Dict[str, Any]:
+    def create_request(user: 'User', app_name: str, request_type: str, **kwargs) -> Dict[str, Any]:
         """Create a new compliance request"""
         try:
             # Validate user
@@ -258,7 +257,7 @@ class ComplianceService:
             return {'risk_score': 0, 'risk_level': 'low', 'requires_tac': False, 'requires_video_call': False, 'requires_manual_review': False, 'priority': 'normal'}
     
     @staticmethod
-    def _calculate_user_risk(user: User) -> Dict[str, Any]:
+    def _calculate_user_risk(user: 'User') -> Dict[str, Any]:
         """Calculate risk based on user history"""
         score = 0
         factors = []
@@ -320,7 +319,7 @@ class ComplianceService:
         return {'score': score, 'factors': factors}
     
     @staticmethod
-    def _assess_device_risk(device_id: Optional[str], ip_address: Optional[str], user: User) -> Dict[str, Any]:
+    def _assess_device_risk(device_id: Optional[str], ip_address: Optional[str], user: 'User') -> Dict[str, Any]:
         """Assess risk based on device and IP"""
         score = 0
         factors = []
@@ -390,7 +389,7 @@ class ComplianceService:
         }
     
     @staticmethod
-    def _create_compliance_profile(user: User):
+    def _create_compliance_profile(user: 'User'):
         """Create a compliance profile for user"""
         try:
             ComplianceProfile.objects.create(
@@ -404,7 +403,7 @@ class ComplianceService:
             logger.error(f"Error creating compliance profile: {str(e)}", exc_info=True)
     
     @staticmethod
-    def _update_compliance_profile(user: User, compliance_request: ComplianceRequest, risk_level: str):
+    def _update_compliance_profile(user: 'User', compliance_request: ComplianceRequest, risk_level: str):
         """Update user compliance profile"""
         try:
             profile, created = ComplianceProfile.objects.get_or_create(user=user)
@@ -426,7 +425,7 @@ class ComplianceService:
             logger.error(f"Error updating compliance profile: {str(e)}", exc_info=True)
     
     @staticmethod
-    def _create_risk_alerts(compliance_request: ComplianceRequest, user: User):
+    def _create_risk_alerts(compliance_request: ComplianceRequest, user: 'User'):
         """Create alerts based on risk assessment"""
         try:
             if compliance_request.risk_level == 'high':
@@ -557,7 +556,7 @@ class ComplianceService:
         compliance_request.save()
     
     @staticmethod
-    def approve_request(compliance_request: ComplianceRequest, approved_by: User, notes: str = '') -> Dict[str, Any]:
+    def approve_request(compliance_request: ComplianceRequest, approved_by: 'User', notes: str = '') -> Dict[str, Any]:
         """Approve a compliance request"""
         try:
             with transaction.atomic():
@@ -630,7 +629,7 @@ class ComplianceService:
             return BaseService.handle_exception('approve_request', e, approved_by)
     
     @staticmethod
-    def reject_request(compliance_request: ComplianceRequest, rejected_by: User, reason: str, notes: str = '') -> Dict[str, Any]:
+    def reject_request(compliance_request: ComplianceRequest, rejected_by: 'User', reason: str, notes: str = '') -> Dict[str, Any]:
         """Reject a compliance request"""
         try:
             with transaction.atomic():
@@ -715,7 +714,7 @@ class ComplianceService:
             return BaseService.handle_exception('reject_request', e, rejected_by)
     
     @staticmethod
-    def escalate_request(compliance_request: ComplianceRequest, escalated_by: User, reason: str) -> Dict[str, Any]:
+    def escalate_request(compliance_request: ComplianceRequest, escalated_by: 'User', reason: str) -> Dict[str, Any]:
         """Escalate a compliance request"""
         try:
             # Update request
@@ -778,7 +777,7 @@ class ComplianceService:
             return BaseService.handle_exception('escalate_request', e, escalated_by)
     
     @staticmethod
-    def request_additional_info(compliance_request: ComplianceRequest, requested_by: User, info_required: str) -> Dict[str, Any]:
+    def request_additional_info(compliance_request: ComplianceRequest, requested_by: 'User', info_required: str) -> Dict[str, Any]:
         """Request additional information for a compliance request"""
         try:
             # Update request
@@ -831,7 +830,7 @@ class ComplianceService:
             return BaseService.handle_exception('request_additional_info', e, requested_by)
     
     @staticmethod
-    def update_request_status(compliance_request: ComplianceRequest, new_status: str, updated_by: User, notes: str = '') -> Dict[str, Any]:
+    def update_request_status(compliance_request: ComplianceRequest, new_status: str, updated_by: 'User', notes: str = '') -> Dict[str, Any]:
         """Update compliance request status"""
         try:
             valid_transitions = {
@@ -885,7 +884,7 @@ class KYCService(BaseService):
     """Service for KYC verification operations"""
     
     @staticmethod
-    def create_verification(user: User, form_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_verification(user: 'User', form_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new KYC verification"""
         try:
             # Validate required fields
@@ -1095,7 +1094,7 @@ class KYCService(BaseService):
     }
     
     @staticmethod
-    def upload_document(kyc_verification: KYCVerification, user: User, document_data: Dict[str, Any], file) -> Dict[str, Any]:
+    def upload_document(kyc_verification: KYCVerification, user: 'User', document_data: Dict[str, Any], file) -> Dict[str, Any]:
         """Upload a document for KYC verification"""
         try:
             # Validate document data
@@ -1190,7 +1189,7 @@ class KYCService(BaseService):
             return BaseService.handle_exception('upload_document', e, user)
     
     @staticmethod
-    def verify_document(document: KYCDocument, verified_by: User, status: str, notes: str = '', rejection_reason: str = '') -> Dict[str, Any]:
+    def verify_document(document: KYCDocument, verified_by: 'User', status: str, notes: str = '', rejection_reason: str = '') -> Dict[str, Any]:
         """Verify a KYC document"""
         try:
             if status not in ['approved', 'rejected']:
@@ -1261,7 +1260,7 @@ class KYCService(BaseService):
             return BaseService.handle_exception('verify_document', e, verified_by)
     
     @staticmethod
-    def approve_verification(kyc_verification: KYCVerification, approved_by: User, notes: str = '', compliance_level: str = 'standard') -> Dict[str, Any]:
+    def approve_verification(kyc_verification: KYCVerification, approved_by: 'User', notes: str = '', compliance_level: str = 'standard') -> Dict[str, Any]:
         """Approve KYC verification"""
         try:
             with transaction.atomic():
@@ -1355,7 +1354,7 @@ class KYCService(BaseService):
             return BaseService.handle_exception('approve_verification', e, approved_by)
     
     @staticmethod
-    def reject_verification(kyc_verification: KYCVerification, rejected_by: User, reason: str) -> Dict[str, Any]:
+    def reject_verification(kyc_verification: KYCVerification, rejected_by: 'User', reason: str) -> Dict[str, Any]:
         """Reject KYC verification"""
         try:
             with transaction.atomic():
@@ -1423,7 +1422,7 @@ class KYCService(BaseService):
             return BaseService.handle_exception('reject_verification', e, rejected_by)
     
     @staticmethod
-    def request_document_revision(document: KYCDocument, requested_by: User, revision_notes: str) -> Dict[str, Any]:
+    def request_document_revision(document: KYCDocument, requested_by: 'User', revision_notes: str) -> Dict[str, Any]:
         """Request revision of a KYC document"""
         try:
             # Update document
@@ -1478,7 +1477,7 @@ class TACService(BaseService):
     """Service for TAC operations"""
     
     @staticmethod
-    def generate_tac(user: User, **kwargs) -> Dict[str, Any]:
+    def generate_tac(user: 'User', **kwargs) -> Dict[str, Any]:
         """Generate a new TAC"""
         try:
             # Validate user
@@ -1563,7 +1562,7 @@ class TACService(BaseService):
             return BaseService.handle_exception('generate_tac', e, user)
     
     @staticmethod
-    def verify_tac(user: User, tac_code: str, **kwargs) -> Dict[str, Any]:
+    def verify_tac(user: 'User', tac_code: str, **kwargs) -> Dict[str, Any]:
         """Verify a TAC"""
         try:
             # Find valid TAC
@@ -1735,7 +1734,7 @@ class TACService(BaseService):
         return ''.join([str(secrets.randbelow(10)) for _ in range(length)])
     
     @staticmethod
-    def generate_and_store_recovery_code(user: User, purpose: str = 'account_recovery') -> Dict[str, Any]:
+    def generate_and_store_recovery_code(user: 'User', purpose: str = 'account_recovery') -> Dict[str, Any]:
         """Generate a recovery code for account recovery"""
         try:
             recovery_code = secrets.token_hex(16)  # 32 character hex code
@@ -1780,7 +1779,7 @@ class VideoCallService(BaseService):
     """Service for video call operations"""
     
     @staticmethod
-    def schedule_call(requested_by: User, **kwargs) -> Dict[str, Any]:
+    def schedule_call(requested_by: 'User', **kwargs) -> Dict[str, Any]:
         """Schedule a video call"""
         try:
             # Get compliance request
@@ -1929,7 +1928,7 @@ class VideoCallService(BaseService):
             return BaseService.handle_exception('start_call', e, video_call.user)
     
     @staticmethod
-    def complete_call(video_call: VideoCallSession, completed_by: User, verification_passed: bool = False, notes: str = '') -> Dict[str, Any]:
+    def complete_call(video_call: VideoCallSession, completed_by: 'User', verification_passed: bool = False, notes: str = '') -> Dict[str, Any]:
         """Complete a video call"""
         try:
             # Update call status
@@ -2005,7 +2004,7 @@ class VideoCallService(BaseService):
             return BaseService.handle_exception('complete_call', e, completed_by)
     
     @staticmethod
-    def reschedule_call(video_call: VideoCallSession, new_time: datetime, rescheduled_by: User, reason: str = '') -> Dict[str, Any]:
+    def reschedule_call(video_call: VideoCallSession, new_time: datetime, rescheduled_by: 'User', reason: str = '') -> Dict[str, Any]:
         """Reschedule a video call"""
         try:
             # Check if call can be rescheduled
@@ -2083,7 +2082,7 @@ class VideoCallService(BaseService):
             return BaseService.handle_exception('reschedule_call', e, rescheduled_by)
     
     @staticmethod
-    def cancel_call(video_call: VideoCallSession, cancelled_by: User, reason: str = '') -> Dict[str, Any]:
+    def cancel_call(video_call: VideoCallSession, cancelled_by: 'User', reason: str = '') -> Dict[str, Any]:
         """Cancel a video call"""
         try:
             # Update call
@@ -2139,7 +2138,7 @@ class VideoCallService(BaseService):
             return BaseService.handle_exception('cancel_call', e, cancelled_by)
     
     @staticmethod
-    def join_call(video_call: VideoCallSession, user: User, join_time: Optional[datetime] = None) -> Dict[str, Any]:
+    def join_call(video_call: VideoCallSession, user: 'User', join_time: Optional[datetime] = None) -> Dict[str, Any]:
         """Record user joining a video call"""
         try:
             if not join_time:
@@ -2184,7 +2183,7 @@ class VideoCallService(BaseService):
             return BaseService.handle_exception('join_call', e, user)
     
     @staticmethod
-    def add_call_notes(video_call: VideoCallSession, user: User, notes: str, note_type: str = 'general') -> Dict[str, Any]:
+    def add_call_notes(video_call: VideoCallSession, user: 'User', notes: str, note_type: str = 'general') -> Dict[str, Any]:
         """Add notes to a video call"""
         try:
             # Create notes entry
@@ -2405,7 +2404,7 @@ class AuditService(BaseService):
     """Service for audit logging"""
     
     @staticmethod
-    def log_action(user: Optional[User], action: str, entity_type: str, entity_id: str, 
+    def log_action(user: Optional['User'], action: str, entity_type: str, entity_id: str, 
                   old_value: Optional[Dict] = None, new_value: Optional[Dict] = None, **kwargs) -> Optional[ComplianceAuditLog]:
         """Log an action to audit trail"""
         try:
@@ -2621,7 +2620,7 @@ class AlertService(BaseService):
             return BaseService.handle_exception('get_active_alerts', e)
     
     @staticmethod
-    def resolve_alert(alert: ComplianceAlert, resolved_by: User, resolution_notes: str = '') -> Dict[str, Any]:
+    def resolve_alert(alert: ComplianceAlert, resolved_by: 'User', resolution_notes: str = '') -> Dict[str, Any]:
         """Resolve a compliance alert"""
         try:
             alert.is_resolved = True
@@ -2656,7 +2655,7 @@ class AlertService(BaseService):
             return BaseService.handle_exception('resolve_alert', e, resolved_by)
     
     @staticmethod
-    def assign_alert(alert: ComplianceAlert, assigned_to: User, assigned_by: User) -> Dict[str, Any]:
+    def assign_alert(alert: ComplianceAlert, assigned_to: 'User', assigned_by: 'User') -> Dict[str, Any]:
         """Assign an alert to a user"""
         try:
             old_assignee = alert.assigned_to

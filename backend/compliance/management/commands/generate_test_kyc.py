@@ -13,7 +13,6 @@ from backend.compliance.models import (
 import uuid
 from datetime import timedelta
 
-User = get_user_model()
 
 
 class Command(BaseCommand):
@@ -32,7 +31,7 @@ class Command(BaseCommand):
         
         # Create test users if they don't exist
         for i in range(count):
-            user, created = User.objects.get_or_create(
+            user, created = get_user_model().objects.get_or_create(
                 username=f'testuser{i+1}',
                 defaults={
                     'email': f'test{i+1}@example.com',

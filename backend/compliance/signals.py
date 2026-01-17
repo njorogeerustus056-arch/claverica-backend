@@ -17,7 +17,6 @@ from .email_service import (
 )
 
 logger = logging.getLogger(__name__)
-User = get_user_model()
 
 def log_compliance_action(user_id, action, action_type, resource_type, resource_id,
                          old_value=None, new_value=None, ip_address=None):
