@@ -151,47 +151,38 @@ ALLOWED_HOSTS.append('.claverica-backend-rniq.onrender.com')
 # INSTALLED APPS - FIXED WITH backend. PREFIX
 # ------------------------------
 INSTALLED_APPS = [
-    # Django Core Apps
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-
-    # Static files
-    'django.contrib.staticfiles',
-
-    # Health checks
-    'health_check',
-    'health_check.db',
-    'health_check.cache',
-    'health_check.storage',
-
-    # Third-party apps
-    'django_extensions',
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'corsheaders',
-    'django_filters',
-
-    # ============================================
-    # YOUR CUSTOM APPS - WITH backend. PREFIX!
-    # ============================================
-    'backend.accounts',  # CRITICAL: Must be first and have backend. prefix
-
-    # Other custom apps (order matters for dependencies)
-    'backend.users',
-    'backend.claverica_tasks',  # CHANGED FROM 'backend.tasks' TO 'backend.claverica_tasks'
-    'backend.cards',
-    'backend.compliance',
-    'backend.crypto',
-    'backend.escrow',
-    'backend.notifications',
-    'backend.payments',
-    'backend.receipts',
-    'backend.transactions',
-    'backend.transfers',
-]
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "health_check",
+    "health_check.db",
+    "health_check.cache",
+    "health_check.storage",
+    "django_extensions",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "corsheaders",
+    "django_filters",
+    "backend.accounts",
+    "backend.users",
+    "backend.claverica_tasks",
+    "backend.tasks",
+    "backend.cards",
+    "backend.crypto",
+    "backend.escrow",
+    "backend.notifications",
+    "backend.kyc",
+    "backend.compliance",
+    "backend.tac",
+    "backend.withdrawal",
+    "backend.receipts",
+    "backend.payments",
+    "backend.transactions",
+    "backend.transfers"
+    ]
 
 # Add development tools (skip for tests) - ONLY drf_spectacular
 if DEBUG and not is_test_environment():

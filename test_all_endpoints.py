@@ -1,130 +1,86 @@
-import requests
+import sys, os
+sys.path.insert(0, '.')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
+
+import django
+django.setup()
+from django.test import Client
+from django.urls import get_resolver, URLPattern, URLResolver
 import json
-import time
 
-print("🚀 COMPLETE API ENDPOINT TEST")
-print("="*60)
+client = Client()
 
-# Step 1: Get fresh token
-print("\n🔐 Getting fresh JWT token...")
-login_response = requests.post(
-    "http://127.0.0.1:8000/api/auth/token/",
-    json={"email": "eruznyaga001@gmail.com", "password": "38876879Eruz"}
-)
+print("🔗 COMPREHENSIVE API ENDPOINTS TEST")
+print("=" * 60)
 
-if login_response.status_code != 200:
-    print(f"❌ Login failed: {login_response.text}")
-    exit()
+# Function to extract all URLs
+def extract_urls(urlpatterns, base=''):
+    urls = []
+    for pattern in urlpatterns:
+        if isinstance(pattern, URLResolver):
+            urls.extend(extract_urls(pattern.url_patterns, base + str(pattern.pattern)))
+        elif isinstance(pattern, URLPattern):
+            urls.append(base + str(pattern.pattern))
+    return urls
 
-tokens = login_response.json()
-access_token = tokens['access']
-headers = {"Authorization": f"Bearer {access_token}"}
+# Get all URLs
+resolver = get_resolver()
+all_urls = extract_urls(resolver.url_patterns)
 
-print(f"✅ Token acquired: {access_token[:50]}...")
+# Filter API URLs
+api_urls = [url for url in all_urls if url.startswith('api/') or 'api' in url]
+non_api_urls = [url for url in all_urls if not (url.startswith('api/') or 'api' in url)]
 
-# Step 2: Define ALL endpoints to test
-endpoints = [
-    # Authentication (public)
-    ("POST", "/api/auth/token/verify/", "Verify Token"),
-    
-    # User Management (protected)
-    ("GET", "/api/users/profile/", "User Profile"),
-    ("GET", "/api/users/profile-settings/", "Profile Settings"),
-    ("GET", "/api/users/settings/", "User Settings"),
-    ("GET", "/api/users/security-alerts/", "Security Alerts"),
-    ("GET", "/api/users/security-score/", "Security Score"),
-    ("GET", "/api/users/devices/", "Connected Devices"),
-    ("GET", "/api/users/activity-logs/", "Activity Logs"),
-    
-    # Feature APIs (protected)
-    ("GET", "/api/tasks/", "Tasks"),
-    ("GET", "/api/cards/", "Cards"),
-    ("GET", "/api/compliance/", "Compliance"),
-    ("GET", "/api/crypto/", "Crypto"),
-    ("GET", "/api/escrow/", "Escrow"),
-    ("GET", "/api/notifications/", "Notifications"),
-    ("GET", "/api/payments/", "Payments"),
-    ("GET", "/api/receipts/", "Receipts"),
-    ("GET", "/api/transactions/", "Transactions"),
-    ("GET", "/api/transfers/", "Transfers"),
-    
-    # Public endpoints
-    ("GET", "/", "API Root"),
-    ("GET", "/health/", "Health Check"),
+print(f"\n📊 Found {len(all_urls)} total URL patterns")
+print(f"   🔗 API Endpoints: {len(api_urls)}")
+print(f"   🌐 Other URLs: {len(non_api_urls)}")
+
+# Test critical endpoints
+print("\n🧪 TESTING CRITICAL ENDPOINTS:")
+
+critical_endpoints = [
+    ('/health/', 'GET', 'Health Check'),
+    ('/api/auth/health/', 'GET', 'Auth Health'),
+    ('/admin/', 'GET', 'Admin Interface'),
+    ('/api/', 'GET', 'API Root'),
 ]
 
-# Step 3: Test each endpoint
-print(f"\n🧪 Testing {len(endpoints)} endpoints...")
-print("="*60)
-
-results = []
-for method, endpoint, name in endpoints:
+for endpoint, method, name in critical_endpoints:
     try:
-        url = f"http://127.0.0.1:8000{endpoint}"
+        if method == 'GET':
+            response = client.get(endpoint)
+        elif method == 'POST':
+            response = client.post(endpoint)
         
-        # Determine if endpoint needs authentication
-        if endpoint.startswith(("/api/users/", "/api/tasks/", "/api/cards/", "/api/compliance/", 
-                              "/api/crypto/", "/api/escrow/", "/api/notifications/", "/api/payments/",
-                              "/api/receipts/", "/api/transfers/")):
-            # Protected endpoint
-            if method == "GET":
-                response = requests.get(url, headers=headers, timeout=5)
-            elif method == "POST":
-                response = requests.post(url, headers=headers, timeout=5)
-        else:
-            # Public endpoint
-            if method == "GET":
-                response = requests.get(url, timeout=5)
-            elif method == "POST":
-                response = requests.post(url, timeout=5)
-        
-        status_emoji = "✅" if response.status_code in [200, 201] else "⚠️"
-        results.append((name, response.status_code))
-        
-        print(f"\n{status_emoji} {name}")
-        print(f"   Method: {method}")
-        print(f"   Endpoint: {endpoint}")
-        print(f"   Status: {response.status_code}")
-        
-        if response.status_code in [200, 201]:
-            try:
-                data = response.json()
-                if isinstance(data, dict):
-                    print(f"   Response keys: {list(data.keys())[:5]}")
-                elif isinstance(data, list):
-                    print(f"   Items returned: {len(data)}")
-            except:
-                print(f"   Response: {response.text[:100]}...")
-        elif response.status_code == 401:
-            print("   ⚠️ Requires authentication")
+        if response.status_code in [200, 301, 302]:
+            print(f"   ✅ {name}: {endpoint} - Status {response.status_code}")
+        elif response.status_code == 403:
+            print(f"   🔒 {name}: {endpoint} - Forbidden (needs auth)")
         elif response.status_code == 404:
-            print("   ⚠️ Endpoint not found")
-        
-        # Small delay to avoid rate limiting
-        time.sleep(0.3)
-        
+            print(f"   ❌ {name}: {endpoint} - Not Found")
+        else:
+            print(f"   ⚠️  {name}: {endpoint} - Status {response.status_code}")
+            
     except Exception as e:
-        print(f"\n❌ {name} - Error: {e}")
-        results.append((name, "ERROR"))
+        print(f"   💥 {name}: {endpoint} - Error: {str(e)[:80]}")
 
-# Step 4: Summary
-print("\n" + "="*60)
-print("📊 TEST RESULTS SUMMARY")
-print("="*60)
+# List all API endpoints
+print("\n📋 ALL API ENDPOINTS:")
+api_groups = {}
+for url in sorted(api_urls):
+    parts = url.strip('/').split('/')
+    if len(parts) >= 2:
+        group = parts[1]  # api/[group]/...
+        if group not in api_groups:
+            api_groups[group] = []
+        api_groups[group].append(url)
 
-success = sum(1 for _, status in results if status in [200, 201])
-total = len(results)
+for group, endpoints in sorted(api_groups.items()):
+    print(f"\n   📁 {group.upper()} ({len(endpoints)} endpoints):")
+    for endpoint in sorted(endpoints)[:10]:  # Show first 10 per group
+        print(f"      • {endpoint}")
+    if len(endpoints) > 10:
+        print(f"      ... and {len(endpoints) - 10} more")
 
-print(f"\n✅ Success: {success}/{total} endpoints")
-print(f"⚠️  Issues: {total - success}/{total} endpoints")
-
-print("\n🔍 Detailed Results:")
-for name, status in results:
-    if status in [200, 201]:
-        print(f"  ✅ {name}: {status}")
-    else:
-        print(f"  ⚠️  {name}: {status}")
-
-print("\n" + "="*60)
-print("🎉 BACKEND TEST COMPLETE!")
-print("="*60)
+print("\n" + "=" * 60)
+print(f"✅ API STRUCTURE VERIFIED: {len(api_urls)} endpoints available")

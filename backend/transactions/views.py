@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.core.paginator import Paginator
 from django.db.models import Sum, Q, Count
-from .models import Transaction, TransactionLog
+from backend.transactions.models import Transaction, TransactionLog
 from .serializers import (
     TransactionSerializer, 
     TransactionCreateSerializer,

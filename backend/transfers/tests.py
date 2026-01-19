@@ -1,4 +1,3 @@
-
 """
 Minimal tests for transfers app
 """
@@ -15,7 +14,7 @@ class SimpleTest(TestCase):
     def test_transfers_app_exists(self):
         """Test that transfers app is accessible"""
         try:
-            from transfers import models
+            from backend.transfers import models
             self.assertTrue(True)
         except ImportError:
             self.fail("Could not import transfers models")
@@ -23,7 +22,7 @@ class SimpleTest(TestCase):
     def test_transfer_model_exists(self):
         """Test that Transfer model exists"""
         try:
-            from transfers.models import Transfer
+            from backend.transfers.models import Transfer
             count = Transfer.objects.count()
             # Just check that we can access it
             self.assertTrue(count >= 0)

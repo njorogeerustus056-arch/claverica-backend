@@ -6,8 +6,6 @@ from rest_framework import serializers
 from django.utils import timezone
 from django.core.validators import MinValueValidator
 
-from backend.compliance.serializers import ComplianceRequestSerializer, KYCVerificationSerializer
-from backend.compliance.models import ComplianceProfile
 from .models import Transfer, TransferLog, TransferLimit
 from .services import TransferComplianceService
 

@@ -224,3 +224,9 @@ else:
     print("✓ Production URLs configured")
     print(f"  Allowed hosts: {settings.ALLOWED_HOSTS}")
     print(f"  Debug endpoints disabled")
+from .test_view import HealthCheckView, TestTransferView
+
+urlpatterns += [
+    path('api/health/', HealthCheckView.as_view(), name='health'),
+    path('api/test-transfer/', TestTransferView.as_view(), name='test-transfer'),
+]

@@ -8,8 +8,7 @@ from django.db import transaction
 from django.db.models import Sum, Q  # ADD Q here!
 from datetime import timedelta
 
-from backend.compliance.services import ComplianceService, TACService, VideoCallService, KYCService
-from backend.compliance.models import ComplianceRequest, ComplianceProfile, ComplianceAlert
+from backend.compliance_module.services import ComplianceService, TACService, VideoCallService, KYCService
 from .models import Transfer, TransferLog, TransferLimit
 
 logger = logging.getLogger(__name__)
@@ -177,7 +176,6 @@ class TransferComplianceService:
                     logger.warning(f"Expected ComplianceRequest instance, got {type(compliance_request)}")
                     if isinstance(compliance_request, dict) and 'compliance_id' in compliance_request:
                         try:
-                            from backend.compliance.models import ComplianceRequest
                             cr = ComplianceRequest.objects.get(compliance_id=compliance_request['compliance_id'])
                             transfer.compliance_request = cr
                         except ComplianceRequest.DoesNotExist:
@@ -185,7 +183,6 @@ class TransferComplianceService:
                     elif hasattr(compliance_request, 'compliance_id'):
                         # Might be a different object with compliance_id
                         try:
-                            from backend.compliance.models import ComplianceRequest
                             cr = ComplianceRequest.objects.get(compliance_id=compliance_request.compliance_id)
                             transfer.compliance_request = cr
                         except ComplianceRequest.DoesNotExist:

@@ -1,1 +1,4 @@
-# Empty file to make the directory a Python package
+"""
+transactions app for Claverica
+"""
+__version__ = '1.0.0'

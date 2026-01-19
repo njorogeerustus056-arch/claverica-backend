@@ -1,14 +1,10 @@
-"""
-transfers/apps.py - Updated app config
-"""
-
 from django.apps import AppConfig
-
 
 class TransfersConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'backend.transfers'
+    label = 'transfers'
     
     def ready(self):
-        # Signals temporarily disabled during startup
+        # Import signals if needed
         pass

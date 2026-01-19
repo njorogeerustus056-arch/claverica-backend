@@ -6,7 +6,6 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from backend.compliance.models import ComplianceRequest, ComplianceProfile, ComplianceAlert
 from .models import Transfer, TransferLog
 from .services import TransferComplianceService
 

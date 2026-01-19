@@ -12,8 +12,6 @@ from django.db import transaction
 from django.db.models import Sum, Count, Q
 from django.shortcuts import get_object_or_404
 
-from backend.compliance.services import ComplianceService, TACService, AlertService
-from backend.compliance.models import ComplianceProfile
 from .models import Transfer, TransferLog, TransferLimit
 from .serializers import (
     TransferCreateSerializer, TransferSerializer, TransferUpdateSerializer,

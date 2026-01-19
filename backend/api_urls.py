@@ -176,7 +176,7 @@ feature_apps = [
     ('users', 'users/'),
     ('backend.claverica_tasks', 'tasks/'),
     ('backend.cards', 'cards/'),
-    ('backend.compliance', 'compliance/'),
+    ('compliance_module', 'compliance/'),
     ('backend.crypto', 'crypto/'),
     ('backend.escrow', 'escrow/'),
     ('notifications', 'notifications/'),
