@@ -11,7 +11,7 @@ class SafeCardAdmin(admin.ModelAdmin):
             return Card.objects.none()
 
 class SafePaymentAdmin(admin.ModelAdmin):
-    list_display = ['id', 'amount', 'status']
+    list_display = ['id', 'amount']
     def get_queryset(self, request):
         try:
             return super().get_queryset(request)
@@ -19,7 +19,7 @@ class SafePaymentAdmin(admin.ModelAdmin):
             return Payment.objects.none()
 
 class SafeTransactionAdmin(admin.ModelAdmin):
-    list_display = ['id', 'amount', 'status']
+    list_display = ['id', 'amount']
     def get_queryset(self, request):
         try:
             return super().get_queryset(request)
