@@ -1,32 +1,21 @@
 from django.contrib import admin
-from . import models
+from .models import TasksTaskcategory, TasksClavericatask, TasksUserrewardbalance
 
-# Register your models here
-
-@admin.register(models.TasksClavericatask)
-class TasksClavericataskAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
-
-@admin.register(models.TasksRewardwithdrawal)
-class TasksRewardwithdrawalAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
-
-@admin.register(models.TasksTaskcategory)
+@admin.register(TasksTaskcategory)
 class TasksTaskcategoryAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
+    list_display = ('name', 'icon', 'color', 'created_at')
+    search_fields = ('name',)
+    list_filter = ('created_at',)
 
-@admin.register(models.TasksUserrewardbalance)
+@admin.register(TasksClavericatask)
+class TasksClavericataskAdmin(admin.ModelAdmin):
+    list_display = ('title', 'category', 'reward_amount', 'status', 'created_at')
+    list_filter = ('category', 'status', 'created_at')
+    search_fields = ('title', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+
+@admin.register(TasksUserrewardbalance)
 class TasksUserrewardbalanceAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
+    list_display = ('user', 'balance', 'updated_at')
+    search_fields = ('user__email', 'user__username')
+    readonly_fields = ('updated_at',)

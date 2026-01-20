@@ -32,7 +32,7 @@ class SecurityAlert(models.Model):
     
     account = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="security_alerts")
     alert_type = models.CharField(max_length=50, default='')
-    message = models.TextField(default='', blank=True, default='')
+    message = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
@@ -57,7 +57,7 @@ class ActivityLog(models.Model):
     
     account = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="activity_logs")
     action = models.CharField(max_length=50, default='')
-    description = models.TextField(default='', blank=True, default='')
+    description = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
