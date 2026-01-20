@@ -1,31 +1,26 @@
 from django.db import models
-
-# Models will be auto-generated based on existing database tables
-
+from django.conf import settings
 
 class Escrow(models.Model):
-    """
-    Model for escrow_escrow table
-    """
-    # TODO: Add fields based on actual table structure
-    name = models.CharField(max_length=255)
+    class Meta:
+        app_label = "escrow"
+    
+    name = models.CharField(max_length=255, default='')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    status = models.CharField(max_length=50, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     
-    class Meta:
-        db_table = 'escrow_escrow'
-        verbose_name = 'Escrow'
-        verbose_name_plural = 'Escrows'
-
+    def __str__(self):
+        return f"Escrow: {self.name}"
 
 class Escrowlog(models.Model):
-    """
-    Model for escrow_escrowlog table
-    """
-    # TODO: Add fields based on actual table structure
-    name = models.CharField(max_length=255)
+    class Meta:
+        app_label = "escrow"
+    
+    escrow = models.ForeignKey(Escrow, on_delete=models.CASCADE, related_name='logs')
+    action = models.CharField(max_length=255, default='')
+    details = models.TextField(default='')
     created_at = models.DateTimeField(auto_now_add=True)
     
-    class Meta:
-        db_table = 'escrow_escrowlog'
-        verbose_name = 'Escrowlog'
-        verbose_name_plural = 'Escrowlogs'
+    def __str__(self):
+        return f"Log: {self.escrow.name} - {self.action}"
