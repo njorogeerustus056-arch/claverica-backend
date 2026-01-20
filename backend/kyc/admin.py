@@ -1,18 +1,12 @@
 from django.contrib import admin
-from . import models
+from .models import Document, Verification
 
-# Register your models here
+@admin.register(Document)
+class DocumentAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'document_type', 'uploaded_at')
+    search_fields = ('user__email', 'document_type')
 
-@admin.register(models.Documents)
-class DocumentsAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
-
-@admin.register(models.Verifications)
-class VerificationsAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
+@admin.register(Verification)
+class VerificationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'first_name', 'last_name', 'created_at')
+    search_fields = ('user__email', 'first_name', 'last_name')
