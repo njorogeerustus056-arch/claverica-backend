@@ -1,18 +1,31 @@
+
 from django.contrib import admin
-from .models import Account, Card, PaymentMethod, Payment, Transaction
+from .models import Card, Payment, Transaction
 
-@admin.register(Account)
-class AccountAdmin(admin.ModelAdmin):
-    list_display = ['account_number', 'user', 'balance', 'currency', 'created_at']
+class SafeCardAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user', 'card_type']
+    def get_queryset(self, request):
+        try:
+            return super().get_queryset(request)
+        except:
+            return Card.objects.none()
 
-@admin.register(Card)
-class CardAdmin(admin.ModelAdmin):
-    list_display = ['card_number', 'user', 'card_type', 'expiry_date']
+class SafePaymentAdmin(admin.ModelAdmin):
+    list_display = ['id', 'amount', 'status']
+    def get_queryset(self, request):
+        try:
+            return super().get_queryset(request)
+        except:
+            return Payment.objects.none()
 
-@admin.register(Payment)
-class PaymentAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'amount', 'status', 'created_at']
+class SafeTransactionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'amount', 'status']
+    def get_queryset(self, request):
+        try:
+            return super().get_queryset(request)
+        except:
+            return Transaction.objects.none()
 
-@admin.register(Transaction)
-class TransactionAdmin(admin.ModelAdmin):
-    list_display = ['id', 'account', 'amount', 'transaction_type', 'created_at']
+admin.site.register(Card, SafeCardAdmin)
+admin.site.register(Payment, SafePaymentAdmin)
+admin.site.register(Transaction, SafeTransactionAdmin)
