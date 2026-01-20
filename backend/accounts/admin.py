@@ -20,7 +20,7 @@ class AccountAdmin(BaseUserAdmin):  # Changed from UserAdmin to AccountAdmin
         (_('Permissions'), {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
         }),
-        (_('Verification'), {'fields': ('email_verified', 'email_verification_token', 'email_verification_sent_at')}),
+        (_('Verification'), {'fields': ('email_verified', 'email_verification_otp', 'email_verification_otp_sent_at')}),
         (_('Important Dates'), {'fields': ('last_login', 'date_joined')}),
     )
     
