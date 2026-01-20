@@ -3,6 +3,8 @@ from django.db import models
 from django.db import models
 
 class Receipt(models.Model):
+    class Meta:
+        app_label = "receipts"
     """Receipts from receipts_receipt table"""
     user_id = models.IntegerField()
     amount = models.DecimalField(max_digits=10, decimal_places=2)
