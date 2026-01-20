@@ -23,56 +23,18 @@ class CardStatus(models.TextChoices):
 class Card(models.Model):
     """Card model for virtual and physical cards"""
     
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='cards'
-    )
-    
-    # Card details
-    card_type = models.CharField(
-        max_length=10,
-        choices=CardType.choices,
-        default=CardType.VIRTUAL
-    )
-    
-    # 🔒 SECURE: Encrypted fields for sensitive data
-    # In production: pip install django-cryptography
-    # from django_cryptography.fields import encrypt
-    # card_number = encrypt(models.CharField(...))
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cards')
+    card_type = models.CharField(max_length=10, choices=CardType.choices, default=CardType.VIRTUAL)
     card_number = models.CharField(max_length=16, unique=True, db_index=True)
-    last_four = models.CharField(max_length=4)
-    cvv = models.CharField(max_length=4)  # American Express uses 4 digits
-    expiry_date = models.CharField(max_length=5)  # Format: MM/YY
-    cardholder_name = models.CharField(max_length=255)
-    
-    # Financial details
-    balance = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal('0.00'),
-        validators=[MinValueValidator(Decimal('0.00'))]
-    )
-    spending_limit = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal('5000.00'),
-        validators=[MinValueValidator(Decimal('0.00'))]
-    )
-    
-    # Card status and appearance
-    status = models.CharField(
-        max_length=10,
-        choices=CardStatus.choices,
-        default=CardStatus.ACTIVE
-    )
-    color_scheme = models.CharField(
-        max_length=100,
-        default='from-indigo-500 via-purple-500 to-pink-500'
-    )
+    last_four = models.CharField(max_length=4, default='0000')
+    cvv = models.CharField(max_length=4, default='000')
+    expiry_date = models.CharField(max_length=5, default='01/30')
+    cardholder_name = models.CharField(max_length=255, default='Card Holder')
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'), validators=[MinValueValidator(Decimal('0.00'))])
+    spending_limit = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('5000.00'), validators=[MinValueValidator(Decimal('0.00'))])
+    status = models.CharField(max_length=10, choices=CardStatus.choices, default=CardStatus.ACTIVE)
+    color_scheme = models.CharField(max_length=100, default='from-indigo-500 via-purple-500 to-pink-500')
     is_primary = models.BooleanField(default=False)
-    
-    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -98,73 +60,6 @@ class Card(models.Model):
     @property
     def masked_number(self):
         """Return masked card number"""
-        return f"**** **** **** {self.last_four}"
-    
-    def cardholder_info(self):
-        """Display cardholder information"""
-        return f"{self.cardholder_name} ({self.user.email})"
-
-
-class CardTransaction(models.Model):
-    """Transaction model for card and account transactions"""
-    
-    TRANSACTION_TYPES = [
-        ('credit', 'Credit'),
-        ('debit', 'Debit'),
-    ]
-    
-    TRANSACTION_STATUS = [
-        ('completed', 'Completed'),
-        ('pending', 'Pending'),
-        ('failed', 'Failed'),
-        ('cancelled', 'Cancelled'),
-    ]
-    
-    # Foreign keys
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='card_transactions'
-    )
-    card = models.ForeignKey(
-        Card,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='transactions'
-    )
-    
-    # Transaction details
-    amount = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.01'))]
-    )
-    merchant = models.CharField(max_length=255)
-    category = models.CharField(max_length=50, blank=True)
-    transaction_type = models.CharField(
-        max_length=10,
-        choices=TRANSACTION_TYPES
-    )
-    status = models.CharField(
-        max_length=20,
-        choices=TRANSACTION_STATUS,
-        default='completed'
-    )
-    description = models.TextField(blank=True)
-    
-    # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['user', 'created_at']),
-            models.Index(fields=['card', 'created_at']),
-            models.Index(fields=['status']),
-        ]
-        verbose_name = "Card Transaction"
-        verbose_name_plural = "Card Transactions"
-    
-    def __str__(self):
-        return f"{self.transaction_type.title()} - ${self.amount} - {self.merchant}"
+        if self.last_four:
+            return f"**** **** **** {self.last_four}"
+        return "No card number"

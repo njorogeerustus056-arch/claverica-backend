@@ -7,7 +7,7 @@ class UserProfile(models.Model):
         app_label = "users"
     
     account = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
-    phone_number = models.CharField(_("phone number"), max_length=20, blank=True)
+    phone_number = models.CharField(_("phone number", default=''), max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -31,8 +31,8 @@ class SecurityAlert(models.Model):
         app_label = "users"
     
     account = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="security_alerts")
-    alert_type = models.CharField(max_length=50)
-    message = models.TextField()
+    alert_type = models.CharField(max_length=50, default='')
+    message = models.TextField(, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
@@ -43,8 +43,8 @@ class ConnectedDevice(models.Model):
         app_label = "users"
     
     account = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="connected_devices")
-    device_id = models.CharField(max_length=255)
-    device_name = models.CharField(max_length=100, blank=True)
+    device_id = models.CharField(max_length=255, default='')
+    device_name = models.CharField(max_length=100, blank=True, default='')
     last_login = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -56,8 +56,8 @@ class ActivityLog(models.Model):
         app_label = "users"
     
     account = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="activity_logs")
-    action = models.CharField(max_length=50)
-    description = models.TextField()
+    action = models.CharField(max_length=50, default='')
+    description = models.TextField(, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
