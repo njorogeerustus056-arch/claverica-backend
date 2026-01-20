@@ -3,7 +3,7 @@ from . import models
 
 # Register your models here
 
-@admin.register(models.TacCode)
+@admin.register(models.Taccode)
 class TacCodeAdmin(admin.ModelAdmin):
     list_display = ['id']
     search_fields = []
