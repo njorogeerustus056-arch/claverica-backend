@@ -15,7 +15,7 @@ class TacCode(models.Model):
     code = models.CharField(max_length=6, unique=True, default='')
     purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default='verification')
     is_used = models.BooleanField(default=False)
-    expires_at = models.DateTimeField(default=lambda: timezone.now() + timedelta(minutes=10))
+    expires_at = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

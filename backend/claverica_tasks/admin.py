@@ -5,17 +5,17 @@ from .models import TasksTaskcategory, TasksClavericatask, TasksUserrewardbalanc
 class TasksTaskcategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'icon', 'color', 'created_at')
     search_fields = ('name',)
-    list_filter = ('created_at',)
+    readonly_fields = ('created_at',)
 
 @admin.register(TasksClavericatask)
 class TasksClavericataskAdmin(admin.ModelAdmin):
     list_display = ('title', 'category', 'reward_amount', 'status', 'created_at')
-    list_filter = ('category', 'status', 'created_at')
+    list_filter = ('category', 'status')
     search_fields = ('title', 'description')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at',)
 
 @admin.register(TasksUserrewardbalance)
 class TasksUserrewardbalanceAdmin(admin.ModelAdmin):
-    list_display = ('user', 'balance', 'updated_at')
+    list_display = ('user', 'total_earned', 'available_balance', 'created_at')
     search_fields = ('user__email', 'user__username')
-    readonly_fields = ('updated_at',)
+    readonly_fields = ('created_at', 'last_updated')

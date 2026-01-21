@@ -2,19 +2,19 @@ from django.db import models
 from django.contrib.auth import get_user_model
 
 class Cryptowallet(models.Model):
-    TYPE_CHOICES = [('bitcoin', 'Bitcoin'), ('ethereum', 'Ethereum'), ('litecoin', 'Litecoin'), ('ripple', 'Ripple'), ('other', 'Other')]
-    STATUS_CHOICES = [('active', 'Active'), ('inactive', 'Inactive'), ('suspended', 'Suspended'), ('closed', 'Closed')]
+    WALLET_TYPES = [
+        ('bitcoin', 'Bitcoin'),
+        ('ethereum', 'Ethereum'),
+        ('litecoin', 'Litecoin'),
+        ('tron', 'Tron'),
+    ]
     
-    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='crypto_wallets', db_column='user_id')
-    wallet_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='bitcoin')
-    address = models.CharField(max_length=255, unique=True)
-    label = models.CharField(max_length=100, blank=True, null=True)
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, db_column='user_id')
+    wallet_type = models.CharField(max_length=20, choices=WALLET_TYPES, default='bitcoin')
+    address = models.CharField(max_length=255, unique=True, default='')
+    private_key_encrypted = models.TextField(default='')
     balance = models.DecimalField(max_digits=20, decimal_places=8, default=0.00000000)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-    is_default = models.BooleanField(default=False)
-    last_synced = models.DateTimeField(blank=True, null=True)
-    sync_status = models.CharField(max_length=20, default='pending')
-    metadata = models.JSONField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -24,24 +24,32 @@ class Cryptowallet(models.Model):
         verbose_name_plural = 'Crypto Wallets'
     
     def __str__(self):
-        return f'{self.wallet_type} - {self.address[:10]}... - {self.user.email if self.user else "No User"}'
+        return f'{self.wallet_type} - {self.address[:10]}...'
+
 class Cryptotransaction(models.Model):
-    TYPE_CHOICES = [('deposit', 'Deposit'), ('withdrawal', 'Withdrawal'), ('transfer', 'Transfer'), ('swap', 'Swap'), ('fee', 'Fee')]
-    STATUS_CHOICES = [('pending', 'Pending'), ('confirmed', 'Confirmed'), ('failed', 'Failed'), ('cancelled', 'Cancelled')]
+    TRANSACTION_TYPES = [
+        ('deposit', 'Deposit'),
+        ('withdrawal', 'Withdrawal'),
+        ('transfer', 'Transfer'),
+    ]
     
-    wallet = models.ForeignKey(Cryptowallet, on_delete=models.CASCADE, related_name='transactions')
-    transaction_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='deposit')
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    wallet = models.ForeignKey(Cryptowallet, on_delete=models.CASCADE, db_column='wallet_id', null=True, blank=True)
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES, default='deposit')
     amount = models.DecimalField(max_digits=20, decimal_places=8, default=0.00000000)
     currency = models.CharField(max_length=10, default='BTC')
-    tx_hash = models.CharField(max_length=255, unique=True)
-    from_address = models.CharField(max_length=255, blank=True, null=True)
-    to_address = models.CharField(max_length=255, blank=True, null=True)
-    fee = models.DecimalField(max_digits=20, decimal_places=8, default=0.00000000)
+    tx_hash = models.CharField(max_length=255, unique=True, null=True, blank=True, default='')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    confirmations = models.IntegerField(default=0)
-    block_height = models.IntegerField(blank=True, null=True)
-    metadata = models.JSONField(blank=True, null=True)
-    processed_at = models.DateTimeField(blank=True, null=True)
+    from_address = models.CharField(max_length=255, default='')
+    to_address = models.CharField(max_length=255, default='')
+    fee = models.DecimalField(max_digits=10, decimal_places=8, default=0.00000000)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -49,6 +57,7 @@ class Cryptotransaction(models.Model):
         db_table = 'crypto_cryptotransaction'
         verbose_name = 'Crypto Transaction'
         verbose_name_plural = 'Crypto Transactions'
+        ordering = ['-created_at']
     
     def __str__(self):
-        return f'{self.transaction_type} - {self.amount} {self.currency} - {self.tx_hash[:10]}...'
+        return f'{self.transaction_type} - {self.amount} {self.currency}'

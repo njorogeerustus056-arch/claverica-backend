@@ -7,7 +7,7 @@ class UserProfile(models.Model):
         app_label = "users"
     
     account = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
-    phone_number = models.CharField(_("phone number", default=''), max_length=20, blank=True)
+    phone_number = models.CharField(_("phone number"), max_length=20, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
