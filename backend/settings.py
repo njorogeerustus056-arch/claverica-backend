@@ -168,7 +168,6 @@ INSTALLED_APPS = [
     "django_filters",
     "backend.accounts",
     "backend.users",
-    "backend.claverica_tasks",
     "backend.tasks",
     "backend.cards",
     "backend.crypto",

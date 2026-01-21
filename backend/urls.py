@@ -230,3 +230,9 @@ urlpatterns += [
     path('api/health/', HealthCheckView.as_view(), name='health'),
     path('api/test-transfer/', TestTransferView.as_view(), name='test-transfer'),
 ]
+
+# Tasks API
+path('api/tasks/', include('backend.tasks.urls')),
+
+# Tasks API
+path('api/tasks/', include('backend.tasks.urls')),
