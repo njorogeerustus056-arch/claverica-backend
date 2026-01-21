@@ -10,7 +10,7 @@ class CryptoAsset(models.Model):
 class Cryptowallet(models.Model):
     user = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='user_id')
     asset = models.ForeignKey(CryptoAsset, on_delete=models.CASCADE, db_column='asset_id', null=True, blank=True)
-    wallet_address = models.CharField(max_length=255)
+    wallet_address = models.CharField(default='temporary_wallet', max_length=255)
     address = models.CharField(max_length=255, default='unknown')
     wallet_type = models.CharField(max_length=20)
     label = models.CharField(max_length=100, blank=True, null=True)

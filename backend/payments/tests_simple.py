@@ -10,7 +10,7 @@ from rest_framework.test import APIClient, APITestCase
 from rest_framework import status
 from decimal import Decimal
 from django.contrib.auth import get_user_model
-from payments.models import Account, Transaction
+from backend.payments.models import Account, Transaction
 
 User = get_user_model()
 

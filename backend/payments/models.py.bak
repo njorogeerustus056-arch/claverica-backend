@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.db.models import JSONField  # Correct import
+from django.contrib.postgres.fields import JSONField
 import uuid
 
 User = get_user_model()
@@ -12,9 +12,6 @@ class Account(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    class Meta:
-        db_table = 'payments_account'
-    
     def __str__(self):
         return f"{self.user.email}"
 
@@ -24,9 +21,6 @@ class Card(models.Model):
     brand = models.CharField(max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)
     
-    class Meta:
-        db_table = 'payments_card'
-    
     def __str__(self):
         return f"{self.brand} ****{self.last4}"
 
@@ -35,16 +29,7 @@ class PaymentMethod(models.Model):
     method_type = models.CharField(max_length=20)
     display_name = models.CharField(max_length=100)
     details = JSONField(default=dict)
-    is_default = models.BooleanField(default=False)
-    metadata = JSONField(default=dict, blank=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
-    metadata = JSONField(default=dict, blank=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
-# Using correct JSONField
     created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'payments_paymentmethod'
     
     def __str__(self):
         return f"{self.display_name}"
@@ -56,9 +41,6 @@ class Payment(models.Model):
     status = models.CharField(max_length=20, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     
-    class Meta:
-        db_table = 'payments_payment'
-    
     def __str__(self):
         return f"{self.payment_id}"
 
@@ -68,9 +50,6 @@ class Transaction(models.Model):
     type = models.CharField(max_length=20)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'payments_transaction'
     
     def __str__(self):
         return f"{self.transaction_id}"

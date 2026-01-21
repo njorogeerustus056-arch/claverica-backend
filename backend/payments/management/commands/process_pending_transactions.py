@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.db import transaction as db_transaction
 from datetime import timedelta
 from decimal import Decimal
-from payments.models import Transaction, Account, AuditLog
+from backend.payments.models import Transaction, Account, AuditLog
 import logging
 
 logger = logging.getLogger(__name__)

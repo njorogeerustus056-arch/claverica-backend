@@ -1,0 +1,4 @@
+from django.db import models
+
+# Placeholder models - will be populated from actual models
+# The actual models are in the database
