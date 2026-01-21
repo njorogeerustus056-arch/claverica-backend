@@ -1,28 +1,18 @@
 from django.db import models
-from django.contrib.auth import get_user_model
+from backend.accounts.models import Account
 
 class Receipt(models.Model):
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('completed', 'Completed'),
-        ('failed', 'Failed'),
-    ]
-    
-    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, db_column='user_id')
-    transaction_id = models.CharField(max_length=100, default='')
-    amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    currency = models.CharField(max_length=10, default='USD')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    description = models.TextField(default='')
-    metadata = models.JSONField(blank=True, null=True)
+    user = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='receipts')
+    amount = models.DecimalField(max_digits=20, decimal_places=2)
+    currency = models.CharField(max_length=3, default='USD')
+    status = models.CharField(max_length=50, default='pending')
+    transaction_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
+    receipt_data = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        app_label = 'receipts'
-        db_table = 'receipts_receipt'
-        verbose_name = 'Receipt'
-        verbose_name_plural = 'Receipts'
         ordering = ['-created_at']
     
     def __str__(self):
-        return f'Receipt #{self.id} - {self.amount} {self.currency}'
+        return f"Receipt #{self.id} - {self.user.email} (${self.amount})"

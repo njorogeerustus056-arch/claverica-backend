@@ -1,24 +1,23 @@
 from django.contrib import admin
-from .models import Escrow, EscrowLog
+from .models import Escrow
 
 @admin.register(Escrow)
 class EscrowAdmin(admin.ModelAdmin):
-    # Show important fields in list view
-    list_display = ['title', 'amount', 'currency', 'status', 'is_released', 'created_at']
-    
-    # Simple form with just the essential fields (like your screenshot)
-    fields = ['title', 'description', 'amount', 'currency', 'status']
-    
-    # Filters and search
-    list_filter = ['status', 'currency', 'is_released']
-    search_fields = ['title', 'escrow_id', 'sender_name', 'receiver_name']
-    
-    # Read-only fields
+    list_display = ['name', 'amount', 'currency', 'status', 'created_at']
+    list_filter = ['status', 'currency']
+    search_fields = ['name', 'escrow_id']
     readonly_fields = ['created_at', 'updated_at']
-
-@admin.register(EscrowLog)
-class EscrowLogAdmin(admin.ModelAdmin):
-    list_display = ['escrow', 'action', 'created_at']
-    list_filter = ['action']
-    search_fields = ['escrow__title', 'details']
-    readonly_fields = ['created_at']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'amount', 'currency', 'status')
+        }),
+        ('Parties', {
+            'fields': ('sender_name', 'receiver_name'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

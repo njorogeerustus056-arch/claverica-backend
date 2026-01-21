@@ -1,25 +1,27 @@
 from django.contrib import admin
-from . import models
+from .models import Check
 
-# Register your models here
-
-@admin.register(models.AuditLog)
-class AuditLogAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
-
-@admin.register(models.Check)
+@admin.register(Check)
 class CheckAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
+    list_display = ['check_type', 'user_id', 'status', 'risk_score', 'checked_at']
+    list_filter = ['status', 'check_type']
+    search_fields = ['user_id', 'name']
+    readonly_fields = ['checked_at', 'created_at']
     
-
-@admin.register(models.Profile)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
+    fieldsets = (
+        ('Check Information', {
+            'fields': ('check_type', 'user_id', 'status', 'risk_score', 'matches_found')
+        }),
+        ('Details', {
+            'fields': ('verification_id', 'name', 'notes', 'provider', 'provider_reference'),
+            'classes': ('collapse',)
+        }),
+        ('Results', {
+            'fields': ('result',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('checked_at', 'created_at', 'expires_at'),
+            'classes': ('collapse',)
+        }),
+    )
