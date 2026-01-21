@@ -18,6 +18,7 @@ class Receipt(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
+        app_label = 'receipts'
         db_table = 'receipts_receipt'
         verbose_name = 'Receipt'
         verbose_name_plural = 'Receipts'
