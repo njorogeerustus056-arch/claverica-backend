@@ -1,18 +1,14 @@
 from django.contrib import admin
-from . import models
+from .models import Escrow, Escrowlog
 
-# Register your models here
-
-@admin.register(models.Escrow)
+@admin.register(Escrow)
 class EscrowAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
+    list_display = ('escrow_id', 'title', 'amount', 'status', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('escrow_id', 'title')
+    readonly_fields = ('created_at',)
 
-@admin.register(models.Escrowlog)
+@admin.register(Escrowlog)
 class EscrowlogAdmin(admin.ModelAdmin):
-    list_display = ['id']
-    search_fields = []
-    list_filter = []
-    
+    list_display = ('escrow', 'action', 'created_at')
+    list_filter = ('action', 'created_at')
