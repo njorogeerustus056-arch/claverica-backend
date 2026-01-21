@@ -76,13 +76,17 @@ class UserTask(models.Model):
         else:
             return 'No Task'
 
+
 class UserRewardBalance(models.Model):
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE, related_name='reward_balance')
     total_earned = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     available_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    withdrawn_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    currency = models.CharField(max_length=10, default='USD')
+    tasks_completed = models.IntegerField(default=0)
+    tasks_pending = models.IntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    name = models.CharField(max_length=255, default='User Balance')
     display_order = models.IntegerField(default=0)
 
     class Meta:
