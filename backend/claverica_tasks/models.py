@@ -32,7 +32,7 @@ class TasksClavericatask(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        db_table = 'tasks_clavericatask'
+        db_table = 'claverica_tasks_clavericatask'
     
     def __str__(self):
         return self.title

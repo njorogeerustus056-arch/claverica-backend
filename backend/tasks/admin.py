@@ -5,4 +5,5 @@ from .models import UserTask
 class UserTaskAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'task', 'status', 'reward_earned')
     readonly_fields = ('started_at', 'completed_at')
-    # FORCE PUSH: Admin fixes deployed $(date)
+    list_filter = ('status', 'reward_paid')
+    search_fields = ('user__email', 'user__username')

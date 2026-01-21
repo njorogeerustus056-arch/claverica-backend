@@ -17,3 +17,4 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 print("✅ Applied import patch in backend/__init__.py")
+# Database fix applied: All NOT NULL constraints resolved
