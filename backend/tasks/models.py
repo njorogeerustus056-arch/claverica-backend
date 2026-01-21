@@ -80,30 +80,6 @@ class UserTask(models.Model):
 class UserRewardBalance(models.Model):
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE, related_name='reward_balance')
     total_earned = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    available_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    currency = models.CharField(max_length=10, default='USD')
-    tasks_completed = models.IntegerField(default=0)
-    tasks_pending = models.IntegerField(default=0)
-    last_updated = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    name = models.CharField(max_length=255, default='User Balance')
-    display_order = models.IntegerField(default=0)
-
-    class Meta:
-        app_label = 'tasks'
-        db_table = 'claverica_tasks_userrewardbalance'
-        verbose_name = 'User Reward Balance'
-        verbose_name_plural = 'User Reward Balances'
-
-    def __str__(self):
-        if self.user:
-            return f'{self.user.email}: $' + str(self.available_balance)
-        else:
-            return 'No User'
-
-class UserRewardBalance(models.Model):
-    user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE, related_name='reward_balance')
-    total_earned = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total_withdrawn = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     available_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     pending_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -113,7 +89,6 @@ class UserRewardBalance(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     name = models.CharField(max_length=255, default='User Balance')
-    display_order = models.IntegerField(default=0)
 
     class Meta:
         app_label = 'tasks'
