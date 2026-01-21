@@ -5,5 +5,5 @@ from .models import UserTask
 class UserTaskAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'task', 'status', 'reward_earned')
     readonly_fields = ('started_at', 'completed_at')
-    list_filter = ('status', 'reward_paid')
+    list_filter = ('status',)
     search_fields = ('user__email', 'user__username')
