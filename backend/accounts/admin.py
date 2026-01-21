@@ -1,27 +1,22 @@
-# accounts/admin.py
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.utils.translation import gettext_lazy as _
-
-from .models import Account  # Changed from User to Account
-
+from django.contrib.auth.admin import UserAdmin
+from .models import Account
 
 @admin.register(Account)
-class AccountAdmin(BaseUserAdmin):  # Changed from UserAdmin to AccountAdmin
-    list_display = ('email', 'first_name', 'last_name', 'is_active', 'is_staff', 'email_verified', 'date_joined')
-    list_filter = ('is_active', 'is_staff', 'email_verified', 'date_joined')
+class AccountAdmin(UserAdmin):
+    list_display = ('email', 'first_name', 'last_name', 'is_staff', 'is_active')
+    list_filter = ('is_staff', 'is_active', 'is_superuser')
     search_fields = ('email', 'first_name', 'last_name')
-    ordering = ('-date_joined',)
-    readonly_fields = ('date_joined', 'last_login')
+    ordering = ('email',)
+    
+    # DELETE ACTION IS NOW RESTORED (crypto address column fixed)
+    actions = ['delete_selected']
     
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        (_('Personal Info'), {'fields': ('first_name', 'last_name')}),
-        (_('Permissions'), {
-            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
-        }),
-        (_('Verification'), {'fields': ('email_verified', 'email_verification_otp', 'email_verification_otp_sent_at')}),
-        (_('Important Dates'), {'fields': ('last_login', 'date_joined')}),
+        ('Personal info', {'fields': ('first_name', 'last_name')}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser')}),
+        ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
     
     add_fieldsets = (
@@ -30,3 +25,5 @@ class AccountAdmin(BaseUserAdmin):  # Changed from UserAdmin to AccountAdmin
             'fields': ('email', 'first_name', 'last_name', 'password1', 'password2'),
         }),
     )
+    
+    readonly_fields = ('last_login', 'date_joined')
