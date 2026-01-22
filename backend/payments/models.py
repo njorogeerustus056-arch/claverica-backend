@@ -1,76 +1,36 @@
 from django.db import models
-from django.contrib.auth import get_user_model
-from django.db.models import JSONField  # Correct import
-import uuid
+from django.conf import settings
 
-User = get_user_model()
-
-class Account(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    account_id = models.CharField(max_length=50, unique=True)
-    balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        db_table = 'payments_account'
-    
-    def __str__(self):
-        return f"{self.user.email}"
-
-class Card(models.Model):
-    account = models.ForeignKey(Account, on_delete=models.CASCADE)
-    last4 = models.CharField(max_length=4)
-    brand = models.CharField(max_length=20)
+class PaymentCard(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    card_number = models.CharField(max_length=255)
+    last_four = models.CharField(max_length=4)
+    card_type = models.CharField(max_length=50)
+    brand = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         db_table = 'payments_card'
-    
-    def __str__(self):
-        return f"{self.brand} ****{self.last4}"
+        app_label = 'payments'
 
 class PaymentMethod(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    method_type = models.CharField(max_length=20)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    method_type = models.CharField(max_length=50)
     display_name = models.CharField(max_length=100)
-    details = JSONField(default=dict)
-    is_default = models.BooleanField(default=False)
-    metadata = JSONField(default=dict, blank=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
-    metadata = JSONField(default=dict, blank=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
-# Using correct JSONField
+    details = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         db_table = 'payments_paymentmethod'
-    
-    def __str__(self):
-        return f"{self.display_name}"
+        app_label = 'payments'
 
 class Payment(models.Model):
-    payment_id = models.CharField(max_length=50, unique=True, default=uuid.uuid4)
-    account = models.ForeignKey(Account, on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    status = models.CharField(max_length=20, default='pending')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=50)
+    description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         db_table = 'payments_payment'
-    
-    def __str__(self):
-        return f"{self.payment_id}"
-
-class Transaction(models.Model):
-    transaction_id = models.CharField(max_length=50, unique=True, default=uuid.uuid4)
-    account = models.ForeignKey(Account, on_delete=models.CASCADE)
-    type = models.CharField(max_length=20)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'payments_transaction'
-    
-    def __str__(self):
-        return f"{self.transaction_id}"
+        app_label = 'payments'
