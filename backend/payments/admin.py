@@ -1,19 +1,20 @@
 from django.contrib import admin
-from .models import Card, Payment, Transaction, PaymentMethod
+from .models import PaymentCard, Payment, PaymentMethod
 
-class CardAdmin(admin.ModelAdmin):
-    list_display = ['id', 'last4', 'brand', 'created_at']
-    
+@admin.register(PaymentCard)
+class PaymentCardAdmin(admin.ModelAdmin):
+    list_display = ['id', 'last_four', 'brand', 'created_at']
+    search_fields = ['last_four', 'brand']
+    list_filter = ['brand', 'created_at']
+
+@admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ['id', 'amount', 'status', 'created_at']
-    
-class TransactionAdmin(admin.ModelAdmin):
-    list_display = ['id', 'type', 'amount', 'created_at']
-    
+    search_fields = ['amount', 'status']
+    list_filter = ['status', 'created_at']
+
+@admin.register(PaymentMethod)
 class PaymentMethodAdmin(admin.ModelAdmin):
     list_display = ['id', 'display_name', 'method_type', 'created_at']
-
-admin.site.register(Card, CardAdmin)
-admin.site.register(Payment, PaymentAdmin)
-admin.site.register(Transaction, TransactionAdmin)
-admin.site.register(PaymentMethod, PaymentMethodAdmin)
+    search_fields = ['display_name', 'method_type']
+    list_filter = ['method_type', 'created_at']
