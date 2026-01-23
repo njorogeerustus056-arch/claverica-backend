@@ -433,7 +433,8 @@ SIMPLE_JWT = {
 # ------------------------------
 # CORS - UPDATED FOR REACT FRONTEND
 # ------------------------------
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOW_ALL_ORIGINS = True  # Changed from DEBUG for frontend development
+CORS_ALLOW_CREDENTIALS = True
 
 # Base development origins
 CORS_ALLOWED_ORIGINS = [
