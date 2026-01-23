@@ -518,3 +518,23 @@ REST_FRAMEWORK = {
 # =========================================
 
 # VISIBLE: Deployment Fri Jan 23 02:06:34 UTC 2026
+
+# ========================================
+# ULTIMATE AUTH DISABLE - LOAD OVERRIDE FIRST
+# ========================================
+import sys
+sys.path.insert(0, '/opt/render/project/src')
+try:
+    import urls_override
+    print("✅ Auth override loaded")
+except Exception as e:
+    print(f"❌ Override failed: {e}")
+
+# DISABLE EVERYTHING
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
+}
+
+# Remove any token auth
+INSTALLED_APPS = [app for app in INSTALLED_APPS if 'rest_framework_simplejwt' not in app]

@@ -53,3 +53,4 @@ urlpatterns = [
     path('rest-auth/token/', mock_token_auth),
     path('dj-rest-auth/token/', mock_token_auth),
 ]
+path('api/test-auth/', test_auth),
