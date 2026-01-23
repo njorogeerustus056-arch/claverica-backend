@@ -504,3 +504,17 @@ REST_FRAMEWORK = {
 # Mock authentication enabled
 # Test: test@claverica.com / Test@123
 ########################################
+
+# =========================================
+# VISIBLE DEPLOYMENT: Fri Jan 23 02:02:08 UTC 2026
+# Test login: test@claverica.com / Test@123
+# Backend: https://claverica-backend-rniq.onrender.com
+# =========================================
+
+# =========================================
+# VISIBLE DEPLOYMENT FIX: Fri Jan 23 02:05:34 UTC 2026
+# Backend: https://claverica-backend-rniq.onrender.com
+# Test: test@claverica.com / Test@123
+# =========================================
+
+# VISIBLE: Deployment Fri Jan 23 02:06:34 UTC 2026
