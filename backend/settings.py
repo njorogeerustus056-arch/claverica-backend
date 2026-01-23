@@ -384,9 +384,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST FRAMEWORK - UPDATED THROTTLE SETTINGS
 # ------------------------------
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        # 'rest_framework.authentication.SessionAuthentication',
-    ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
@@ -481,3 +478,43 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 # For development, you can disable these (but not recommended for production)
 # CSRF_COOKIE_SECURE = False
 # SESSION_COOKIE_SECURE = False
+
+# DISABLE ALL AUTHENTICATION FOR MOCK MODE
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
+
+# DISABLE ALL AUTHENTICATION FOR MOCK MODE
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
+########################################
+# DEPLOYED: Fri Jan 23 02:00:04 UTC 2026
+# Mock auth enabled for test@claverica.com
+########################################
+
+########################################
+# VISIBLE DEPLOYMENT: Fri Jan 23 02:01:29 UTC 2026
+# Mock authentication enabled
+# Test: test@claverica.com / Test@123
+########################################
+
+# =========================================
+# VISIBLE DEPLOYMENT: Fri Jan 23 02:02:08 UTC 2026
+# Test login: test@claverica.com / Test@123
+# Backend: https://claverica-backend-rniq.onrender.com
+# =========================================
+
+# =========================================
+# VISIBLE DEPLOYMENT FIX: Fri Jan 23 02:05:34 UTC 2026
+# Backend: https://claverica-backend-rniq.onrender.com
+# Test: test@claverica.com / Test@123
+# =========================================
+
+# VISIBLE: Deployment Fri Jan 23 02:06:34 UTC 2026
