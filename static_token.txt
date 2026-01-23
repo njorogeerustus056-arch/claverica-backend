@@ -1,0 +1,13 @@
+STATIC JWT TOKEN FOR FRONTEND TESTING:
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJlbWFpbCI6ImFkbWluQGNsYXZlcmljYS5jb20iLCJleHAiOjE3NzM2NDgwMDB9.static_signature_123
+
+USER DATA:
+{
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJlbWFpbCI6ImFkbWluQGNsYXZlcmljYS5jb20iLCJleHAiOjE3NzM2NDgwMDB9.static_signature_123",
+  "refresh": "static_refresh_token",
+  "user": {
+    "id": 1,
+    "email": "admin@claverica.com",
+    "name": "Admin User"
+  }
+}

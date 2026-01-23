@@ -1,0 +1,4 @@
+# ADMIN FIXES DEPLOYED Wed Jan 21 09:36:06 UTC 2026
+✅ Database columns added: metadata, transaction_id
+✅ Admin panels fixed: tasks, receipts, withdrawal
+✅ Django system checks pass

@@ -1,0 +1,3 @@
+@echo off 
+echo Showing ComplianceProfile class... 
+python -c "with open('backend/compliance/models.py', 'r') as f: print(f.read()[2000:2500])" 

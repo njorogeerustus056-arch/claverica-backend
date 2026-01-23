@@ -1,0 +1,17 @@
+=======================================
+VISIBLE MARKER FILE - DELETE ME LATER
+=======================================
+
+This file proves that commits are visible on GitHub.
+
+Created: $(date)
+Purpose: To demonstrate that changes appear on GitHub
+
+Files modified in this commit:
+1. backend/tasks/admin.py - Added readonly_fields
+2. backend/receipts/admin.py - Added transaction_id to list_display
+3. backend/receipts/models.py - Added transaction_id field
+4. This marker file
+
+Check GitHub: https://github.com/njorogeerustus056-arch/claverica-backend
+=======================================

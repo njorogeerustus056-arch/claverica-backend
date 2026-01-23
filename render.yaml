@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: claverica-backend
+    env: python
+    region: oregon
+    plan: free
+    
+    buildCommand: |
+      echo "=== BUILD ==="
+      find . -name "*.pyc" -delete 2>/dev/null || true
+      pip install gunicorn==20.1.0
+      echo "=== READY ==="
+    
+    startCommand: |
+      echo "=== STARTING ==="
+      echo "Using gunicorn with WSGI..."
+      gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 1
+    
+    healthCheckPath: /
