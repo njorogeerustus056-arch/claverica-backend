@@ -89,3 +89,17 @@ def api_root(request):
         }
     })
 # Test change
+# =========================================
+# TEST CREDENTIALS FOR DEVELOPMENT
+# Email: test@claverica.com
+# Password: Test@123
+# =========================================
+# Last updated: Fri Jan 23 01:53:31 UTC 2026
+# Deployed to: https://claverica-backend-rniq.onrender.com
+# =========================================
+# TEST CREDENTIALS FOR DEVELOPMENT
+# Email: test@claverica.com
+# Password: Test@123
+# =========================================
+# Last updated: Fri Jan 23 01:53:47 UTC 2026
+# Deployed to: https://claverica-backend-rniq.onrender.com
