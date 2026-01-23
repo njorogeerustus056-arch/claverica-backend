@@ -384,9 +384,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST FRAMEWORK - UPDATED THROTTLE SETTINGS
 # ------------------------------
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        # 'rest_framework.authentication.SessionAuthentication',
-    ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
@@ -481,3 +478,19 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 # For development, you can disable these (but not recommended for production)
 # CSRF_COOKIE_SECURE = False
 # SESSION_COOKIE_SECURE = False
+
+# DISABLE ALL AUTHENTICATION FOR MOCK MODE
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
+
+# DISABLE ALL AUTHENTICATION FOR MOCK MODE
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
