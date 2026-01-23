@@ -494,3 +494,13 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
 }
+########################################
+# DEPLOYED: Fri Jan 23 02:00:04 UTC 2026
+# Mock auth enabled for test@claverica.com
+########################################
+
+########################################
+# VISIBLE DEPLOYMENT: Fri Jan 23 02:01:29 UTC 2026
+# Mock authentication enabled
+# Test: test@claverica.com / Test@123
+########################################
