@@ -1,270 +1,183 @@
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from django.core.paginator import Paginator
 from django.db.models import Sum, Q, Count
-from backend.transactions.models import Transaction, TransactionLog
-from .serializers import (
-    TransactionSerializer, 
-    TransactionCreateSerializer,
-    TransactionUpdateSerializer,
-    TransactionLogSerializer
-)
 from datetime import datetime, timedelta
 from decimal import Decimal
-
+from transactions.models import Wallet, Transaction
+from transactions.services import WalletService, InsufficientFundsError
 
 def index(request):
     return HttpResponse("Hello, this is the Transactions API endpoint.")
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])  # ADDED: Security
+def get_wallet_balance(request, account_number):
+    """
+    Get wallet balance for an account
+    """
+    try:
+        # Security check: User can only access their own wallet
+        if request.user.account_number != account_number:
+            return Response(
+                {'error': 'Unauthorized access'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        balance = WalletService.get_balance(account_number)
+        return Response({
+            'account_number': account_number,
+            'balance': str(balance),
+            'currency': 'USD'
+        })
+    except Wallet.DoesNotExist:
+        return Response(
+            {'error': f'Wallet not found for account {account_number}'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 @api_view(['POST'])
-def create_transaction_view(request):
+@permission_classes([IsAuthenticated])  # ADDED: Security
+def credit_wallet(request):
     """
-    Create a new transaction
-    """
-    serializer = TransactionCreateSerializer(data=request.data)
-    
-    if serializer.is_valid():
-        transaction = serializer.save()
-        
-        # Create audit log
-        TransactionLog.objects.create(
-            transaction=transaction,
-            user_id=transaction.user_id,
-            action='create',
-            details=f"Created transaction {transaction.transaction_id}",
-            ip_address=get_client_ip(request)
-        )
-        
-        return Response({
-            "message": "Transaction created successfully",
-            "transaction": TransactionSerializer(transaction).data
-        }, status=status.HTTP_201_CREATED)
-    
-    return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET'])
-def list_transactions_view(request):
-    """
-    List all transactions for a user with filtering and pagination
-    """
-    user_id = request.GET.get('user_id')
-    if not user_id:
-        return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Get query parameters
-    transaction_type = request.GET.get('type')
-    status_filter = request.GET.get('status')
-    category = request.GET.get('category')
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
-    search = request.GET.get('search')
-    page = int(request.GET.get('page', 1))
-    page_size = int(request.GET.get('page_size', 10))
-    
-    # Build query
-    transactions = Transaction.objects.filter(user_id=user_id)
-    
-    if transaction_type:
-        transactions = transactions.filter(type=transaction_type)
-    if status_filter:
-        transactions = transactions.filter(status=status_filter)
-    if category:
-        transactions = transactions.filter(category=category)
-    if start_date:
-        transactions = transactions.filter(transaction_date__gte=start_date)
-    if end_date:
-        transactions = transactions.filter(transaction_date__lte=end_date)
-    if search:
-        transactions = transactions.filter(
-            Q(merchant__icontains=search) | 
-            Q(description__icontains=search) |
-            Q(transaction_id__icontains=search)
-        )
-    
-    # Pagination
-    paginator = Paginator(transactions, page_size)
-    page_obj = paginator.get_page(page)
-    
-    serializer = TransactionSerializer(page_obj, many=True)
-    
-    return Response({
-        "transactions": serializer.data,
-        "pagination": {
-            "total": paginator.count,
-            "pages": paginator.num_pages,
-            "current_page": page,
-            "page_size": page_size,
-            "has_next": page_obj.has_next(),
-            "has_previous": page_obj.has_previous(),
-        }
-    })
-
-
-@api_view(['GET'])
-def get_transaction_detail_view(request, transaction_id):
-    """
-    Get details of a specific transaction
+    Credit wallet (add money) - used by Payments app
     """
     try:
-        transaction = Transaction.objects.get(id=transaction_id)
-        
-        # Create audit log
-        TransactionLog.objects.create(
-            transaction=transaction,
-            user_id=transaction.user_id,
-            action='view',
-            details=f"Viewed transaction {transaction.transaction_id}",
-            ip_address=get_client_ip(request)
-        )
-        
-        serializer = TransactionSerializer(transaction)
-        return Response({"transaction": serializer.data})
-    except Transaction.DoesNotExist:
-        return Response({"error": "Transaction not found"}, status=status.HTTP_404_NOT_FOUND)
+        account_number = request.data.get('account_number')
+        amount = Decimal(str(request.data.get('amount', 0)))
+        reference = request.data.get('reference', '')
+        description = request.data.get('description', '')
 
-
-@api_view(['PATCH'])
-def update_transaction_view(request, transaction_id):
-    """
-    Update a transaction
-    """
-    try:
-        transaction = Transaction.objects.get(id=transaction_id)
-        serializer = TransactionUpdateSerializer(transaction, data=request.data, partial=True)
-        
-        if serializer.is_valid():
-            serializer.save()
-            
-            # Create audit log
-            TransactionLog.objects.create(
-                transaction=transaction,
-                user_id=transaction.user_id,
-                action='update',
-                details=f"Updated transaction {transaction.transaction_id}",
-                ip_address=get_client_ip(request)
+        if not account_number or amount <= 0:
+            return Response(
+                {'error': 'Valid account_number and amount > 0 required'},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            
-            return Response({
-                "message": "Transaction updated successfully",
-                "transaction": TransactionSerializer(transaction).data
-            })
-        
-        return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-        
-    except Transaction.DoesNotExist:
-        return Response({"error": "Transaction not found"}, status=status.HTTP_404_NOT_FOUND)
 
+        new_balance = WalletService.credit_wallet(account_number, amount, reference, description)
 
-@api_view(['DELETE'])
-def delete_transaction_view(request, transaction_id):
+        return Response({
+            'message': 'Wallet credited successfully',
+            'account_number': account_number,
+            'amount_added': str(amount),
+            'new_balance': str(new_balance),
+            'reference': reference,
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except Wallet.DoesNotExist:
+        return Response(
+            {'error': f'Wallet not found for account {account_number}'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])  # ADDED: Security
+def debit_wallet(request):
     """
-    Delete a transaction (soft delete by marking as cancelled)
+    Debit wallet (remove money) - used by Transfers app
     """
     try:
-        transaction = Transaction.objects.get(id=transaction_id)
-        
-        # Soft delete - mark as cancelled
-        transaction.status = 'cancelled'
-        transaction.save()
-        
-        # Create audit log
-        TransactionLog.objects.create(
-            transaction=transaction,
-            user_id=transaction.user_id,
-            action='delete',
-            details=f"Cancelled transaction {transaction.transaction_id}",
-            ip_address=get_client_ip(request)
+        account_number = request.data.get('account_number')
+        amount = Decimal(str(request.data.get('amount', 0)))
+        reference = request.data.get('reference', '')
+        description = request.data.get('description', '')
+
+        if not account_number or amount <= 0:
+            return Response(
+                {'error': 'Valid account_number and amount > 0 required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        new_balance = WalletService.debit_wallet(account_number, amount, reference, description)
+
+        return Response({
+            'message': 'Wallet debited successfully',
+            'account_number': account_number,
+            'amount_deducted': str(amount),
+            'new_balance': str(new_balance),
+            'reference': reference,
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except InsufficientFundsError as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
         )
-        
-        return Response({"message": "Transaction cancelled successfully"})
-        
-    except Transaction.DoesNotExist:
-        return Response({"error": "Transaction not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['GET'])
-def get_transaction_stats_view(request):
-    """
-    Get transaction statistics for a user
-    """
-    user_id = request.GET.get('user_id')
-    if not user_id:
-        return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Get date range (default to last 30 days)
-    days = int(request.GET.get('days', 30))
-    start_date = datetime.now() - timedelta(days=days)
-    
-    transactions = Transaction.objects.filter(
-        user_id=user_id,
-        transaction_date__gte=start_date
-    )
-    
-    # Calculate totals
-    total_transactions = transactions.count()
-    
-    credits = transactions.filter(type='credit', status='completed')
-    total_credits = credits.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-    
-    debits = transactions.filter(type='debit', status='completed')
-    total_debits = debits.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-    
-    net_balance = total_credits - total_debits
-    
-    # Status breakdown
-    status_counts = transactions.values('status').annotate(count=Count('id'))
-    status_breakdown = {item['status']: item['count'] for item in status_counts}
-    
-    # Category breakdown
-    category_stats = {}
-    for category, _ in Transaction.CATEGORY_CHOICES:
-        cat_transactions = transactions.filter(category=category, status='completed')
-        count = cat_transactions.count()
-        amount = cat_transactions.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        if count > 0:
-            category_stats[category] = {
-                "count": count,
-                "total_amount": float(amount)
-            }
-    
-    return Response({
-        "total_transactions": total_transactions,
-        "total_credits": float(total_credits),
-        "total_debits": float(total_debits),
-        "net_balance": float(net_balance),
-        "currency": "USD",
-        "pending_count": status_breakdown.get('pending', 0),
-        "completed_count": status_breakdown.get('completed', 0),
-        "failed_count": status_breakdown.get('failed', 0),
-        "category_breakdown": category_stats,
-        "period_days": days
-    })
-
+    except Wallet.DoesNotExist:
+        return Response(
+            {'error': f'Wallet not found for account {account_number}'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 @api_view(['GET'])
-def get_recent_activity_view(request):
+@permission_classes([IsAuthenticated])  # ADDED: Security
+def get_transaction_history(request, account_number):
     """
-    Get recent transaction activity for a user
+    Get transaction history for an account
     """
-    user_id = request.GET.get('user_id')
-    if not user_id:
-        return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    limit = int(request.GET.get('limit', 10))
-    
-    transactions = Transaction.objects.filter(user_id=user_id).order_by('-transaction_date')[:limit]
-    serializer = TransactionSerializer(transactions, many=True)
-    
-    return Response({
-        "activities": serializer.data,
-        "count": len(serializer.data)
-    })
+    try:
+        # Security check: User can only access their own history
+        if request.user.account_number != account_number:
+            return Response(
+                {'error': 'Unauthorized access'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
+        limit = int(request.GET.get('limit', 50))
+        transactions = WalletService.get_transaction_history(account_number, limit)
+
+        # Convert to serializable format
+        transaction_list = []
+        for tx in transactions:
+            transaction_list.append({
+                'id': str(tx.id),
+                'transaction_type': tx.transaction_type,
+                'amount': str(tx.amount),
+                'reference': tx.reference,
+                'description': tx.description,
+                'balance_before': str(tx.balance_before),
+                'balance_after': str(tx.balance_after),
+                'timestamp': tx.timestamp.isoformat(),
+                'metadata': tx.metadata
+            })
+
+        return Response({
+            'account_number': account_number,
+            'transactions': transaction_list,
+            'count': len(transaction_list)
+        })
+
+    except Wallet.DoesNotExist:
+        return Response(
+            {'error': f'Wallet not found for account {account_number}'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 def get_client_ip(request):
     """
@@ -276,3 +189,115 @@ def get_client_ip(request):
     else:
         ip = request.META.get('REMOTE_ADDR')
     return ip
+
+# ===== NEW FUNCTIONS FOR FRONTEND DASHBOARD =====
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_wallet_balance_for_current_user(request):
+    """Get wallet balance for the current user (authenticated)"""
+    try:
+        user = request.user
+        wallet = Wallet.objects.get(account=user)
+        return Response({
+            "balance": float(wallet.balance),
+            "currency": wallet.currency,
+            "account_number": user.account_number  # FIXED: Direct attribute
+        })
+    except Wallet.DoesNotExist:
+        return Response({
+            "balance": 0,
+            "currency": "USD",
+            "account_number": user.account_number,
+            "message": "No wallet found"
+        })
+    except Exception as e:
+        return Response({
+            "error": str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_recent_transactions(request):
+    """Get recent transactions for the current user"""
+    try:
+        user = request.user
+        wallet = Wallet.objects.get(account=user)
+        limit = int(request.GET.get("limit", 10))
+
+        transactions = Transaction.objects.filter(
+            wallet=wallet
+        ).order_by("-timestamp")[:limit]
+
+        transaction_list = []
+        for tx in transactions:
+            transaction_list.append({
+                "id": tx.id,  # Keep as number (not str)
+                "transaction_type": tx.transaction_type,  # FIXED: Changed from "type"
+                "amount": float(tx.amount),
+                "currency": wallet.currency,
+                "created_at": tx.timestamp.isoformat(),  # FIXED: Changed from "date"
+                "description": tx.description,
+                "status": "completed",
+                "reference": tx.reference or f"TX-{tx.id}",
+            })
+
+        return Response({
+            "account_number": user.account_number,
+            "transactions": transaction_list,
+            "count": len(transaction_list),
+        })
+
+    except Wallet.DoesNotExist:
+        return Response({
+            "account_number": user.account_number,
+            "transactions": [],
+            "count": 0,
+            "message": "No wallet found"
+        })
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_stats(request):
+    """Get dashboard statistics for the current user"""
+    try:
+        user = request.user
+        wallet = Wallet.objects.get(account=user)
+
+        # Get ALL transactions (not sliced)
+        all_txs = Transaction.objects.filter(wallet=wallet)
+
+        # FIXED: Now matches new transaction types ('credit', 'debit')
+        income = all_txs.filter(
+            transaction_type="credit"
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
+        expenses = all_txs.filter(
+            transaction_type="debit"
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
+        return Response({
+            "total_balance": float(wallet.balance),
+            "total_income": float(income),
+            "total_expenses": float(expenses),
+            "currency": wallet.currency,
+        })
+
+    except Wallet.DoesNotExist:
+        return Response({
+            "total_balance": 0,
+            "total_income": 0,
+            "total_expenses": 0,
+            "currency": "USD",
+            "message": "No wallet found"
+        })
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

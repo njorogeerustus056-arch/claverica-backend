@@ -1,0 +1,17 @@
+﻿# EMAIL CONFIGURATION FOR HOSTINGER
+# For testing - prints to console
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# For production with Hostinger
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.hostinger.com'  # Hostinger SMTP server
+EMAIL_PORT = 587  # Usually 587 for TLS
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'noreply@claverica.com'  # Your Hostinger email
+EMAIL_HOST_PASSWORD = 'YOUR_HOSTINGER_EMAIL_PASSWORD'  # Email password
+DEFAULT_FROM_EMAIL = 'Claverica Security <noreply@claverica.com>'
+SERVER_EMAIL = 'noreply@claverica.com'
+
+# For testing without real email (comment out above and uncomment below)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@claverica.com'

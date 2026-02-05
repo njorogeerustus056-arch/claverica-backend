@@ -1,5 +1,5 @@
 from django.db import models
-from backend.accounts.models import Account
+from accounts.models import Account
 
 class Receipt(models.Model):
     # File upload fields

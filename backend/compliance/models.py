@@ -1,33 +1,251 @@
+# compliance/models.py
 from django.db import models
+from django.conf import settings
+from django.utils import timezone
 import uuid
+import random
 
-class Check(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user_id = models.CharField(max_length=255, default='0')
-    check_type = models.CharField(max_length=100)
-    status = models.CharField(max_length=50, default='pending')
-    risk_score = models.FloatField(default=0.0)
-    matches_found = models.IntegerField(default=0)
-    verification_id = models.UUIDField(blank=True, null=True)
-    name = models.CharField(max_length=255, blank=True, null=True)
-    notes = models.TextField(blank=True, null=True)
-    provider = models.CharField(max_length=100, blank=True, null=True)
-    provider_reference = models.CharField(max_length=255, blank=True, null=True)
-    result = models.JSONField(blank=True, null=True)
-    checked_at = models.DateTimeField(auto_now_add=True)
+# Named function to generate UUID (NO LAMBDA)
+def generate_uuid_reference():
+    return str(uuid.uuid4())
+
+class TransferRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending_tac', 'Pending TAC Generation'),
+        ('tac_generated', 'TAC Generated - Awaiting Manual Send'),
+        ('tac_sent', 'TAC Sent to Client'),
+        ('tac_verified', 'TAC Verified'),
+        ('pending_settlement', 'Pending External Settlement'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('kyc_required', 'KYC Required'),
+    ]
+
+    DESTINATION_TYPES = [
+        ('bank', 'Bank Account'),
+        ('mobile_wallet', 'Mobile Wallet'),
+        ('crypto', 'Cryptocurrency'),
+    ]
+
+    # ✅ FIXED: Using named function instead of lambda
+    reference = models.CharField(max_length=50, unique=True, default=generate_uuid_reference)
+
+    # ✅ CRITICAL FIX: Use AUTH_USER_MODEL which points to your Account model
+    account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,  # This points to your custom Account model
+        on_delete=models.CASCADE,
+        related_name='transfer_requests'
+    )
+
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    recipient_name = models.CharField(max_length=200)
+    destination_type = models.CharField(max_length=20, choices=DESTINATION_TYPES)
+    destination_details = models.JSONField(default=dict)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_tac')
+    requires_kyc = models.BooleanField(default=False)
+    kyc_verified = models.BooleanField(default=False)
+
+    tac_code = models.CharField(max_length=6, blank=True, null=True)
+    tac_generated_at = models.DateTimeField(null=True, blank=True)
+    tac_expires_at = models.DateTimeField(null=True, blank=True)
+    tac_sent_at = models.DateTimeField(null=True, blank=True)
+    tac_verified_at = models.DateTimeField(null=True, blank=True)
+
+    generated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='generated_tacs'
+    )
+    settled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='settled_transfers'
+    )
+    settled_at = models.DateTimeField(null=True, blank=True)
+    external_reference = models.CharField(max_length=100, blank=True, null=True)
+
+    narration = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField(blank=True, null=True)
-    
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
-        db_table = 'compliance_checks'
-        ordering = ['-checked_at']
-    
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['account', 'status']),
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['tac_code']),
+        ]
+
     def __str__(self):
-        return f'{self.check_type} - {self.user_id}'
-    
+        # Safe access to account email
+        account_email = self.account.email if self.account else 'No Account'
+        return f"{self.reference} - {account_email}"
+
     def save(self, *args, **kwargs):
-        # Ensure checked_at is set if not already
-        if not self.checked_at:
-            from django.utils import timezone
-            self.checked_at = timezone.now()
+        if not self.pk:
+            threshold = getattr(settings, 'KYC_TRANSFER_THRESHOLD', 1500.00)
+            if self.amount >= threshold:
+                self.requires_kyc = True
+
+                try:
+                    from kyc.models import KYCDocument
+                    has_approved_kyc = KYCDocument.objects.filter(
+                        account=self.account,  # ✅ FIXED: Changed 'user' to 'account'
+                        status='approved'
+                    ).exists()
+
+                    if not has_approved_kyc:
+                        self.status = 'kyc_required'
+                except ImportError:
+                    pass
+
         super().save(*args, **kwargs)
+
+    def generate_tac(self, admin_user=None):
+        if self.status not in ['pending_tac', 'tac_generated']:
+            raise ValueError(f"Cannot generate TAC for status: {self.status}")
+
+        self.tac_code = str(random.randint(100000, 999999))
+        self.tac_generated_at = timezone.now()
+        self.tac_expires_at = timezone.now() + timezone.timedelta(hours=24)
+
+        if admin_user:
+            self.generated_by = admin_user
+
+        self.status = 'tac_generated'
+        self.save()
+
+        TransferLog.objects.create(
+            transfer=self,
+            log_type='tac_generated',
+            message=f'TAC {self.tac_code} generated by admin'
+        )
+
+        return self.tac_code
+
+    def mark_tac_sent(self):
+        self.status = 'tac_sent'
+        self.tac_sent_at = timezone.now()
+        self.save()
+
+        TransferLog.objects.create(
+            transfer=self,
+            log_type='tac_sent',
+            message='TAC manually sent to client by admin'
+        )
+
+    def verify_tac(self, code):
+        if self.status != 'tac_sent':
+            raise ValueError("TAC not sent to client yet")
+
+        if not self.tac_code or self.tac_code != code:
+            return False
+
+        if self.tac_expires_at and timezone.now() > self.tac_expires_at:
+            return False
+
+        self.status = 'tac_verified'
+        self.tac_verified_at = timezone.now()
+        self.save()
+
+        TransferLog.objects.create(
+            transfer=self,
+            log_type='tac_verified',
+            message=f'TAC verified successfully'
+        )
+
+        return True
+
+    def mark_for_settlement(self, admin_user=None, external_ref=None):
+        if self.status != 'tac_verified':
+            raise ValueError("Transfer must have verified TAC first")
+
+        self.status = 'pending_settlement'
+        if admin_user:
+            self.settled_by = admin_user
+        if external_ref:
+            self.external_reference = external_ref
+
+        self.save()
+
+        TransferLog.objects.create(
+            transfer=self,
+            log_type='pending_settlement',
+            message='Ready for external settlement'
+        )
+
+    def mark_completed(self):
+        self.status = 'completed'
+        self.settled_at = timezone.now()
+        self.save()
+
+        TransferLog.objects.create(
+            transfer=self,
+            log_type='completed',
+            message='Transfer completed with external settlement'
+        )
+
+
+class TransferLog(models.Model):
+    LOG_TYPES = [
+        ('created', 'Transfer Created'),
+        ('tac_generated', 'TAC Generated'),
+        ('tac_sent', 'TAC Sent'),
+        ('tac_verified', 'TAC Verified'),
+        ('status_change', 'Status Changed'),
+        ('pending_settlement', 'Pending Settlement'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('admin_note', 'Admin Note'),
+    ]
+
+    transfer = models.ForeignKey(TransferRequest, on_delete=models.CASCADE, related_name='logs')
+    log_type = models.CharField(max_length=20, choices=LOG_TYPES)
+    message = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.transfer.reference} - {self.log_type}"
+
+
+class ComplianceSetting(models.Model):
+    SETTING_TYPES = [
+        ('kyc_threshold', 'KYC Transfer Threshold'),
+        ('tac_expiry_hours', 'TAC Expiry Hours'),
+        ('daily_limit', 'Daily Transfer Limit'),
+        ('weekly_limit', 'Weekly Transfer Limit'),
+        ('monthly_limit', 'Monthly Transfer Limit'),
+    ]
+
+    setting_type = models.CharField(max_length=50, choices=SETTING_TYPES, unique=True)
+    value = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    class Meta:
+        ordering = ['setting_type']
+
+    def __str__(self):
+        return f"{self.get_setting_type_display()}: {self.value}"

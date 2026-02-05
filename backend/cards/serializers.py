@@ -1,144 +1,110 @@
 """
-cards/serializers.py - CORRECTED VERSION
+cards/serializers.py - FIXED VERSION
 """
-
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from .models import Card, CardTransaction, CardType, CardStatus
+from .models import Card, CardTransaction
+from django.utils import timezone
 from decimal import Decimal
-
-User = get_user_model()
-
-
-class UserSerializer(serializers.ModelSerializer):
-    """Serializer for User model"""
-    
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'first_name', 'last_name']
-        read_only_fields = ['id']
+import re
 
 
 class CardSerializer(serializers.ModelSerializer):
-    """Serializer for Card model"""
-    
-    user = UserSerializer(read_only=True)
-    masked_number = serializers.ReadOnlyField()
-    card_type_display = serializers.CharField(source='get_card_type_display', read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+    """Card model serializer - FIXED"""
+    brand = serializers.SerializerMethodField()
+    masked_number = serializers.CharField(read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    can_spend = serializers.BooleanField(read_only=True)
+    formatted_balance = serializers.CharField(read_only=True)
+
+    # Account information
+    account_number = serializers.CharField(read_only=True)
+    full_name = serializers.CharField(read_only=True)
+
+    # Balance from Wallet (read-only)
+    balance = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        read_only=True
+    )
+
+    def get_brand(self, obj):
+        """Determine card brand from number"""
+        if hasattr(obj, 'card_number') and obj.card_number:
+            if obj.card_number.startswith('4'):
+                return 'Visa'
+            elif obj.card_number.startswith('5'):
+                return 'Mastercard'
+        return 'Visa'
+
     class Meta:
         model = Card
         fields = [
-            'id', 'user', 'card_type', 'card_type_display', 'card_number', 'last_four',
-            'masked_number', 'expiry_date', 'cardholder_name', 'balance',
-            'spending_limit', 'status', 'status_display', 'color_scheme', 'is_primary',
-            'created_at', 'updated_at'
+            'id', 'card_type', 'brand', 'masked_number', 'last_four',
+            'expiry_date', 'cardholder_name',
+            'balance', 'formatted_balance',
+            'account_number', 'full_name',
+            'status', 'color_scheme', 'is_primary', 'created_at',
+            'is_expired', 'can_spend'
         ]
-        read_only_fields = [
-            'id', 'user', 'last_four', 'masked_number',
-            'expiry_date', 'balance', 'created_at', 'updated_at'
-        ]
-        extra_kwargs = {
-            'card_number': {'write_only': True},
-        }
+        read_only_fields = ['last_four', 'created_at', 'masked_number',
+                           'balance', 'account_number', 'full_name']
+
+    def validate_cardholder_name(self, value):
+        if not value or len(value.strip()) < 2:
+            raise serializers.ValidationError("Cardholder name must be at least 2 characters long")
+        return value.strip()
+
+    def validate_expiry_date(self, value):
+        if not re.match(r'^\d{2}/\d{2}$', value):
+            raise serializers.ValidationError("Expiry date must be in MM/YY format")
+
+        month, year = value.split('/')
+        current_year = timezone.now().year % 100
+        current_month = timezone.now().month
+
+        if int(year) < current_year or (int(year) == current_year and int(month) < current_month):
+            raise serializers.ValidationError("Card is expired")
+        return value
 
 
 class CardCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating new cards"""
-    
+    """Card creation serializer"""
     class Meta:
         model = Card
-        fields = [
-            'card_type', 'cardholder_name', 'spending_limit', 'color_scheme'
-        ]
-    
-    def validate_spending_limit(self, value):
-        if value <= Decimal('0.00'):
-            raise serializers.ValidationError("Spending limit must be greater than zero.")
-        return value
+        fields = ['cardholder_name', 'color_scheme', 'is_primary']
 
 
 class CardUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating cards"""
-    
+    """Card update serializer"""
     class Meta:
         model = Card
-        fields = ['spending_limit', 'status', 'is_primary']
-    
-    def validate_spending_limit(self, value):
-        if value <= Decimal('0.00'):
-            raise serializers.ValidationError("Spending limit must be greater than zero.")
-        return value
+        fields = ['cardholder_name', 'color_scheme', 'status', 'is_primary']
 
 
 class CardTransactionSerializer(serializers.ModelSerializer):
-    """Serializer for Transaction model"""
-    
-    user = UserSerializer(read_only=True)
-    card_last_four = serializers.CharField(source='card.last_four', read_only=True)
-    transaction_type_display = serializers.CharField(source='get_transaction_type_display', read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+    """Serializer for card transactions"""
     class Meta:
         model = CardTransaction
-        fields = [
-            'id', 'user', 'card', 'card_last_four', 'amount',
-            'merchant', 'category', 'transaction_type', 'transaction_type_display',
-            'status', 'status_display', 'description', 'created_at'
-        ]
-        read_only_fields = ['id', 'user', 'created_at']
+        fields = '__all__'
 
 
 class CardTransactionCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating transactions"""
-    
+    """Serializer for creating card transactions"""
     class Meta:
         model = CardTransaction
-        fields = [
-            'card', 'amount', 'merchant', 'category',
-            'transaction_type', 'description'
-        ]
-    
-    def validate_amount(self, value):
-        if value <= Decimal('0.00'):
-            raise serializers.ValidationError("Amount must be greater than zero.")
-        return value
+        fields = ['amount', 'merchant', 'category', 'transaction_type', 'description']
 
 
 class CardBalanceSerializer(serializers.Serializer):
-    """Serializer for card balance information"""
-    
+    """Serializer for card balance"""
     card_balance = serializers.DecimalField(max_digits=10, decimal_places=2)
-    account_balance = serializers.DecimalField(max_digits=10, decimal_places=2)
+    wallet_balance = serializers.DecimalField(max_digits=10, decimal_places=2)
 
 
 class TopUpSerializer(serializers.Serializer):
-    """Serializer for card top-up"""
-    
+    """Serializer for card top-up - FIXED Decimal warning"""
     amount = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
-        min_value=Decimal('0.01')
+        min_value=Decimal('0.01')  # ✅ FIXED: Use Decimal instead of float
     )
-
-
-class CardDetailSerializer(serializers.ModelSerializer):
-    """Detailed card serializer with additional information"""
-    
-    masked_number = serializers.ReadOnlyField()
-    recent_transactions = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Card
-        fields = [
-            'id', 'card_type', 'masked_number', 'last_four',
-            'expiry_date', 'cardholder_name', 'balance',
-            'spending_limit', 'status', 'color_scheme', 'is_primary',
-            'created_at', 'recent_transactions'
-        ]
-    
-    def get_recent_transactions(self, obj):
-        """Get recent transactions for this card"""
-        transactions = obj.transactions.all()[:5]  # Last 5 transactions
-        return CardTransactionSerializer(transactions, many=True).data

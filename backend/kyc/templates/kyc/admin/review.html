@@ -1,0 +1,119 @@
+﻿{% extends 'kyc/base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary mb-3">
+                ← Back to Dashboard
+            </a>
+            
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">🔍 Review KYC Document</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>User Information</h5>
+                            <p><strong>Email:</strong> {{ kyc_doc.user.email }}</p>
+                            <p><strong>Account Number:</strong> {{ kyc_doc.user.account_number }}</p>
+                            <p><strong>Document Type:</strong> {{ kyc_doc.get_document_type_display }}</p>
+                            <p><strong>Submitted:</strong> {{ kyc_doc.submitted_at|date:"M d, Y H:i" }}</p>
+                            
+                            {% if kyc_doc.expires_at %}
+                                <p><strong>Expires:</strong> {{ kyc_doc.expires_at|date:"M d, Y" }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Current Status</h5>
+                            <div class="alert alert-{% if kyc_doc.status == 'pending' %}warning{% elif kyc_doc.status == 'needs_correction' %}danger{% else %}info{% endif %}">
+                                <strong>Status:</strong> {{ kyc_doc.get_status_display }}
+                            </div>
+                            
+                            {% if kyc_doc.admin_notes %}
+                                <h6>Previous Notes:</h6>
+                                <div class="alert alert-light">
+                                    {{ kyc_doc.admin_notes|linebreaks }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <h6>ID Front Image</h6>
+                            {% if kyc_doc.id_front_image %}
+                                <img src="{{ kyc_doc.id_front_image.url }}" alt="ID Front" class="img-fluid img-thumbnail">
+                            {% else %}
+                                <div class="alert alert-warning">No front image uploaded</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <h6>ID Back Image</h6>
+                            {% if kyc_doc.id_back_image %}
+                                <img src="{{ kyc_doc.id_back_image.url }}" alt="ID Back" class="img-fluid img-thumbnail">
+                            {% else %}
+                                <div class="alert alert-info">No back image uploaded</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Facial Verification</h6>
+                            {% if kyc_doc.facial_image %}
+                                <img src="{{ kyc_doc.facial_image.url }}" alt="Facial" class="img-fluid img-thumbnail">
+                            {% else %}
+                                <div class="alert alert-warning">No facial image uploaded</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="admin_notes" class="form-label">Review Notes</label>
+                            <textarea name="admin_notes" id="admin_notes" rows="4" class="form-control" 
+                                      placeholder="Enter your review notes here..."></textarea>
+                            <div class="form-text">These notes will be visible to the user for rejected/correction cases.</div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <button type="submit" name="action" value="approve" class="btn btn-success btn-lg w-100">
+                                    ✅ Approve KYC
+                                </button>
+                                <small class="form-text text-muted">User will gain access to all services</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" name="action" value="needs_correction" class="btn btn-warning btn-lg w-100">
+                                    ⚠️ Needs Correction
+                                </button>
+                                <small class="form-text text-muted">User will be asked to submit new documents</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" name="action" value="reject" class="btn btn-danger btn-lg w-100">
+                                    ❌ Reject KYC
+                                </button>
+                                <small class="form-text text-muted">User will be notified of rejection</small>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .img-thumbnail {
+        max-height: 300px;
+        object-fit: contain;
+    }
+    .btn-lg {
+        padding: 15px;
+        margin-bottom: 5px;
+    }
+</style>
+{% endblock %}

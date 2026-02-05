@@ -1,0 +1,150 @@
+﻿{% extends 'kyc/base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2 class="mb-4">📊 KYC Admin Dashboard</h2>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title">Pending Review</h5>
+                    <h2 class="card-text">{{ stats.total_pending }}</h2>
+                    <p class="card-text">Documents waiting for review</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">Needs Correction</h5>
+                    <h2 class="card-text">{{ stats.total_needs_correction }}</h2>
+                    <p class="card-text">Requires user action</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title">Expiring Soon</h5>
+                    <h2 class="card-text">{{ stats.expiring_soon }}</h2>
+                    <p class="card-text">Will expire in 7 days</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-secondary">
+                <div class="card-body">
+                    <h5 class="card-title">Under Review</h5>
+                    <h2 class="card-text">{{ stats.total_under_review }}</h2>
+                    <p class="card-text">Currently being reviewed</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pending Documents Table -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">📋 Pending Documents ({{ pending_docs|length }})</h5>
+        </div>
+        <div class="card-body">
+            {% if pending_docs %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>User Email</th>
+                            <th>Document Type</th>
+                            <th>Submitted</th>
+                            <th>Expires</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for doc in pending_docs %}
+                        <tr>
+                            <td>{{ doc.user.email }}</td>
+                            <td>{{ doc.get_document_type_display }}</td>
+                            <td>{{ doc.submitted_at|date:"M d, Y H:i" }}</td>
+                            <td>
+                                {% if doc.expires_at %}
+                                    {{ doc.expires_at|date:"M d, Y" }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'admin_review_document' doc.id %}" class="btn btn-sm btn-primary">
+                                    Review
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> No pending documents to review!
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Needs Correction Table -->
+    {% if needs_correction %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">⚠️ Needs Correction ({{ needs_correction|length }})</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>User Email</th>
+                            <th>Document Type</th>
+                            <th>Submitted</th>
+                            <th>Reason</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for doc in needs_correction %}
+                        <tr>
+                            <td>{{ doc.user.email }}</td>
+                            <td>{{ doc.get_document_type_display }}</td>
+                            <td>{{ doc.submitted_at|date:"M d, Y" }}</td>
+                            <td>{{ doc.rejection_reason|truncatechars:50 }}</td>
+                            <td>
+                                <a href="{% url 'admin_review_document' doc.id %}" class="btn btn-sm btn-warning">
+                                    Re-review
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .card {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .table th {
+        background-color: #f8f9fa;
+        border-top: none;
+    }
+</style>
+{% endblock %}

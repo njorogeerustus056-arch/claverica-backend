@@ -1,0 +1,3 @@
+﻿# Find the EMAIL_BACKEND line and add DEFAULT_FROM_EMAIL below it
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'Claverica Security <noreply@claverica.com>'

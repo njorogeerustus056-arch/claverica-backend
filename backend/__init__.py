@@ -1,3 +1,2 @@
-# Clean init - no Django
-print("✅ Clean backend init")
-# Adding timestamp for visibility
+# backend/__init__.py 
+print("Clean backend init") 

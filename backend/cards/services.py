@@ -1,152 +1,109 @@
 """
-cards/services.py - Business logic for cards (FIXED VERSION)
+cards/services.py - Get cardholder name from User model
 """
-
-import random
-from datetime import datetime, timedelta
+from django.conf import settings
+from .models import Card, CardStatus
+from .exceptions import CardException, CardNotFoundException
+from transactions.services import WalletService
 from decimal import Decimal
-from django.db import transaction
-from django.contrib.auth import get_user_model
-from .models import Card, CardTransaction, CardStatus  # FIXED: CardTransaction instead of Transaction
-from .exceptions import CardException
-
-User = get_user_model()
+import random
+import time
 
 
 class CardService:
-    """Service for card-related operations"""
-    
+    """Card service for business logic"""
+
     @staticmethod
-    def generate_card_details():
-        """Generate card details"""
-        return {
-            'card_number': ''.join([str(random.randint(0, 9)) for _ in range(16)]),
-            'cvv': ''.join([str(random.randint(0, 9)) for _ in range(3)]),
-            'expiry_date': (datetime.now() + timedelta(days=1825)).strftime("%m/%y")
-        }
-    
+    def generate_card_number(account_id):
+        """Generate unique card number"""
+        timestamp = int(time.time() * 1000)
+        random_part = random.randint(1000, 9999)
+        base_number = f"{timestamp}{random_part}{account_id}"
+
+        # Ensure 16 digits
+        while len(base_number) < 16:
+            base_number += str(random.randint(0, 9))
+
+        card_number = base_number[:16]
+        card_number = CardService._add_luhn_check_digit(card_number)
+        return card_number
+
     @staticmethod
-    def create_card(user, card_data):
-        """Create a new card for user"""
-        details = CardService.generate_card_details()
-        
-        # Check if this should be primary card
-        is_primary = not Card.objects.filter(user=user).exists()
-        
-        card = Card.objects.create(
-            user=user,
-            card_type=card_data.get('card_type'),
-            card_number=details['card_number'],
-            last_four=details['card_number'][-4:],
-            cvv=details['cvv'],
-            expiry_date=details['expiry_date'],
-            cardholder_name=card_data.get('cardholder_name'),
-            spending_limit=card_data.get('spending_limit', Decimal('5000.00')),
-            color_scheme=card_data.get('color_scheme', 'from-indigo-500 via-purple-500 to-pink-500'),
-            is_primary=is_primary,
-            status=CardStatus.ACTIVE
-        )
-        
-        return card
-    
+    def _add_luhn_check_digit(number):
+        """Add Luhn check digit"""
+        total = 0
+        reverse_digits = number[::-1]
+
+        for i, digit in enumerate(reverse_digits):
+            n = int(digit)
+            if i % 2 == 0:
+                n *= 2
+                if n > 9:
+                    n -= 9
+            total += n
+
+        check_digit = (10 - (total % 10)) % 10
+        return number + str(check_digit)
+
     @staticmethod
-    @transaction.atomic
-    def top_up_card(user, card_id, amount):
-        """Top up a card from user's account"""
-        card = Card.objects.select_for_update().get(id=card_id, user=user)
-        
-        # Get user's account
+    def create_card(account, card_type='virtual', is_primary=False, **kwargs):
+        """Create a new card for account"""
         try:
-            from payments.models import Account
-            account = Account.objects.select_for_update().filter(
-                user=user,
-                is_active=True
-            ).first()
-            
-            if not account:
-                raise CardException("No active account found")
-            
-            if account.balance < amount:
-                raise CardException("Insufficient account balance")
-            
-            # Perform transfer
-            account.balance -= amount
-            account.save()
-            
-        except ImportError:
-            raise CardException("Account management not available")
-        
-        # Update card balance
-        card.balance += amount
-        card.save()
-        
-        # Create transaction record
-        transaction_record = CardTransaction.objects.create(  # FIXED: CardTransaction instead of Transaction
-            user=user,
-            card=card,
-            amount=amount,
-            merchant='Card Top-up',
-            category='transfer',
-            transaction_type='credit',
-            status='completed',
-            description=f'Top-up to card ending in {card.last_four}'
-        )
-        
-        return {
-            'card': card,
-            'account': account,
-            'transaction': transaction_record
-        }
-    
-    @staticmethod
-    def freeze_card(user, card_id):
-        """Freeze a card"""
-        card = Card.objects.get(id=card_id, user=user)
-        card.status = CardStatus.FROZEN
-        card.save()
-        return card
-    
-    @staticmethod
-    def unfreeze_card(user, card_id):
-        """Unfreeze a card"""
-        card = Card.objects.get(id=card_id, user=user)
-        card.status = CardStatus.ACTIVE
-        card.save()
-        return card
-    
-    @staticmethod
-    def set_primary_card(user, card_id):
-        """Set a card as primary"""
-        with transaction.atomic():
-            # Remove primary from other cards
-            Card.objects.filter(user=user, is_primary=True).update(is_primary=False)
-            
-            # Set new primary
-            card = Card.objects.get(id=card_id, user=user)
-            card.is_primary = True
-            card.save()
-        
-        return card
+            # If setting as primary, unset existing primary
+            if is_primary:
+                Card.objects.filter(account=account, is_primary=True).update(is_primary=False)
 
+            # Generate card details
+            card_number = CardService.generate_card_number(account.id)
+            last_four = card_number[-4:]
 
-class TransactionService:
-    """Service for transaction-related operations"""
-    
+            # Generate CVV
+            cvv = str(random.randint(100, 999))
+
+            # Set expiry date
+            from django.utils import timezone
+            now = timezone.now()
+            expiry_month = now.month
+            expiry_year = (now.year + 3) % 100
+            expiry_date = f"{expiry_month:02d}/{expiry_year:02d}"
+
+            # Get user's name from Account (which IS User)
+            cardholder_name = kwargs.get('cardholder_name', '')
+            if not cardholder_name:
+                # FIXED: Account extends AbstractUser, so it has first_name, last_name, email
+                name = f"{account.first_name} {account.last_name}".strip()
+                cardholder_name = name if name else account.email
+
+            # Create card
+            card = Card.objects.create(
+                account=account,
+                card_type=card_type,
+                card_number=card_number,
+                last_four=last_four,
+                expiry_date=expiry_date,
+                cardholder_name=cardholder_name,
+                status=CardStatus.ACTIVE,
+                color_scheme=kwargs.get('color_scheme', 'blue-gradient'),
+                is_primary=is_primary
+            )
+
+            print(f"?? Generated CVV for card ****{last_four}: {cvv}")
+            print(f"??  Show this to user ONCE, then discard!")
+
+            return card
+
+        except Exception as e:
+            raise CardException(f"Failed to create card: {str(e)}")
+
     @staticmethod
-    def create_transaction(user, transaction_data):
-        """Create a new transaction"""
-        transaction = CardTransaction.objects.create(  # FIXED: CardTransaction instead of Transaction
-            user=user,
-            **transaction_data
-        )
-        return transaction
-    
+    def get_account_cards(account):
+        """Get all cards for account"""
+        return Card.objects.filter(account=account).order_by('-is_primary', '-created_at')
+
     @staticmethod
-    def get_user_transactions(user, limit=50):
-        """Get transactions for a user"""
-        return CardTransaction.objects.filter(user=user).order_by('-created_at')[:limit]  # FIXED
-    
-    @staticmethod
-    def get_card_transactions(card_id, user):
-        """Get transactions for a specific card"""
-        return CardTransaction.objects.filter(card_id=card_id, user=user).order_by('-created_at')  # FIXED
+    def get_primary_card(account):
+        """Get account's primary card"""
+        try:
+            return Card.objects.get(account=account, is_primary=True)
+        except Card.DoesNotExist:
+            return None

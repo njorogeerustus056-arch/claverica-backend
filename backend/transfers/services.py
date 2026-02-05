@@ -1,460 +1,373 @@
-"""
-transfers/services.py - Compliance integration service for transfers
+﻿"""
+Transfer Services - Core business logic for transfer operations
 """
 
 import logging
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Sum, Q  # ADD Q here!
+from django.db.models import Sum
 from datetime import timedelta
+import uuid
 
-from backend.compliance_module.services import ComplianceService, TACService, VideoCallService, KYCService
-from .models import Transfer, TransferLog, TransferLimit
+from transactions.services import WalletService
+from .models import Transfer, TAC, TransferLog, TransferLimit
 
 logger = logging.getLogger(__name__)
 
 
-class TransferComplianceService:
-    """Service for handling transfer compliance"""
-    
+class TransferValidationError(Exception):
+    """Custom exception for transfer validation errors"""
+    pass
+
+
+class TransferService:
+    """Core service for transfer operations"""
+
     @staticmethod
-    def check_transfer_limits(user, amount, currency, country=None):
-        """Check if transfer exceeds limits"""
-        violations = []
-        
-        # Get applicable limits
-        limits = TransferLimit.objects.filter(
-            is_active=True,
-            currency=currency,
-        ).filter(
-            Q(user=user) | Q(user__isnull=True)
-        )
-        
-        if country:
-            limits = limits.filter(Q(country=country) | Q(country=''))
-        
-        for limit in limits:
-            if limit.limit_type == 'per_transaction':
-                if amount > limit.amount:
-                    violations.append(f"Amount exceeds {limit.limit_type} limit of {limit.amount} {currency}")
-            
-            elif limit.limit_type == 'daily':
-                start_date = timezone.now().date()
-                end_date = start_date + timedelta(days=1)
-                
-                total_today = Transfer.objects.filter(
-                    user=user,
-                    currency=currency,
-                    created_at__gte=start_date,
-                    created_at__lt=end_date,
-                    status__in=['completed', 'processing']
-                ).aggregate(total=Sum('amount'))['total'] or 0
-                
-                if total_today + amount > limit.amount:
-                    violations.append(f"Would exceed daily limit of {limit.amount} {currency}")
-            
-            elif limit.limit_type == 'monthly':
-                start_date = timezone.now().replace(day=1)
-                next_month = start_date.replace(month=start_date.month + 1) if start_date.month < 12 else start_date.replace(year=start_date.year + 1, month=1)
-                
-                total_month = Transfer.objects.filter(
-                    user=user,
-                    currency=currency,
-                    created_at__gte=start_date,
-                    created_at__lt=next_month,
-                    status__in=['completed', 'processing']
-                ).aggregate(total=Sum('amount'))['total'] or 0
-                
-                if total_month + amount > limit.amount:
-                    violations.append(f"Would exceed monthly limit of {limit.amount} {currency}")
-        
-        return violations
-    
-    @staticmethod
-    def create_compliance_request(transfer):
-        """Create compliance request for a transfer"""
+    def create_transfer(account_number, amount, recipient_name, destination_type,
+                       destination_details, narration=""):
+        """Create a new transfer request"""
         try:
-            # Create ComplianceRequest directly (bypassing buggy service)
-            # Use only fields that exist in ComplianceRequest model
-            compliance_request = ComplianceRequest.objects.create(
-                user=transfer.user,
-                app_name='transfers',
-                request_type='money_transfer',
-                amount=transfer.amount,
-                currency=transfer.currency,
-                description=transfer.description or f"Transfer to {transfer.recipient_name}",
-                user_email=transfer.user.email,
-                status='pending',
-                metadata={
-                    'transfer_id': str(transfer.transfer_id),
-                    'recipient_name': transfer.recipient_name,
-                    'recipient_account': transfer.recipient_account,
-                    'recipient_bank': transfer.recipient_bank,
-                    'recipient_country': transfer.recipient_country,
-                    'reference': transfer.reference,
-                }
-            )
-            
-            # Use compliance service for risk assessment
+            with transaction.atomic():
+                from accounts.models import Account
+                
+                # Get account object
+                account = Account.objects.get(account_number=account_number)
+                
+                # Generate reference
+                reference = f"TF-{uuid.uuid4().hex[:8].upper()}"
+                
+                # Create transfer record
+                transfer = Transfer.objects.create(
+                    account=account,  # FIXED: Use account object, not account_id
+                    reference=reference,
+                    amount=amount,
+                    recipient_name=recipient_name,
+                    destination_type=destination_type,
+                    destination_details=destination_details,
+                    narration=narration,
+                    status='pending'
+                )
 
-            
-            try:
+                # Create audit log
+                TransferLog.objects.create(
+                    transfer=transfer,
+                    log_type='created',
+                    message=f'Transfer created for ${amount} to {recipient_name}',
+                    metadata={
+                        'account_number': account_number,
+                        'amount': str(amount),
+                        'destination_type': destination_type
+                    }
+                )
 
-            
-                risk_assessment = ComplianceService.assess_risk(compliance_request)
+                logger.info(f"Transfer created: {transfer.reference}")
+                return transfer
 
-            
-            except AttributeError as e:
-
-            
-                # Device_id field doesn't exist in ComplianceRequest - this is expected
-
-            
-                logger.debug(f"Compliance service missing device_id field: {{str(e)}}")
-
-            
-                risk_assessment = (0, 'low')
-
-            
-            except Exception as e:
-
-            
-                logger.error(f"Unexpected error in compliance service: {{str(e)}}")
-
-            
-                risk_assessment = (0, 'low')
-            
-            # Update with risk assessment results
-            if isinstance(risk_assessment, dict):
-                # New style: returns dict
-                compliance_request.risk_score = risk_assessment.get('risk_score', 0)
-                compliance_request.risk_level = risk_assessment.get('risk_level', 'low')
-                compliance_request.requires_manual_review = risk_assessment.get('requires_manual_review', False)
-                compliance_request.requires_tac = risk_assessment.get('requires_tac', False)
-                compliance_request.requires_video_call = risk_assessment.get('requires_video_call', False)
-                compliance_request.priority = risk_assessment.get('priority', 'normal')
-            else:
-                # Old style: returns tuple (risk_score, risk_level)
-                risk_score, risk_level = risk_assessment
-                compliance_request.risk_score = risk_score
-                compliance_request.risk_level = risk_level
-                # Set defaults for tuple returns
-                compliance_request.requires_tac = compliance_request.amount >= 1000 if compliance_request.amount else False
-                compliance_request.requires_video_call = risk_level == 'high'
-                compliance_request.priority = 'high' if risk_level == 'high' else 'normal'
-                compliance_request.requires_manual_review = risk_level in ['high', 'medium']
-            
-            compliance_request.save()
-            
-            # Apply compliance rules
-            ComplianceService.apply_compliance_rules(compliance_request)
-            
-            return compliance_request
-        
         except Exception as e:
-            if isinstance(e, AttributeError):
-                logger.debug(f"Compliance service missing field (expected): {str(e)}")
-            else:
-                logger.error(f"Failed to create compliance request: {str(e)}")
+            logger.error(f"Error creating transfer: {str(e)}")
             raise
-    
+
     @staticmethod
-    def assess_transfer_risk(transfer):
-        """Assess risk for a transfer"""
+    def validate_transfer(account_number, amount):
+        """Validate transfer request against business rules"""
+        errors = []
+
         try:
-            # Get user's compliance profile
-            profile, _ = ComplianceProfile.objects.get_or_create(user=transfer.user)
-            
-            # Create compliance request if not exists
-            if not transfer.compliance_request:
-                compliance_request = TransferComplianceService.create_compliance_request(transfer)
-                # Safe ForeignKey assignment
-                if hasattr(compliance_request, '_meta') and compliance_request._meta.model_name == 'compliancerequest':
-                    transfer.compliance_request = compliance_request
-                else:
-                    # Log warning and try to get by ID if it's a dict
-                    logger.warning(f"Expected ComplianceRequest instance, got {type(compliance_request)}")
-                    if isinstance(compliance_request, dict) and 'compliance_id' in compliance_request:
-                        try:
-                            cr = ComplianceRequest.objects.get(compliance_id=compliance_request['compliance_id'])
-                            transfer.compliance_request = cr
-                        except ComplianceRequest.DoesNotExist:
-                            logger.error(f"ComplianceRequest not found: {compliance_request['compliance_id']}")
-                    elif hasattr(compliance_request, 'compliance_id'):
-                        # Might be a different object with compliance_id
-                        try:
-                            cr = ComplianceRequest.objects.get(compliance_id=compliance_request.compliance_id)
-                            transfer.compliance_request = cr
-                        except ComplianceRequest.DoesNotExist:
-                            logger.error(f"ComplianceRequest not found: {compliance_request.compliance_id}")
-            
-            # Assess risk using compliance service
+            # 1. Check wallet balance via WalletService
+            current_balance = WalletService.get_balance(account_number)
+            if current_balance < amount:
+                errors.append(f"Insufficient funds. Available: ${current_balance}")
 
+            # 2. Check daily limit
+            today = timezone.now().date()
             
-            try:
+            # Get account object for filtering
+            from accounts.models import Account
+            account = Account.objects.get(account_number=account_number)
+            
+            daily_total = Transfer.objects.filter(
+                account=account,  # FIXED: Use account object
+                created_at__date=today,
+                status__in=['completed', 'funds_deducted']
+            ).aggregate(Sum('amount'))['amount__sum'] or 0
 
-            
-                risk_assessment = ComplianceService.assess_risk(transfer.compliance_request)
+            daily_limit = TransferLimit.objects.filter(
+                limit_type='daily',
+                is_active=True
+            ).first()
 
-            
-            except AttributeError as e:
+            if daily_limit and (daily_total + amount) > daily_limit.amount:
+                errors.append(f"Daily limit exceeded. Remaining: ${daily_limit.amount - daily_total}")
 
-            
-                # Device_id field doesn't exist in ComplianceRequest - this is expected
+            # 3. Check per-transaction limit
+            tx_limit = TransferLimit.objects.filter(
+                limit_type='per_transaction',
+                is_active=True
+            ).first()
 
-            
-                logger.debug(f"Compliance service missing device_id field: {{str(e)}}")
+            if tx_limit and amount > tx_limit.amount:
+                errors.append(f"Maximum per transaction: ${tx_limit.amount}")
 
-            
-                risk_assessment = (0, 'low')
+            return errors
 
-            
-            except Exception as e:
+        except Exception as e:
+            logger.error(f"Validation error: {str(e)}")
+            errors.append("Validation failed")
+            return errors
 
-            
-                logger.error(f"Unexpected error in compliance service: {{str(e)}}")
+    @staticmethod
+    def generate_tac(transfer_id):
+        """Generate TAC for a transfer (admin will manually send)"""
+        try:
+            transfer = Transfer.objects.get(id=transfer_id)
 
-            
-                risk_assessment = (0, 'low')
-            
-            # Update transfer based on risk assessment
-            if isinstance(risk_assessment, dict):
-                # New style: returns dict
-                transfer.risk_level = risk_assessment.get('risk_level', 'low')
-                transfer.tac_required = risk_assessment.get('requires_tac', False)
-                transfer.video_call_required = risk_assessment.get('requires_video_call', False)
-            else:
-                # Old style: returns tuple (risk_score, risk_level)
-                risk_score, risk_level = risk_assessment
-                transfer.risk_level = risk_level
-                # Determine requirements based on amount and risk level
-                transfer.tac_required = transfer.amount >= 1000  # TAC for large transfers
-                transfer.video_call_required = risk_level == 'high'  # Video call for high risk
-            
-            # Update status based on requirements
-            if transfer.tac_required:
-                transfer.status = 'awaiting_tac'
-            elif transfer.video_call_required:
-                transfer.status = 'awaiting_video_call'
-            elif risk_assessment.get('requires_manual_review', False):
-                transfer.status = 'compliance_review'
-            else:
-                transfer.status = 'pending'
-            
+            # Generate 6-digit TAC
+            tac_code = str(uuid.uuid4().int)[:6].zfill(6)
+
+            # Create TAC record (24-hour expiry)
+            tac = TAC.objects.create(
+                transfer=transfer,
+                code=tac_code,
+                expires_at=timezone.now() + timedelta(hours=24)
+            )
+
+            # Update transfer status
+            transfer.status = 'tac_sent'
+            transfer.tac_sent_at = timezone.now()
             transfer.save()
-            
+
             # Create audit log
             TransferLog.objects.create(
                 transfer=transfer,
-                log_type='compliance_check',
-                message=f"Risk assessment completed: {transfer.risk_level} risk",
-                metadata=risk_assessment
+                log_type='tac_sent',
+                message=f'TAC generated for transfer',
+                metadata={'tac_code': tac_code}
             )
-            
-            return risk_assessment
-        
+
+            logger.info(f"TAC generated for transfer {transfer.reference}: {tac_code}")
+
+            # Return TAC for admin to manually email
+            return {
+                'tac_code': tac_code,
+                'transfer_reference': transfer.reference,
+                'account_email': transfer.account.email,
+                'recipient_name': transfer.recipient_name,
+                'amount': transfer.amount,
+                'expires_at': tac.expires_at
+            }
+
         except Exception as e:
-            if isinstance(e, AttributeError):
-                logger.debug(f"Compliance service missing field (expected): {str(e)}")
-            else:
-                logger.error(f"Failed to assess transfer risk: {str(e)}")
+            logger.error(f"Error generating TAC: {str(e)}")
             raise
-    
+
     @staticmethod
-    def generate_tac_for_transfer(transfer):
-        """Generate TAC for a transfer"""
+    def verify_tac(transfer_id, tac_code):
+        """Verify TAC code entered by client"""
         try:
-            result = TACService.generate_tac(
-                user=transfer.user,
-                compliance_request=transfer.compliance_request,
-                tac_type='transfer',
-                purpose=f"Transfer to {transfer.recipient_name}",
-                amount=transfer.amount,
-                currency=transfer.currency,
-                recipient=transfer.recipient_account
+            transfer = Transfer.objects.get(id=transfer_id)
+            tac = TAC.objects.get(transfer=transfer, code=tac_code)
+
+            # Validate TAC
+            if not tac.is_valid():  # FIXED: Now this method exists
+                raise TransferValidationError("TAC is invalid or expired")
+
+            if tac.status != 'pending':
+                raise TransferValidationError("TAC already used")
+
+            # Mark TAC as used
+            tac.status = 'used'
+            tac.used_at = timezone.now()
+            tac.save()
+
+            # Update transfer status
+            transfer.status = 'tac_verified'
+            transfer.tac_verified_at = timezone.now()
+            transfer.save()
+
+            # Create audit log
+            TransferLog.objects.create(
+                transfer=transfer,
+                log_type='tac_verified',
+                message=f'TAC verified successfully',
+                metadata={'tac_code': tac_code}
             )
-            
-            if result['success']:
-                transfer.tac_required = True
-                transfer.status = 'awaiting_tac'
+
+            # Deduct funds from wallet
+            try:
+                new_balance = WalletService.debit_wallet(
+                    account_number=transfer.account.account_number,  # FIXED: Get account number from account object
+                    amount=transfer.amount,
+                    reference=transfer.reference,
+                    description=f"Transfer to {transfer.recipient_name}"
+                )
+
+                # Update transfer status
+                transfer.status = 'funds_deducted'
+                transfer.deducted_at = timezone.now()
                 transfer.save()
-                
+
+                # Create audit log
                 TransferLog.objects.create(
                     transfer=transfer,
-                    log_type='tac_generated',
-                    message=f"TAC generated for transfer",
-                    metadata={'tac_code': result['tac_code']}
+                    log_type='funds_deducted',
+                    message=f'Funds deducted from wallet. New balance: ${new_balance}',
+                    metadata={'new_balance': str(new_balance)}
                 )
-            
-            return result
-        
-        except Exception as e:
-            logger.error(f"Failed to generate TAC: {str(e)}")
-            raise
-    
-    @staticmethod
-    def verify_tac_for_transfer(transfer, tac_code):
-        """Verify TAC for a transfer"""
-        try:
-            result = TACService.verify_tac(
-                user=transfer.user,
-                tac_code=tac_code,
-                compliance_request_id=transfer.compliance_request.compliance_id if transfer.compliance_request else None
-            )
-            
-            if result['success']:
-                transfer.tac_verified = True
-                transfer.tac_verified_at = timezone.now()
-                transfer.tac_required = False
-                
-                # Update status
-                if transfer.video_call_required:
-                    transfer.status = 'awaiting_video_call'
-                elif transfer.status == 'compliance_review':
-                    # Still needs manual review
-                    pass
-                else:
-                    transfer.status = 'pending'
-                
-                transfer.save()
-                
+
+                logger.info(f"Funds deducted for transfer {transfer.reference}. New balance: {new_balance}")
+
+                return {
+                    'success': True,
+                    'transfer_reference': transfer.reference,
+                    'new_balance': new_balance,
+                    'message': 'TAC verified and funds deducted successfully'
+                }
+
+            except Exception as e:
+                # Log error but don't roll back TAC verification
+                logger.error(f"Error deducting funds: {str(e)}")
                 TransferLog.objects.create(
                     transfer=transfer,
-                    log_type='tac_verified',
-                    message=f"TAC verified successfully",
-                    metadata={'tac_code': tac_code}
+                    log_type='error',
+                    message=f'Failed to deduct funds: {str(e)}',
+                    metadata={'error': str(e)}
                 )
-            
-            return result
-        
+                raise
+
+        except TAC.DoesNotExist:
+            raise TransferValidationError("Invalid TAC code")
         except Exception as e:
-            logger.error(f"Failed to verify TAC: {str(e)}")
+            logger.error(f"Error verifying TAC: {str(e)}")
             raise
-    
+
     @staticmethod
-    def schedule_video_call(transfer, scheduled_for=None):
-        """Schedule video call for transfer verification"""
+    def mark_as_settled(transfer_id, external_reference, admin_notes=""):
+        """Mark transfer as settled after manual external transfer"""
         try:
-            result = VideoCallService.schedule_call(
-                requested_by=transfer.user,
-                user=transfer.user,
-                purpose=f"Transfer verification: {transfer.transfer_id}",
-                scheduled_for=scheduled_for or timezone.now() + timedelta(hours=24),
+            transfer = Transfer.objects.get(id=transfer_id)
+
+            # Update transfer
+            transfer.status = 'completed'
+            transfer.settled_at = timezone.now()
+            transfer.external_reference = external_reference
+            transfer.admin_notes = admin_notes
+            transfer.save()
+
+            # Create audit log
+            TransferLog.objects.create(
+                transfer=transfer,
+                log_type='settlement_completed',
+                message=f'Transfer marked as settled. External reference: {external_reference}',
                 metadata={
-                    'transfer_id': str(transfer.transfer_id),
-                    'amount': str(transfer.amount),
-                    'currency': transfer.currency,
-                    'recipient_name': transfer.recipient_name,
+                    'external_reference': external_reference,
+                    'admin_notes': admin_notes
                 }
             )
-            
-            if result['success']:
-                transfer.video_call_session_id = result.get('session_id')
-                transfer.status = 'awaiting_video_call'
-                transfer.save()
-                
-                TransferLog.objects.create(
-                    transfer=transfer,
-                    log_type='video_call_scheduled',
-                    message=f"Video call scheduled for transfer verification",
-                    metadata=result
-                )
-            
-            return result
-        
+
+            logger.info(f"Transfer {transfer.reference} marked as settled")
+
+            return transfer
+
         except Exception as e:
-            logger.error(f"Failed to schedule video call: {str(e)}")
+            logger.error(f"Error marking transfer as settled: {str(e)}")
             raise
-    
+
     @staticmethod
-    def check_compliance_status(transfer):
-        """Check compliance status and update transfer accordingly"""
-        if not transfer.compliance_request:
-            return {'success': False, 'error': 'No compliance request associated'}
+    def get_pending_settlements():
+        """Get all transfers pending manual settlement"""
+        return Transfer.objects.filter(
+            status='funds_deducted'
+        ).select_related('account').order_by('created_at')
+
+    @staticmethod
+    def get_transfer_history(account_number, limit=50):
+        """Get transfer history for an account"""
+        from accounts.models import Account
+        account = Account.objects.get(account_number=account_number)
         
-        compliance_status = transfer.compliance_request.status
+        return Transfer.objects.filter(
+            account=account  # FIXED: Use account object
+        ).select_related('tac').prefetch_related('logs').order_by('-created_at')[:limit]
+
+    @staticmethod
+    def get_transfer_summary(account_number):
+        """Get transfer summary statistics"""
+        from accounts.models import Account
+        account = Account.objects.get(account_number=account_number)
         
-        if compliance_status == 'approved':
-            transfer.status = 'pending'
-            transfer.save()
-            return {'success': True, 'status': 'approved', 'message': 'Compliance approved'}
-        
-        elif compliance_status == 'rejected':
+        today = timezone.now().date()
+
+        transfers = Transfer.objects.filter(account=account)  # FIXED: Use account object
+
+        summary = {
+            'total_count': transfers.count(),
+            'total_amount': transfers.aggregate(Sum('amount'))['amount__sum'] or 0,
+            'today_count': transfers.filter(created_at__date=today).count(),
+            'today_amount': transfers.filter(created_at__date=today).aggregate(Sum('amount'))['amount__sum'] or 0,
+            'pending_count': transfers.filter(status='pending').count(),
+            'pending_amount': transfers.filter(status='pending').aggregate(Sum('amount'))['amount__sum'] or 0,
+            'completed_count': transfers.filter(status='completed').count(),
+            'completed_amount': transfers.filter(status='completed').aggregate(Sum('amount'))['amount__sum'] or 0,
+        }
+
+        return summary
+
+
+class AdminTransferService:
+    """Service for admin-specific transfer operations"""
+
+    @staticmethod
+    def get_all_pending_transfers():
+        """Get all transfers pending TAC generation"""
+        return Transfer.objects.filter(
+            status='pending'
+        ).select_related('account').order_by('created_at')
+
+    @staticmethod
+    def cancel_transfer(transfer_id, reason):
+        """Cancel a transfer"""
+        try:
+            transfer = Transfer.objects.get(id=transfer_id)
+
+            if transfer.status not in ['pending', 'tac_sent']:
+                raise TransferValidationError("Cannot cancel transfer in current status")
+
             transfer.status = 'cancelled'
             transfer.save()
-            return {'success': False, 'status': 'rejected', 'message': 'Compliance rejected'}
-        
-        elif compliance_status == 'pending':
-            return {'success': True, 'status': 'pending', 'message': 'Awaiting compliance review'}
-        
-        elif compliance_status == 'under_review':
-            transfer.status = 'compliance_review'
-            transfer.save()
-            return {'success': True, 'status': 'under_review', 'message': 'Under compliance review'}
-        
-        elif compliance_status == 'info_required':
-            return {'success': True, 'status': 'info_required', 'message': 'Additional information required'}
-        
-        return {'success': True, 'status': compliance_status, 'message': f'Compliance status: {compliance_status}'}
-    
-    @staticmethod
-    def process_transfer(transfer):
-        """Process a transfer after compliance checks"""
-        try:
-            # Check if transfer can be processed
-            if not transfer.can_process:
-                return {
-                    'success': False,
-                    'error': 'Transfer cannot be processed. Check compliance status.'
-                }
-            
-            # Check KYC status
-            if not transfer.check_kyc_status():
-                return {
-                    'success': False,
-                    'error': 'KYC verification required'
-                }
-            
-            # Check transfer limits
-            limit_violations = TransferComplianceService.check_transfer_limits(
-                user=transfer.user,
-                amount=transfer.amount,
-                currency=transfer.currency,
-                country=transfer.recipient_country
-            )
-            
-            if limit_violations:
-                return {
-                    'success': False,
-                    'error': 'Transfer limit exceeded',
-                    'violations': limit_violations
-                }
-            
-            # Update status
-            transfer.status = 'processing'
-            transfer.processed_at = timezone.now()
-            transfer.save()
-            
-            # Create audit log
+
             TransferLog.objects.create(
                 transfer=transfer,
-                log_type='processed',
-                message=f"Transfer processing started",
-                metadata={'amount': str(transfer.amount), 'currency': transfer.currency}
+                log_type='status_change',
+                message=f'Transfer cancelled: {reason}',
+                metadata={'reason': reason}
             )
-            
-            # TODO: Actual payment processing logic here
-            # This would integrate with your payment gateway
-            
-            # Simulate processing delay
-            # In real implementation, this would be async task
-            
-            return {
-                'success': True,
-                'message': 'Transfer processing started',
-                'transfer_id': transfer.transfer_id
-            }
-        
+
+            logger.info(f"Transfer {transfer.reference} cancelled: {reason}")
+
+            return transfer
+
         except Exception as e:
-            logger.error(f"Failed to process transfer: {str(e)}")
+            logger.error(f"Error cancelling transfer: {str(e)}")
             raise
+
+    @staticmethod
+    def get_dashboard_stats():
+        """Get admin dashboard statistics"""
+        today = timezone.now().date()
+
+        stats = {
+            'total_transfers': Transfer.objects.count(),
+            'today_transfers': Transfer.objects.filter(created_at__date=today).count(),
+            'pending_tac': Transfer.objects.filter(status='pending').count(),
+            'pending_settlement': Transfer.objects.filter(status='funds_deducted').count(),
+            'total_amount_today': Transfer.objects.filter(
+                created_at__date=today,
+                status__in=['completed', 'funds_deducted']
+            ).aggregate(Sum('amount'))['amount__sum'] or 0,
+            'total_amount_all': Transfer.objects.filter(
+                status__in=['completed', 'funds_deducted']
+            ).aggregate(Sum('amount'))['amount__sum'] or 0,
+        }
+
+        return stats

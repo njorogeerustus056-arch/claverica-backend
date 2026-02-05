@@ -1,15 +1,13 @@
-# accounts/signals.py
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-from django.conf import settings
+# DISABLED - Users app now handles all signal processing
+# This file is kept for reference but signals are disabled
 
-@receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def user_post_save(sender, instance, created, **kwargs):
-    """
-    Signal for User post-save.
-    Note: Profile and settings are now created in users app.
-    """
-    if created:
-        # Minimal initialization for authentication
-        # User management (profile, settings) happens in users app
-        pass
+# from django.db.models.signals import post_save
+# from django.dispatch import receiver
+# from .models import Account
+# from users.models import UserProfile, UserSettings
+# from transactions.models import Wallet
+
+# @receiver(post_save, sender=Account)
+# def create_user_profile_settings_and_wallet(sender, instance, created, **kwargs):
+#     """DISABLED - Users app handles this now"""
+#     pass

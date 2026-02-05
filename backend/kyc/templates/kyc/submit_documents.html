@@ -1,0 +1,89 @@
+﻿{% extends 'kyc/base.html' %}
+
+{% block content %}
+<div class="kyc-container">
+    <h2 class="mb-4">Submit KYC Documents</h2>
+    
+    {% if existing_kyc %}
+        <div class="alert alert-info">
+            <h5>Existing KYC Found</h5>
+            <p>Status: <strong>{{ existing_kyc.get_status_display }}</strong></p>
+            <p>Submitted: {{ existing_kyc.submitted_at|date:"M d, Y H:i" }}</p>
+            {% if existing_kyc.is_approved %}
+                <p>✅ Your KYC is already approved. No need to submit again.</p>
+                <a href="{% url 'kyc_status' %}" class="btn btn-primary">View Status</a>
+            {% elif existing_kyc.status == 'pending' %}
+                <p>⏳ Your KYC is pending review. Please wait for approval.</p>
+                <a href="{% url 'kyc_status' %}" class="btn btn-primary">Check Status</a>
+            {% elif existing_kyc.status == 'needs_correction' %}
+                <p>⚠️ Your previous submission needs corrections. Please submit new documents.</p>
+            {% endif %}
+        </div>
+        
+        {% if not existing_kyc.is_approved and existing_kyc.status != 'pending' %}
+            <hr>
+            <h4>Submit New Documents</h4>
+        {% endif %}
+    {% endif %}
+    
+    {% if not existing_kyc or not existing_kyc.is_approved and existing_kyc.status != 'pending' %}
+        <div class="alert alert-warning">
+            <h5>📋 Requirements:</h5>
+            <ul>
+                <li>Front image of your ID (National ID, Driver's License, or Passport)</li>
+                <li>Back image of your ID (if applicable)</li>
+                <li>Clear facial photo for verification</li>
+                <li>Each file must be less than 5MB</li>
+                <li>Allowed formats: JPG, PNG, JPEG</li>
+            </ul>
+            <p><strong>Note:</strong> Review may take 3-5 business days.</p>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+                <label class="form-label">Document Type</label>
+                {{ form.document_type }}
+                {% if form.document_type.errors %}
+                    <div class="text-danger">{{ form.document_type.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">ID Front Image *</label>
+                {{ form.id_front_image }}
+                <div class="form-text">{{ form.id_front_image.help_text }}</div>
+                {% if form.id_front_image.errors %}
+                    <div class="text-danger">{{ form.id_front_image.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">ID Back Image</label>
+                {{ form.id_back_image }}
+                <div class="form-text">{{ form.id_back_image.help_text }}</div>
+                {% if form.id_back_image.errors %}
+                    <div class="text-danger">{{ form.id_back_image.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Facial Verification Photo *</label>
+                {{ form.facial_image }}
+                <div class="form-text">{{ form.facial_image.help_text }}</div>
+                {% if form.facial_image.errors %}
+                    <div class="text-danger">{{ form.facial_image.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    Submit Documents for Review
+                </button>
+                <a href="{% url 'kyc_status' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    {% endif %}
+</div>
+{% endblock %}
