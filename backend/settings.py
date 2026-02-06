@@ -1,11 +1,33 @@
-"""
+﻿"""
 Django settings for Claverica backend project
 Production-ready configuration for Render deployment
 """
 
 import os
-from datetime import timedelta
+import sys
 from pathlib import Path
+
+# ==============================================================================
+# CRITICAL: PYTHON PATH SETUP FOR RENDER DEPLOYMENT
+# ==============================================================================
+# This ensures Django can find all modules in both development and production
+BASE_DIR = Path(__file__).resolve().parent.parent  # D:\Erustus\claverica-backend
+BACKEND_DIR = BASE_DIR / "backend"  # D:\Erustus\claverica-backend\backend
+
+# Add to Python path - REQUIRED for Render deployment
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+# Now load environment variables
+from dotenv import load_dotenv
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -16,17 +38,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get(
-    'SECRET_KEY',
+    'DJANGO_SECRET_KEY',  # Changed to match your .env
     'django-insecure-development-key-change-in-production'
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-# Allowed hosts - configured for Render
+# Allowed hosts from .env
 ALLOWED_HOSTS = os.environ.get(
     'ALLOWED_HOSTS',
-    'localhost,127.0.0.1,.onrender.com'
+    'localhost,127.0.0.1,.onrender.com,0.0.0.0'
 ).split(',')
 
 # CSRF and Security Settings
@@ -34,9 +56,10 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.onrender.com',
     'http://localhost:3000',
     'http://localhost:5173',
+    'http://127.0.0.1:8000',
 ]
 
-# Security settings for production
+# Security settings for production only
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -47,6 +70,11 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+else:
+    # Local development: disable HTTPS requirements
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
 
 # ==============================================================================
 # APPLICATION DEFINITION
@@ -59,13 +87,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
-    
+
     # Your apps
     'accounts',
     'users',
@@ -81,7 +109,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files on Render
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -91,7 +119,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'backend.urls'
+ROOT_URLCONF = 'urls'
 
 TEMPLATES = [
     {
@@ -109,19 +137,20 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'backend.wsgi.application'
+WSGI_APPLICATION = 'wsgi.application'
 
 # ==============================================================================
 # DATABASE CONFIGURATION
 # ==============================================================================
 
-# Use PostgreSQL on Render, SQLite for local development
-if os.environ.get('DATABASE_URL'):
-    # Production: PostgreSQL on Render
+# Use DATABASE_URL from .env or default to SQLite
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL and ("postgres://" in DATABASE_URL or "postgresql://" in DATABASE_URL):
+    # Production: PostgreSQL
     import dj_database_url
     DATABASES = {
         'default': dj_database_url.config(
-            default=os.environ.get('DATABASE_URL'),
+            default=DATABASE_URL,
             conn_max_age=600,
             conn_health_checks=True,
         )
@@ -242,7 +271,6 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
 if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 else:
-    # Production email settings (configure when ready)
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
     EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
@@ -260,18 +288,16 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # CORS CONFIGURATION
 # ==============================================================================
 
-# Get frontend URL from environment or use default
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+# Get CORS origins from .env
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:3000,http://localhost:5173'
+).split(',')
 
 if DEBUG:
-    # Development: Allow all origins
+    # Development: Also allow all for easy testing
     CORS_ALLOW_ALL_ORIGINS = True
 else:
-    # Production: Restrict to specific origins
-    CORS_ALLOWED_ORIGINS = [
-        FRONTEND_URL,
-        'https://claverica-frontend.onrender.com',  # Update with your actual frontend URL
-    ]
     CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOW_CREDENTIALS = True
@@ -358,7 +384,7 @@ ENABLE_PUSH_NOTIFICATIONS = False
 # ==============================================================================
 
 # Trust Render's proxy headers
-if not DEBUG:
+if not DEBUG and os.environ.get('RENDER'):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # ==============================================================================
@@ -371,9 +397,11 @@ Claverica Backend Configuration
 {'='*60}
 Environment: {'PRODUCTION' if not DEBUG else 'DEVELOPMENT'}
 Debug Mode: {DEBUG}
-Database: {'PostgreSQL (Render)' if os.environ.get('DATABASE_URL') else 'SQLite (Local)'}
+Database: {"PostgreSQL" if DATABASE_URL and ("postgres://" in DATABASE_URL or "postgresql://" in DATABASE_URL) else "SQLite"}
 Allowed Hosts: {', '.join(ALLOWED_HOSTS)}
+CORS Origins: {', '.join(CORS_ALLOWED_ORIGINS)}
 Static Root: {STATIC_ROOT}
 Media Root: {MEDIA_ROOT}
+HTTPS Forced: {SECURE_SSL_REDIRECT}
 {'='*60}
 """)

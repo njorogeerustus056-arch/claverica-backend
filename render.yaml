@@ -1,19 +1,24 @@
-services:
+﻿services:
   - type: web
     name: claverica-backend
     env: python
-    region: oregon
+    region: virginia
     plan: free
-    
-    buildCommand: |
-      echo "=== BUILD ==="
-      find . -name "*.pyc" -delete 2>/dev/null || true
-      pip install gunicorn==20.1.0
-      echo "=== READY ==="
-    
-    startCommand: |
-      echo "=== STARTING ==="
-      echo "Using gunicorn with WSGI..."
-      gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 1
-    
-    healthCheckPath: /
+    buildCommand: "./backend/build.sh"
+    startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+    healthCheckPath: /api/
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: claverica-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: false
+      - key: ALLOWED_HOSTS
+        value: claverica-backend.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://claverica.onrender.com
+      - key: WEB_CONCURRENCY
+        value: 2

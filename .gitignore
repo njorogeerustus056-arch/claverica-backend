@@ -40,3 +40,53 @@ coverage/
 .cache/
 tmp/
 temp/
+# Database
+db.sqlite3
+
+# Backup files
+*.backup
+*.backup*
+*backup_*
+settings.py.backup*
+wsgi.py.backup*
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.class
+
+# Virtual environment
+myenv/
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test/script files
+test_*.py
+final_render_test.py
+test_db_fix.py
+
+# Temporary fix files
+fix_*.py
+
+# Static files (collected, not source)
+staticfiles/
+
+# Local development files
+*.log
+logs/
+
+# Environment files (except example)
+.env
+!.env.example
+
+# Media files
+media/
