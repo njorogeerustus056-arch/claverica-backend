@@ -28,7 +28,7 @@ class Card(models.Model):
 
     # Card display info
     card_type = models.CharField(max_length=10, choices=CardType.choices, default=CardType.VIRTUAL)
-    card_number = models.CharField(max_length=16, unique=True)
+    card_number = models.CharField(max_length=19, unique=True)
     last_four = models.CharField(max_length=4, default='0000')
     expiry_date = models.CharField(max_length=5, default='01/30')
     cardholder_name = models.CharField(max_length=255, blank=True)

@@ -79,12 +79,11 @@ The Claverica Team
                 message.strip(),
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
-                fail_silently=False,
+                fail_silently=True,  # CHANGED FROM False to True
             )
             logger.info(f"Activation email sent to {email}")
         except Exception as e:
-            logger.error(f"Failed to send activation email to {email}: {e}")
-
+            logger.warning(f"Email sending failed (but registration succeeded): {e}")
 
 class ActivateView(APIView):
     """Activate account with code"""
@@ -173,11 +172,11 @@ The Claverica Team
                 message.strip(),
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
-                fail_silently=False,
+                fail_silently=True,  # CHANGED FROM False to True
             )
             logger.info(f"Resent activation email to {email}")
         except Exception as e:
-            logger.error(f"Failed to resend activation email to {email}: {e}")
+            logger.warning(f"Email sending failed (but resend succeeded): {e}")
 
 
 class LoginView(APIView):
@@ -263,38 +262,38 @@ class PasswordResetView(APIView):
         serializer = PasswordResetSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
-            
+
             try:
                 account = Account.objects.get(email=email)
-                
+
                 # Generate OTP for password reset
                 reset_otp = get_random_string(6, '0123456789')
                 account.activation_code = reset_otp
                 account.activation_code_sent_at = timezone.now()
                 account.activation_code_expires_at = timezone.now() + timezone.timedelta(minutes=10)
                 account.save(update_fields=['activation_code', 'activation_code_sent_at', 'activation_code_expires_at'])
-                
+
                 # Send password reset email
                 EmailService.send_otp_email(
                     to_email=email,
                     otp=reset_otp,
                     purpose='password_reset'
                 )
-                
+
                 return Response({
                     'success': True,
                     'message': 'Password reset OTP sent to your email',
                     'email': email,
                     'note': f'For testing, your OTP is: {reset_otp}'
                 }, status=status.HTTP_200_OK)
-                
+
             except Account.DoesNotExist:
                 # Still return success to prevent email enumeration
                 return Response({
                     'success': True,
                     'message': 'If an account exists with this email, a reset link will be sent'
                 }, status=status.HTTP_200_OK)
-                
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -308,51 +307,51 @@ class PasswordResetConfirmView(APIView):
             email = serializer.validated_data['email']
             otp = serializer.validated_data['otp']
             new_password = serializer.validated_data['new_password']
-            
+
             try:
                 account = Account.objects.get(email=email)
-                
+
                 # Verify OTP
                 if not account.activation_code:
                     return Response({
                         'success': False,
                         'message': 'No OTP found. Please request a new reset.'
                     }, status=status.HTTP_400_BAD_REQUEST)
-                
+
                 if account.activation_code != otp:
                     return Response({
                         'success': False,
                         'message': 'Invalid OTP'
                     }, status=status.HTTP_400_BAD_REQUEST)
-                
+
                 if timezone.now() > account.activation_code_expires_at:
                     return Response({
                         'success': False,
                         'message': 'OTP has expired. Please request a new one.'
                     }, status=status.HTTP_400_BAD_REQUEST)
-                
+
                 # Reset password
                 account.set_password(new_password)
                 account.activation_code = None  # Clear OTP after use
                 account.save(update_fields=['password', 'activation_code'])
-                
+
                 # Send password changed notification
                 EmailService.send_password_changed_email(
                     to_email=email,
                     first_name=account.first_name
                 )
-                
+
                 return Response({
                     'success': True,
                     'message': 'Password reset successful. You can now login with your new password.'
                 }, status=status.HTTP_200_OK)
-                
+
             except Account.DoesNotExist:
                 return Response({
                     'success': False,
                     'message': 'Account not found'
                 }, status=status.HTTP_404_NOT_FOUND)
-                
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -362,29 +361,29 @@ class PasswordChangeView(APIView):
 
     def post(self, request):
         serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
-        
+
         if serializer.is_valid():
             user = request.user
             new_password = serializer.validated_data['new_password']
-            
+
             # Update password
             user.set_password(new_password)
             user.save(update_fields=['password'])
-            
+
             # Keep user logged in after password change
             update_session_auth_hash(request, user)
-            
+
             # Send notification email
             EmailService.send_password_changed_email(
                 to_email=user.email,
                 first_name=user.first_name
             )
-            
+
             return Response({
                 'success': True,
                 'message': 'Password changed successfully'
             }, status=status.HTTP_200_OK)
-            
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -398,12 +397,12 @@ class LogoutView(APIView):
             if refresh_token:
                 token = RefreshToken(refresh_token)
                 token.blacklist()
-            
+
             return Response({
                 'success': True,
                 'message': 'Successfully logged out'
             }, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             return Response({
                 'success': False,

@@ -1,4 +1,4 @@
-﻿# notifications/models.py - CORRECTED VERSION WITH JSON ENCODER
+# notifications/models.py - CORRECTED VERSION WITH JSON ENCODER
 from django.db import models
 from django.utils import timezone
 from django.conf import settings
@@ -83,7 +83,7 @@ class Notification(models.Model):
         ('LOW', 'Low'),
     ]
 
-    # ✅✅✅ CRITICAL FIX: Changed from 'account' to 'recipient' to match database
+    # ??? CRITICAL FIX: Changed from 'account' to 'recipient' to match database
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,  # This is 'accounts.Account' in your settings
         on_delete=models.CASCADE,
@@ -112,7 +112,7 @@ class Notification(models.Model):
     metadata = models.JSONField(
         default=dict, 
         blank=True, 
-        encoder=ModelSafeJSONEncoder  # ← CRITICAL FIX ADDED HERE
+        encoder=ModelSafeJSONEncoder  # ? CRITICAL FIX ADDED HERE
     )
 
     # Timestamps
@@ -134,8 +134,8 @@ class Notification(models.Model):
         verbose_name_plural = 'Notifications'
 
     def __str__(self):
-        account_num = self.recipient.account_number if self.recipient else 'No Account'
-        return f'{self.title} - {account_num}'
+        user_email = self.recipient.email if self.recipient else 'No User'
+        return f'{self.title} - {user_email}'
 
     def mark_as_read(self):
         """Mark notification as read"""
@@ -275,7 +275,7 @@ class NotificationLog(models.Model):
     metadata = models.JSONField(
         default=dict, 
         blank=True,
-        encoder=ModelSafeJSONEncoder  # ← ALSO FIXED HERE
+        encoder=ModelSafeJSONEncoder  # ? ALSO FIXED HERE
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
