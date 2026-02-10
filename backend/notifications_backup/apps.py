@@ -1,12 +1,5 @@
-﻿﻿{
-  "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "startCommand": "python manage.py migrate && gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT",
-    "healthcheckPath": "/",
-    "healthcheckTimeout": 30,
-    "restartPolicyType": "ON_FAILURE"
-  }
-}
+﻿from django.apps import AppConfig
+
+class NotificationsBackupConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "notifications_backup"
