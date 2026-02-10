@@ -1,4 +1,4 @@
-﻿"""
+"""
 Transfer Views - API endpoints for transfer operations
 """
 

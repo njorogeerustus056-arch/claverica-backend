@@ -1,4 +1,4 @@
-﻿"""
+"""
 kyc/urls.py - CORRECTED VERSION (Removed duplicate 'api/' prefix)
 """
 from django.urls import path, include

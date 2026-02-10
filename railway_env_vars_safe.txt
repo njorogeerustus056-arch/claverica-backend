@@ -1,4 +1,4 @@
-﻿# ========== COPY THESE TO RAILWAY DASHBOARD ==========
+# ========== COPY THESE TO RAILWAY DASHBOARD ==========
 # Core Settings
 SECRET_KEY=<YOUR_SECURE_SECRET_KEY>
 DEBUG=False

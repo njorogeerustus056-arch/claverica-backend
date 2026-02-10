@@ -1,4 +1,4 @@
-﻿# ForceAuthMiddleware stub - created to fix import errors
+# ForceAuthMiddleware stub - created to fix import errors
 # This is a temporary stub to allow Django to start
 
 class ForceAuthMiddleware:

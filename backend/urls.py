@@ -1,4 +1,4 @@
-﻿from django.urls import path, include
+from django.urls import path, include
 from accounts.views_account import (
     RegisterView, 
     ActivateView, 

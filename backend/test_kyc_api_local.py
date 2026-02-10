@@ -1,4 +1,4 @@
-﻿import json
+import json
 from django.test import RequestFactory
 from django.contrib.auth import get_user_model
 from kyc.views import check_kyc_requirement

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Transfer Services - Core business logic for transfer operations
 """
 

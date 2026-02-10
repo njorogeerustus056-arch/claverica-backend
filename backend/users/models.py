@@ -1,4 +1,4 @@
-﻿from django.db import models
+from django.db import models
 from accounts.models import Account  # Use full module path
 
 class UserProfile(models.Model):

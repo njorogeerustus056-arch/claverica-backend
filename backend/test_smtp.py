@@ -1,4 +1,4 @@
-﻿import smtplib
+import smtplib
 import ssl
 import os
 

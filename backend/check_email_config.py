@@ -1,4 +1,4 @@
-﻿import os
+import os
 
 print("🔍 CURRENT EMAIL CONFIGURATION")
 print("=" * 40)

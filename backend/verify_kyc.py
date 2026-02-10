@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import django
 from django.test import TestCase, Client

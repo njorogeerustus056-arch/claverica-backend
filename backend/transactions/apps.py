@@ -1,4 +1,4 @@
-﻿# transactions/apps.py
+# transactions/apps.py
 from django.apps import AppConfig
 
 class TransactionsConfig(AppConfig):

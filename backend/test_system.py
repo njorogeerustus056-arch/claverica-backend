@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 
 # Add parent directory to Python path

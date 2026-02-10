@@ -1,4 +1,4 @@
-﻿"""
+"""
 Transfer Serializers - Data serialization for transfer operations
 """
 

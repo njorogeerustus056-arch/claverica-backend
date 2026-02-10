@@ -1,4 +1,4 @@
-﻿"""
+"""
 Transfer URLs - URL routing for transfer endpoints
 """
 

@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import re
 
 with open('models.py', 'r') as f:

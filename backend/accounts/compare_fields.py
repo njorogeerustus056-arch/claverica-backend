@@ -1,4 +1,4 @@
-﻿# Fields expected from frontend signup form
+# Fields expected from frontend signup form
 frontend_fields = {
     'required': ['email', 'first_name', 'last_name', 'password', 'confirm_password'],
     'identity': ['doc_type', 'doc_number', 'street', 'city', 'state', 'zip_code', 'phone'],

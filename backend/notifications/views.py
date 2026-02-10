@@ -1,4 +1,4 @@
-﻿# notifications/views.py - PERMANENT FIX
+# notifications/views.py - PERMANENT FIX
 """
 🎯 NOTIFICATION VIEWS - API endpoints
 """

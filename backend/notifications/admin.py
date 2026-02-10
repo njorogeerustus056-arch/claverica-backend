@@ -1,4 +1,4 @@
-﻿from django.contrib import admin
+from django.contrib import admin
 from .models import Notification, NotificationPreference, NotificationLog
 
 @admin.register(Notification)

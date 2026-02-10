@@ -1,4 +1,4 @@
-﻿# backend/cards/urls.py - CORRECTED WITH CARD TRANSACTIONS
+# backend/cards/urls.py - CORRECTED WITH CARD TRANSACTIONS
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import CardViewSet, CardTransactionViewSet  # ADD CardTransactionViewSet

@@ -1,4 +1,4 @@
-﻿import requests
+import requests
 import json
 
 # Test data for checking KYC requirement

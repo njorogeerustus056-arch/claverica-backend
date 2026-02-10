@@ -1,4 +1,4 @@
-﻿# backend/cards/apps.py - UPDATED
+# backend/cards/apps.py - UPDATED
 from django.apps import AppConfig
 
 class CardsConfig(AppConfig):

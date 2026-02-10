@@ -1,4 +1,4 @@
-﻿"""
+"""
 kyc/views.py - UPDATED VERSION (ADD DRF API VIEWS)
 """
 from django.shortcuts import render, get_object_or_404, redirect

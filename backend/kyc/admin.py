@@ -1,4 +1,4 @@
-﻿from django.contrib import admin
+from django.contrib import admin
 from django.utils import timezone
 from .models import KYCDocument, KYCSubmission, KYCSetting
 from django.utils.html import format_html

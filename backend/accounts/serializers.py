@@ -1,4 +1,4 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from .models import Account
 import re
 from django.contrib.auth.password_validation import validate_password

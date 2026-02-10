@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import datetime
 from django.conf import settings
 import os

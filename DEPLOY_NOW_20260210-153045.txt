@@ -1,4 +1,4 @@
-﻿# DEPLOYMENT TRIGGER
+# DEPLOYMENT TRIGGER
 # Time: 2026-02-10 15:30:45
 # Commit: 7fb6b862
 # Purpose: Force Railway redeploy after encoding fixes
