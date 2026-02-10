@@ -1,4 +1,4 @@
-"""
+﻿"""
 Django settings for Claverica backend project
 Production-ready configuration for Render deployment
 """
@@ -46,10 +46,22 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 # Allowed hosts from .env
-ALLOWED_HOSTS = os.environ.get(
-    'ALLOWED_HOSTS',
-    'localhost,127.0.0.1,.onrender.com,0.0.0.0'
-).split(',')
+# Railway-compatible ALLOWED_HOSTS
+ALLOWED_HOSTS_STR = os.environ.get(
+    "ALLOWED_HOSTS",
+    "localhost,127.0.0.1,.onrender.com,0.0.0.0"
+)
+ALLOWED_HOSTS = ALLOWED_HOSTS_STR.split(",")
+
+# Auto-add Railway domains if missing
+if "RAILWAY" in os.environ or "RAILWAY_ENVIRONMENT" in os.environ:
+    if "healthcheck.railway.app" not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append("healthcheck.railway.app")
+    if ".railway.app" not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(".railway.app")
+    if "*" not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append("*")
+    print(f"🚀 Railway: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
 
 # CSRF and Security Settings
 CSRF_TRUSTED_ORIGINS = [
@@ -436,3 +448,4 @@ if IS_RAILWAY:
         ALLOWED_HOSTS.append('.railway.app')
     
     print("? Running on Railway")
+
