@@ -1,0 +1,10 @@
+﻿# DEPLOYMENT TRIGGER
+# Time: 2026-02-10 15:30:45
+# Commit: 7fb6b862
+# Purpose: Force Railway redeploy after encoding fixes
+
+# Fixed files:
+# - backend/notifications_backup/apps.py (was JSON, now Django)
+# - backend/test_card_system.py (UTF-8 encoding fixed)
+
+# This file triggers Railway to redeploy

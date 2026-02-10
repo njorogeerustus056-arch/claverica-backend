@@ -40,3 +40,4 @@ if test_user:
     print(f"✅ Test user authentication: SUCCESS")
 else:
     print(f"❌ Test user authentication: FAILED")
+

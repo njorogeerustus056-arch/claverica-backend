@@ -25,3 +25,4 @@ WEB_CONCURRENCY=2
 
 # Note: DATABASE_URL will be automatically added by Railway
 # when you add PostgreSQL database
+
