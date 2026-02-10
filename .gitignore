@@ -1,92 +1,49 @@
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Environment variables
+﻿# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 .env
-.env.local
-.env.production
-.env.*.local
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+myenv/
 
-# Build outputs
-dist/
-build/
-.vite/
-*.tsbuildinfo
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Static files
+/staticfiles/
+/media/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Railway/Render
+.env.railway
+render.yaml
 
 # Logs
 logs/
-*.log
 
-# Testing
-coverage/
-.nyc_output/
-
-# Misc
-.cache/
-tmp/
-temp/
-# Database
-db.sqlite3
-
-# Backup files
-*.backup
-*.backup*
-*backup_*
-settings.py.backup*
-wsgi.py.backup*
-
-# Python cache
-__pycache__/
-*.py[cod]
-*.class
-
-# Virtual environment
-myenv/
-venv/
-env/
-ENV/
-
-# IDE files
-.vscode/
-.idea/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Test/script files
-test_*.py
-final_render_test.py
-test_db_fix.py
-
-# Temporary fix files
-fix_*.py
-
-# Static files (collected, not source)
-staticfiles/
-
-# Local development files
-*.log
-logs/
-
-# Environment files (except example)
-.env
-!.env.example
-
-# Media files
-media/
+# Temporary files
+*.tmp
