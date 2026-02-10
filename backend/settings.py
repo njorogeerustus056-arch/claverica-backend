@@ -1,4 +1,4 @@
-﻿"""
+"""
 Django settings for Claverica backend project
 Production-ready configuration for Render deployment
 """
@@ -291,7 +291,7 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # Get CORS origins from .env
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://localhost:5173'
+    'http://localhost:3000,http://localhost:5173,http://localhost:4173,http://127.0.0.1:4173,http://127.0.0.1:3000,http://127.0.0.1:5173'
 ).split(',')
 
 if DEBUG:
@@ -405,3 +405,34 @@ Media Root: {MEDIA_ROOT}
 HTTPS Forced: {SECURE_SSL_REDIRECT}
 {'='*60}
 """)
+
+
+# ==============================================================================
+# RAILWAY-SPECIFIC SETTINGS
+# ==============================================================================
+
+# Check if running on Railway
+IS_RAILWAY = os.environ.get('RAILWAY_ENVIRONMENT', '').lower() == 'production'
+
+if IS_RAILWAY:
+    # Railway provides DATABASE_URL automatically
+    # Ensure we use it
+    if 'DATABASE_URL' in os.environ:
+        import dj_database_url
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=os.environ.get('DATABASE_URL'),
+                conn_max_age=600,
+                ssl_require=True
+            )
+        }
+    
+    # Trust Railway's proxy
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    
+    # Add railway.app to allowed hosts if not already there
+    railway_hosts = [host for host in ALLOWED_HOSTS if 'railway.app' in host]
+    if not railway_hosts:
+        ALLOWED_HOSTS.append('.railway.app')
+    
+    print("? Running on Railway")
