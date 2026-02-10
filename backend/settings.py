@@ -73,3 +73,8 @@ else:
     CSRF_COOKIE_SECURE = False
 
 # [REST OF YOUR SETTINGS - KEEP EVERYTHING ELSE AS IS]
+
+
+# WSGI Application
+WSGI_APPLICATION = 'backend.wsgi.application'
+
