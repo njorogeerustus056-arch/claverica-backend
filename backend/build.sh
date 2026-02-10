@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 echo "=== Django Build Process ==="
 echo "1. Applying database migrations..."
 python manage.py migrate

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Django settings for Claverica backend project
 Production-ready configuration for Railway deployment
 """
