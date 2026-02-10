@@ -1,4 +1,4 @@
-﻿# Railway Production Requirements
+# Railway Production Requirements
 Django==5.2.7
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
@@ -30,3 +30,5 @@ requests==2.32.5
 Pillow>=10.0.0
 cryptography==46.0.3
 pyOpenSSL==25.3.0
+
+
