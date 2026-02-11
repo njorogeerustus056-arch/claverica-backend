@@ -1,2 +1,2 @@
-﻿web: chmod +x ./backend/railway_start.sh && ./backend/railway_start.sh
-release: python manage.py migrate --noinput
+﻿web: cd /app/backend && gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+release: cd /app/backend && python manage.py migrate --noinput
