@@ -1,30 +1,35 @@
 ﻿"""
-Minimal settings for Railway health check
+Minimal settings for Railway health check - FORCED CONFIGURATION
 """
 import os
-from .settings import *
 
-# Override with minimal middleware for health check
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-key-for-health-check')
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
+ALLOWED_HOSTS = ['*']
+
+# CRITICAL: MUST BE AT THE TOP TO OVERRIDE ANYTHING ELSE
+APPEND_SLASH = False
+PREPEND_WWW = False
+
+# Application definition
+INSTALLED_APPS = [
+    'django.contrib.contenttypes',
+    'django.contrib.auth',
 ]
 
-# CRITICAL: Disable trailing slash redirect
-APPEND_SLASH = False
+MIDDLEWARE = [
+    'django.middleware.common.CommonMiddleware',
+]
 
-# Ensure root URL works
 ROOT_URLCONF = 'backend.urls'
 
-# Disable any authentication requirements for health check
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
-    ]
-}
-
-# Make sure health check doesn't require database
+# Database - SQLite for health check
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -32,9 +37,22 @@ DATABASES = {
     }
 }
 
-# Debug settings
-DEBUG = True
-ALLOWED_HOSTS = ['*']
+# Internationalization
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
 
-# Disable any redirects
+# Static files
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Authentication
+AUTH_USER_MODEL = 'accounts.Account'
+
+# CRITICAL: FORCE NO REDIRECTS - MUST BE AT THE END TO OVERRIDE EVERYTHING
+APPEND_SLASH = False
 SECURE_SSL_REDIRECT = False

@@ -134,7 +134,8 @@ def home(request):
 
 # ========== URL PATTERNS ==========
 urlpatterns = [
-    path('', railway_health_check, name='health_check'),
+    path('', railway_health_check, name='health_check_root'),
+    path('health/', health_check_200, name='health_check'),
     # CRITICAL: SIMPLE HEALTH CHECK FOR RAILWAY - MUST BE FIRST
     ,
     # Root health check - MUST BE FIRST for Railway
@@ -199,6 +200,7 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls)
 ]
+
 
 
 
