@@ -15,8 +15,8 @@ WORKDIR /app/backend
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Expose port
-EXPOSE $PORT
+# Make start.sh executable
+RUN chmod +x /app/backend/start.sh
 
-# Use shell form to allow 'cd' command
-CMD cd /app/backend && PYTHONPATH=/app:/app/backend gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+# Use absolute path to start.sh
+CMD /app/backend/start.sh
