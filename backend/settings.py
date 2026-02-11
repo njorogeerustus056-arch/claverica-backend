@@ -43,16 +43,16 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 # SIMPLE FIX: ALLOW ALL HOSTS IN RAILWAY, RESTRICTED IN DEVELOPMENT
 if os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT'):
     ALLOWED_HOSTS = ['*', '.up.railway.app', 'claverica-backend-production.up.railway.app']
-    print("ðŸš€ Railway: ALLOWED_HOSTS set to '*' for health checks")
+    print("🚀 Railway: ALLOWED_HOSTS set to '*' for health checks")
 else:
     # CSRF and Security Settings
-CSRF_TRUSTED_ORIGINS = [
-    'https://*.railway.app',
-    'https://claverica-fixed.vercel.app',
-    'https://claverica-frontend-vercel.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:5173',
-]
+    CSRF_TRUSTED_ORIGINS = [
+        'https://*.railway.app',
+        'https://claverica-fixed.vercel.app',
+        'https://claverica-frontend-vercel.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:5173',
+    ]
 
 # Security settings for production only
 if not DEBUG:
@@ -91,5 +91,3 @@ if DATABASE_URL:
             conn_health_checks=True,
         )
     }
-
-
