@@ -1,4 +1,7 @@
-﻿import os
+﻿\"\"\"
+WSGI config - FORCED to use main settings with APPEND_SLASH=False
+\"\"\"
+import os
 import sys
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -7,7 +10,6 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 os.environ['DJANGO_SETTINGS_MODULE'] = 'backend.settings_railway'
-os.environ['APPEND_SLASH'] = 'False'
 
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()

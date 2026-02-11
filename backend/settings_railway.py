@@ -4,7 +4,7 @@ Railway settings - FORCED NO REDIRECTS
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-key-for-railway')
+SECRET_KEY = 'django-insecure-railway-deployment'
 DEBUG = True
 ALLOWED_HOSTS = ['*']
 
@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'kyc',
     'cards',
     'compliance',
+    'kyc_spec',
 ]
 
 MIDDLEWARE = [
@@ -84,16 +85,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
-# REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
 
-# CRITICAL - FORCE NO REDIRECTS AT THE END
 APPEND_SLASH = False
