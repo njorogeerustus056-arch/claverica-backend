@@ -12,19 +12,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = ['*', '.up.railway.app']
-ROOT_URLCONF = 'backend.urls'
+
 ROOT_URLCONF = 'backend.urls'
 
-# ==============================================================================
-# CRITICAL: ROOT_URLCONF - THIS WAS MISSING!
-# ==============================================================================
-ROOT_URLCONF = 'backend.urls'  # <--- ADD THIS LINE!
-
-# ==============================================================================
-# DATABASE
-# ==============================================================================
+# Database
 DATABASE_URL = os.environ.get('DATABASE_URL')
-
 if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
@@ -33,7 +25,7 @@ if DATABASE_URL:
             ssl_require=True
         )
     }
-    print("? Connected to PostgreSQL on Railway")
+    print("??? Connected to PostgreSQL on Railway")
 else:
     DATABASES = {
         'default': {
@@ -41,11 +33,7 @@ else:
             'NAME': '/tmp/db.sqlite3',
         }
     }
-    print("??  WARNING: No DATABASE_URL found, using temporary SQLite!")
 
-# ==============================================================================
-# APPLICATION DEFINITION
-# ==============================================================================
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -102,9 +90,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# ==============================================================================
-# REST FRAMEWORK
-# ==============================================================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -119,21 +104,25 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
 
-# ==============================================================================
-# STATIC FILES
-# ==============================================================================
+# ============== CRITICAL STATIC FILES CONFIGURATION ==============
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# ==============================================================================
-# AUTHENTICATION
-# ==============================================================================
+# Add this - it's essential for WhiteNoise to find admin files
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
+
+# WhiteNoise configuration - THESE ARE CRITICAL
+WHITENOISE_AUTOREFRESH = True
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_MANIFEST_STRICT = False
+WHITENOISE_ALLOW_ALL_ORIGINS = True
+# ================================================================
+
 AUTH_USER_MODEL = 'accounts.Account'
 
-# ==============================================================================
-# CORS SETTINGS
-# ==============================================================================
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 if not DEBUG:
     CORS_ALLOWED_ORIGINS = [
@@ -142,22 +131,12 @@ if not DEBUG:
     ]
 CORS_ALLOW_CREDENTIALS = True
 
-# ==============================================================================
-# SECURITY
-# ==============================================================================
 CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# ==============================================================================
-# INTERNATIONALIZATION
-# ==============================================================================
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# ==============================================================================
-# DEFAULT PRIMARY KEY
-# ==============================================================================
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
