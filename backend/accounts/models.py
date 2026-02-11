@@ -1,4 +1,4 @@
-import uuid
+﻿import uuid
 import datetime as dt
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
@@ -72,9 +72,27 @@ class AccountManager(BaseUserManager):
 
 class Account(AbstractUser):
     """Custom user model with extended fields for international users"""
-    
+
+    # FIX: Add custom related_name to avoid conflicts with auth.User
+    groups = models.ManyToManyField(
+        'auth.Group',
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to.',
+        related_name='account_set',  # Changed from default 'user_set'
+        related_query_name='account',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name='account_set',  # Changed from default 'user_set'
+        related_query_name='account',
+    )
+
     objects = AccountManager()
-    
+
     # Remove username, use email instead
     username = None
     email = models.EmailField(_('email address'), unique=True)
@@ -122,14 +140,14 @@ class Account(AbstractUser):
     occupation = models.CharField(max_length=100, null=True, blank=True)
     employer = models.CharField(max_length=100, null=True, blank=True)
     income_range = models.CharField(max_length=50, null=True, blank=True, choices=[
-        ('<10000', 'Below $10,000 / €9,000 / £8,000'),
-        ('10000-30000', '$10,000 - $30,000 / €9,000 - €27,000'),
-        ('30000-50000', '$30,000 - $50,000 / €27,000 - €45,000'),
-        ('50000-75000', '$50,000 - $75,000 / €45,000 - €68,000'),
-        ('75000-100000', '$75,000 - $100,000 / €68,000 - €90,000'),
-        ('100000-150000', '$100,000 - $150,000 / €90,000 - €135,000'),
-        ('150000-200000', '$150,000 - $200,000 / €135,000 - €180,000'),
-        ('>200000', 'Above $200,000 / €180,000 / £160,000')
+        ('<10000', 'Below $10,000 / â‚¬9,000 / Â£8,000'),
+        ('10000-30000', '$10,000 - $30,000 / â‚¬9,000 - â‚¬27,000'),
+        ('30000-50000', '$30,000 - $50,000 / â‚¬27,000 - â‚¬45,000'),
+        ('50000-75000', '$50,000 - $75,000 / â‚¬45,000 - â‚¬68,000'),
+        ('75000-100000', '$75,000 - $100,000 / â‚¬68,000 - â‚¬90,000'),
+        ('100000-150000', '$100,000 - $150,000 / â‚¬90,000 - â‚¬135,000'),
+        ('150000-200000', '$150,000 - $200,000 / â‚¬135,000 - â‚¬180,000'),
+        ('>200000', 'Above $200,000 / â‚¬180,000 / Â£160,000')
     ])
 
     # Account Status Fields
@@ -187,13 +205,13 @@ class Account(AbstractUser):
         """Verify activation code"""
         if not self.activation_code:
             return False, "No activation code found"
-        
+
         if self.activation_code != code:
             return False, "Invalid activation code"
-        
+
         if timezone.now() > self.activation_code_expires_at:
             return False, "Activation code has expired"
-        
+
         # Code is valid - activate account
         self.is_active = True
         self.is_verified = True
@@ -210,5 +228,3 @@ class Account(AbstractUser):
         if not self.account_number and self.is_verified:
             self.account_number = Account.objects.generate_account_number(self)
         super().save(*args, **kwargs)
-
-
