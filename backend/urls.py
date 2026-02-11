@@ -1,4 +1,5 @@
-﻿from railway_health import railway_health_check
+﻿from health_check import railway_health_check
+from railway_health import railway_health_check
 from django.http import JsonResponse
 import time
 
@@ -197,6 +198,7 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls)
 ]
+
 
 
 
