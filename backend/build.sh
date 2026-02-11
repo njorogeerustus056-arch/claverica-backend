@@ -4,32 +4,26 @@ set -e
 echo "=== Railway Build Starting ==="
 echo "Working directory: $(pwd)"
 
-# Check if we're in the right place
-if [ ! -f "manage.py" ]; then
-    echo "ERROR: manage.py not found in $(pwd)"
-    echo "Contents:"
-    ls -la
-    exit 1
-fi
+# Virtual environment path (Railway uses /app/.venv)
+VENV_PYTHON="/app/.venv/bin/python"
 
-# Check virtual environment
-if [ ! -f "/opt/venv/bin/python" ]; then
-    echo "ERROR: Virtual environment not found at /opt/venv/bin/python"
-    exit 1
+if [ ! -f "$VENV_PYTHON" ]; then
+    echo "WARNING: Virtual environment not found at $VENV_PYTHON"
+    # Try to find Python
+    VENV_PYTHON=$(find /app -name "python" -type f 2>/dev/null | head -1)
+    if [ -z "$VENV_PYTHON" ]; then
+        echo "ERROR: No Python found!"
+        exit 1
+    fi
+    echo "Found Python at: $VENV_PYTHON"
 fi
 
 # Set Django environment
 export DJANGO_SETTINGS_MODULE=backend.settings
-export PYTHONPATH=/app:$PYTHONPATH
-
-# Use venv Python
-PYTHON="/opt/venv/bin/python"
-PIP="/opt/venv/bin/pip"
-
-echo "Python: $($PYTHON --version)"
-echo "Pip: $($PIP --version)"
+export PYTHONPATH=/app/backend:/app:$PYTHONPATH
 
 echo "=== Collecting static files ==="
-$PYTHON manage.py collectstatic --noinput
+cd /app/backend
+$VENV_PYTHON manage.py collectstatic --noinput
 
 echo "✅ Build completed successfully!"
