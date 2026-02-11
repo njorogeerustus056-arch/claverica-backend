@@ -10,6 +10,9 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
+# CRITICAL: Disable trailing slash redirect
+APPEND_SLASH = False
+
 # Ensure root URL works
 ROOT_URLCONF = 'backend.urls'
 
@@ -32,3 +35,6 @@ DATABASES = {
 # Debug settings
 DEBUG = True
 ALLOWED_HOSTS = ['*']
+
+# Disable any redirects
+SECURE_SSL_REDIRECT = False

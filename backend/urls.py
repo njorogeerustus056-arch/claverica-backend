@@ -134,10 +134,11 @@ def home(request):
 
 # ========== URL PATTERNS ==========
 urlpatterns = [
+    path('', railway_health_check, name='health_check'),
     # CRITICAL: SIMPLE HEALTH CHECK FOR RAILWAY - MUST BE FIRST
-    path('', railway_health_check, name='railway_health'),
+    ,
     # Root health check - MUST BE FIRST for Railway
-    path('', home, name='home'),
+    ,
     path('health/', lambda request: JsonResponse({'status': 'ok', 'timestamp': time.time()})),
     # KYC endpoints
     path('api/kyc/', include(kyc_urls)),
@@ -198,6 +199,7 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls)
 ]
+
 
 
 
