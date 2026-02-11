@@ -1,4 +1,4 @@
-﻿"""
+"""
 Minimal settings for Railway health check - FORCED CONFIGURATION
 """
 import os
