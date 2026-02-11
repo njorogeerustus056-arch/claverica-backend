@@ -1,4 +1,5 @@
-﻿from django.http import JsonResponse
+﻿from railway_health import railway_health_check
+from django.http import JsonResponse
 import time
 
 # ========== SIMPLE HEALTH CHECK FOR RAILWAY ==========
@@ -133,7 +134,7 @@ def home(request):
 # ========== URL PATTERNS ==========
 urlpatterns = [
     # CRITICAL: SIMPLE HEALTH CHECK FOR RAILWAY - MUST BE FIRST
-    path('', railway_health, name='railway_health'),
+    path('', railway_health_check, name='railway_health'),
     # Root health check - MUST BE FIRST for Railway
     path('', home, name='home'),
     path('health/', lambda request: JsonResponse({'status': 'ok', 'timestamp': time.time()})),
@@ -196,6 +197,7 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls)
 ]
+
 
 
 
