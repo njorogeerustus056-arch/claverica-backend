@@ -45,9 +45,7 @@ if os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT'):
     ALLOWED_HOSTS = ['*', '.up.railway.app', 'claverica-backend-production.up.railway.app']
     print("ðŸš€ Railway: ALLOWED_HOSTS set to '*' for health checks")
 else:
-    
-
-# CSRF and Security Settings
+    # CSRF and Security Settings
 CSRF_TRUSTED_ORIGINS = [
     'https://*.railway.app',
     'https://claverica-fixed.vercel.app',
@@ -93,3 +91,5 @@ if DATABASE_URL:
             conn_health_checks=True,
         )
     }
+
+
