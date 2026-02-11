@@ -1,2 +1,1 @@
-﻿web: cd /app/backend && gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
-release: cd /app/backend && python manage.py migrate --noinput
+web: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
