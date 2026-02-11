@@ -1,7 +1,17 @@
 #!/bin/bash
-echo "=== Django Build Process ==="
-echo "1. Applying database migrations..."
-python manage.py migrate
-echo "2. Collecting static files..."
+set -e
+
+echo "=== Installing dependencies ==="
+pip install --upgrade pip
+pip install -r requirements.txt
+
+echo "=== Collecting static files ==="
 python manage.py collectstatic --noinput
-echo "3. Build completed successfully!"
+
+echo "=== Running migrations ==="
+python manage.py migrate --noinput
+
+echo "=== Creating cache tables ==="
+python manage.py createcachetable || echo "Cache table creation skipped"
+
+echo "=== Build complete ==="
