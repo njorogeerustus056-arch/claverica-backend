@@ -1,4 +1,4 @@
-﻿from health_check import railway_health_check
+from health_check import railway_health_check
 from railway_health import railway_health_check
 from django.http import JsonResponse
 import time
@@ -45,7 +45,7 @@ from kyc_spec import urls as kyc_spec_urls
 def debug_notifications(request):
     """Debug endpoint to verify notifications URLs are loaded"""
     return Response({
-        'message': 'âœ… Notifications debug endpoint working',
+        'message': '✅ Notifications debug endpoint working',
         'endpoints': {
             'unread_count': '/api/notifications/unread-count/',
             'list': '/api/notifications/',
@@ -60,7 +60,7 @@ def debug_notifications(request):
 def debug_kyc_spec(request):
     """Debug endpoint for KYC Spec dumpster"""
     return Response({
-        'message': 'âœ… KYC Spec Dumpster is running',
+        'message': '✅ KYC Spec Dumpster is running',
         'endpoints': {
             'collect': '/api/kyc-spec/collect/',
             'collect_legacy': '/api/kyc-spec/collect-legacy/',
@@ -147,7 +147,7 @@ urlpatterns = [
     # KYC SPEC DUMPSTER ENDPOINTS
     path('api/kyc-spec/', include(kyc_spec_urls)),
 
-    # âœ…âœ…âœ… ACCOUNT ENDPOINTS - COMPLETE AUTH
+    # ✅✅✅ ACCOUNT ENDPOINTS - COMPLETE AUTH
     path('api/accounts/register/', RegisterView.as_view(), name='account_register'),
     path('api/accounts/activate/', ActivateView.as_view(), name='account_activate'),
     path('api/accounts/resend-activation/', ResendActivationView.as_view(), name='resend_activation'),
