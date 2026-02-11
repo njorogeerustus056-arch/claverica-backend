@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 echo "=== STARTING CLOVERICA BACKEND ==="
 echo "Current directory: $(pwd)"
 echo "Script location: $(dirname $0)"
