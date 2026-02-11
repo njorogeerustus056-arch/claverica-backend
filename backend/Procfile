@@ -1,2 +1,2 @@
-web: gunicorn backend.wsgi:application --log-file -
-release: python manage.py migrate --no-input
+﻿web: chmod +x ./backend/railway_start.sh && ./backend/railway_start.sh
+release: python manage.py migrate --noinput
