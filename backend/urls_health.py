@@ -1,16 +1,11 @@
-﻿from django.http import JsonResponse
-import time
+﻿from django.http import HttpResponse
+from django.urls import path
 
-def railway_health_check(request):
-    """Simple health check for Railway that always returns 200"""
-    return JsonResponse({
-        "status": "healthy",
-        "service": "Claverica Banking API",
-        "timestamp": time.time(),
-        "message": "API is running",
-        "database": "check_skipped"  # Don't check DB on health check
-    })
+def health_check(request):
+    """Simple health check - ALWAYS returns 200 OK"""
+    return HttpResponse("OK", status=200, content_type="text/plain")
 
-# Simple test endpoint
-def simple_test(request):
-    return JsonResponse({"message": "Test OK"})
+urlpatterns = [
+    path('health/', health_check, name='health_check'),
+    path('', health_check, name='root_health'),  # Also handle root
+]
