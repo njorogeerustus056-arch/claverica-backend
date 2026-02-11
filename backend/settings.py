@@ -215,3 +215,4 @@ if not DEBUG:
     ]
 
 CORS_ALLOW_CREDENTIALS = True
+

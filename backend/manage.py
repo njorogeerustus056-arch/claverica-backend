@@ -1,17 +1,21 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
 
-# Add the current directory to Python path
-# This allows Django to find the settings module
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
-
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings')
-
+    # Set up paths like wsgi.py
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    
+    # Add to Python path
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+    
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
