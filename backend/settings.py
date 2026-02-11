@@ -216,3 +216,12 @@ if not DEBUG:
 
 CORS_ALLOW_CREDENTIALS = True
 
+
+
+# ==============================================================================
+# AUTHENTICATION
+# ==============================================================================
+
+AUTH_USER_MODEL = os.environ.get('AUTH_USER_MODEL', 'auth.User')
+
+
