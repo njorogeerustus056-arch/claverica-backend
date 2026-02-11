@@ -6,6 +6,7 @@ Production-ready configuration for Railway deployment
 import os
 import sys
 from pathlib import Path
+from datetime import timedelta
 
 # ==============================================================================
 # CRITICAL: PYTHON PATH SETUP
@@ -20,14 +21,6 @@ if str(BACKEND_DIR) not in sys.path:
 
 from dotenv import load_dotenv
 load_dotenv()
-
-from datetime import timedelta
-
-
-
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ==============================================================================
 # SECURITY SETTINGS
@@ -45,6 +38,7 @@ if os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT'):
     ALLOWED_HOSTS = ['*', '.up.railway.app', 'claverica-backend-production.up.railway.app']
     print("🚀 Railway: ALLOWED_HOSTS set to '*' for health checks")
 else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
     # CSRF and Security Settings
     CSRF_TRUSTED_ORIGINS = [
         'https://*.railway.app',
@@ -70,16 +64,78 @@ else:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
 
-# [REST OF YOUR SETTINGS - KEEP EVERYTHING ELSE AS IS]
+# ==============================================================================
+# APPLICATION DEFINITION
+# ==============================================================================
 
+INSTALLED_APPS = [
+    # Django core apps
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',  # THIS ENABLES collectstatic
+    
+    # Third party apps
+    'rest_framework',
+    'corsheaders',
+    'channels',
+    'django_extensions',
+    
+    # Your apps
+    'accounts',
+    'cards',
+    'compliance',
+    'kyc',
+    'kyc_spec',
+    'notifications',
+    'notifications_backup',
+    'payments',
+    'receipts',
+    'tasks',
+    'transactions',
+    'transfers',
+    'users',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = 'backend.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
 
 # WSGI Application
 WSGI_APPLICATION = 'backend.wsgi.application'
 
+# ==============================================================================
+# DATABASE
+# ==============================================================================
 
-
-
-# Railway Database Configuration
 import dj_database_url
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -91,3 +147,71 @@ if DATABASE_URL:
             conn_health_checks=True,
         )
     }
+else:
+    # Local development with SQLite
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+# ==============================================================================
+# REST FRAMEWORK
+# ==============================================================================
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+}
+
+# ==============================================================================
+# STATIC FILES (CSS, JavaScript, Images)
+# ==============================================================================
+
+STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# ==============================================================================
+# INTERNATIONALIZATION
+# ==============================================================================
+
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+# ==============================================================================
+# DEFAULT PRIMARY KEY FIELD TYPE
+# ==============================================================================
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ==============================================================================
+# CHANNELS (ASGI) CONFIGURATION
+# ==============================================================================
+
+ASGI_APPLICATION = 'backend.asgi.application'
+
+# ==============================================================================
+# CORS SETTINGS
+# ==============================================================================
+
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # Allow all in development
+if not DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        'https://claverica-fixed.vercel.app',
+        'https://claverica-frontend-vercel.vercel.app',
+    ]
+
+CORS_ALLOW_CREDENTIALS = True
