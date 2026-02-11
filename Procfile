@@ -1,1 +1,1 @@
-web: cd /app/backend && gunicorn test_wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 30
+web: cd backend && PYTHONPATH=/app:/app/backend gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120

@@ -6,7 +6,7 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "cd backend && gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120",
+    "startCommand": "cd backend && PYTHONPATH=/app:/app/backend gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120",
     "healthcheckPath": "/",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE"
