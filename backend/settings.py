@@ -1,4 +1,4 @@
-"""
+﻿"""
 Django settings for Claverica backend project
 Production-ready configuration for Railway deployment
 """
@@ -42,10 +42,10 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 # SIMPLE FIX: ALLOW ALL HOSTS IN RAILWAY, RESTRICTED IN DEVELOPMENT
 if os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT'):
-    ALLOWED_HOSTS = ['*']
-    print("🚀 Railway: ALLOWED_HOSTS set to '*' for health checks")
+    ALLOWED_HOSTS = ['*', '.up.railway.app', 'claverica-backend-production.up.railway.app']
+    print("ðŸš€ Railway: ALLOWED_HOSTS set to '*' for health checks")
 else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+    
 
 # CSRF and Security Settings
 CSRF_TRUSTED_ORIGINS = [
@@ -78,3 +78,18 @@ else:
 # WSGI Application
 WSGI_APPLICATION = 'backend.wsgi.application'
 
+
+
+
+# Railway Database Configuration
+import dj_database_url
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
