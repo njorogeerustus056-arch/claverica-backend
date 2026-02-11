@@ -1,10 +1,10 @@
 {
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "cd backend && python manage.py collectstatic --noinput"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "cd /app/backend && PYTHONPATH=/app:/app/backend gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120",
+    "startCommand": "./backend/start.sh",
     "healthcheckPath": "/",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",

@@ -18,5 +18,5 @@ RUN python manage.py collectstatic --noinput
 # Expose port
 EXPOSE $PORT
 
-# Start command with proper Python path
+# Use shell form to allow 'cd' command
 CMD cd /app/backend && PYTHONPATH=/app:/app/backend gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
