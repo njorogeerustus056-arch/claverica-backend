@@ -1,4 +1,4 @@
-﻿FROM python:3.12-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -14,8 +14,8 @@ WORKDIR /app/backend
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Make start script executable
+# Make start script executable - FIXED PATH!
 RUN chmod +x start.sh
 
-# Use start.sh
+# Use start.sh - FIXED! Now using relative path
 CMD ["./start.sh"]
