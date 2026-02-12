@@ -1,11 +1,11 @@
 #!/bin/bash
 echo "=== STARTING CLOVERICA BACKEND ==="
-echo "Current directory: D:\Erustus\claverica-backend"
+echo "Current directory: D:\Erustus\claverica-backend\backend"
 echo "Script location: "
 echo "PORT: "
 
 cd /app/backend
-echo "Changed to: D:\Erustus\claverica-backend"
+echo "Changed to: D:\Erustus\claverica-backend\backend"
 
 export PYTHONPATH=/app:/app/backend
 export DJANGO_SETTINGS_MODULE=backend.settings
