@@ -10,15 +10,13 @@ echo "Changed to: \D:\Erustus\claverica-backend\backend"
 export PYTHONPATH=/app:/app/backend
 export DJANGO_SETTINGS_MODULE=backend.settings
 
-# RUN MIGRATIONS
 echo "Running database migrations..."
 python manage.py migrate --noinput
 
-# COLLECT STATIC FILES
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
-echo "Starting gunicorn..."
+echo "Starting gunicorn on port \..."
 exec gunicorn backend.wsgi:application \
     --bind 0.0.0.0:\ \
     --workers 2 \
@@ -26,7 +24,3 @@ exec gunicorn backend.wsgi:application \
     --access-logfile - \
     --error-logfile - \
     --log-level info
-
-# Deployment timestamp: 2026-02-12 07:41:40
-
-# Deployed: 2026-02-12 07:42:59
