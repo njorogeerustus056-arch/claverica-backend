@@ -27,7 +27,7 @@ load_dotenv()
 # ==============================================================================
 
 SECRET_KEY = os.environ.get(
-    'DJANGO_SECRET_KEY',
+    'SECRET_KEY',
     'django-insecure-development-key-change-in-production'
 )
 
@@ -75,14 +75,14 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',  # THIS ENABLES collectstatic
-    
+    'django.contrib.staticfiles',
+
     # Third party apps
     'rest_framework',
     'corsheaders',
     'channels',
     'django_extensions',
-    
+
     # Your apps
     'accounts',
     'cards',
@@ -101,7 +101,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -129,7 +129,6 @@ TEMPLATES = [
     },
 ]
 
-# WSGI Application
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # ==============================================================================
@@ -148,7 +147,6 @@ if DATABASE_URL:
         )
     }
 else:
-    # Local development with SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -175,7 +173,7 @@ SIMPLE_JWT = {
 }
 
 # ==============================================================================
-# STATIC FILES (CSS, JavaScript, Images)
+# STATIC FILES
 # ==============================================================================
 
 STATIC_URL = 'static/'
@@ -207,7 +205,7 @@ ASGI_APPLICATION = 'backend.asgi.application'
 # CORS SETTINGS
 # ==============================================================================
 
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Allow all in development
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 if not DEBUG:
     CORS_ALLOWED_ORIGINS = [
         'https://claverica-fixed.vercel.app',
@@ -216,12 +214,8 @@ if not DEBUG:
 
 CORS_ALLOW_CREDENTIALS = True
 
-
-
 # ==============================================================================
 # AUTHENTICATION
 # ==============================================================================
 
 AUTH_USER_MODEL = 'accounts.Account'
-
-
