@@ -5,12 +5,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the backend directory only, not the root
+# Copy ONLY the backend directory
 COPY backend/ ./backend/
 
 WORKDIR /app/backend
 
-# Use the CORRECT start.sh from backend folder
+# DO NOT recreate start.sh - use the CORRECT one from backend folder
 RUN chmod +x start.sh
 
 RUN python manage.py collectstatic --noinput
