@@ -4,10 +4,10 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "numReplicas": 1,
-    "restartPolicyType": "NEVER",
+    "startCommand": "/app/backend/start.sh",
     "healthcheckPath": "/health/",
     "healthcheckTimeout": 30,
-    "healthcheckInterval": 15
+    "restartPolicyType": "NEVER",
+    "numReplicas": 1
   }
 }
