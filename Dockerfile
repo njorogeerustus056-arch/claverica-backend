@@ -10,7 +10,7 @@ COPY backend/ ./backend/
 
 WORKDIR /app/backend
 
-# DO NOT recreate start.sh - use the CORRECT one from backend folder
+# DO NOT RECREATE START.SH - IT'S ALREADY CORRECT IN YOUR BACKEND FOLDER!
 RUN chmod +x start.sh
 
 RUN python manage.py collectstatic --noinput
