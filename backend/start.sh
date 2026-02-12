@@ -1,11 +1,11 @@
 #!/bin/bash
 echo "=== STARTING CLOVERICA BACKEND ==="
-echo "Current directory: $(pwd)"
-echo "Script location: $0"
-echo "PORT: ${PORT:-8000}"
+echo "Current directory: \D:\Erustus\claverica-backend\backend"
+echo "Script location: \"
+echo "PORT: \"
 
 cd /app/backend
-echo "Changed to: $(pwd)"
+echo "Changed to: \D:\Erustus\claverica-backend\backend"
 
 export PYTHONPATH=/app:/app/backend
 export DJANGO_SETTINGS_MODULE=backend.settings
@@ -20,7 +20,7 @@ python manage.py collectstatic --noinput
 
 echo "Starting gunicorn..."
 exec gunicorn backend.wsgi:application \
-    --bind 0.0.0.0:${PORT:-8000} \
+    --bind 0.0.0.0:\ \
     --workers 2 \
     --timeout 120 \
     --access-logfile - \
