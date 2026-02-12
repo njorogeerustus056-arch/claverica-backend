@@ -20,14 +20,15 @@ python manage.py collectstatic --noinput
 echo "Starting gunicorn on port ${PORT:-8000}..."
 exec gunicorn backend.wsgi:application \
     --bind 0.0.0.0:${PORT:-8000} \
-    --workers 3 \
-    --threads 2 \
-    --worker-class gthread \
-    --timeout 300 \
-    --keep-alive 65 \
-    --max-requests 2000 \
-    --max-requests-jitter 200 \
-    --graceful-timeout 30 \
+    --workers 2 \
+    --threads 1 \
+    --worker-class sync \
+    --timeout 120 \
+    --keep-alive 5 \
+    --max-requests 500 \
+    --max-requests-jitter 50 \
     --access-logfile - \
     --error-logfile - \
-    --log-level info
+    --log-level info \
+    --limit-request-line 4094 \
+    --limit-request-fields 100

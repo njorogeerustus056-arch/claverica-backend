@@ -1,15 +1,21 @@
-﻿from django.http import HttpResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.cache import never_cache
+﻿import time
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+from django.db import connections
+from django.db.utils import OperationalError
 
-@csrf_exempt
-@never_cache
-def railway_health_check(request):
-    """Ultra simple health check - ALWAYS returns 200 OK, never redirects"""
-    return HttpResponse("OK", status=200, content_type="text/plain")
-
-@csrf_exempt
-@never_cache
-def health_check_200(request):
-    """Backup health check at different URL"""
-    return HttpResponse("HEALTHY", status=200, content_type="text/plain")
+@require_GET
+def health_check(request):
+    """Health check endpoint with trailing slash"""
+    # Check database connection
+    db_status = "ok"
+    try:
+        connections['default'].cursor().execute('SELECT 1')
+    except OperationalError:
+        db_status = "error"
+    
+    return JsonResponse({
+        "status": "ok",
+        "database": db_status,
+        "timestamp": time.time()
+    })
