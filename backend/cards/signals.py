@@ -1,4 +1,4 @@
-# backend/cards/signals.py - CORRECTED
+﻿# backend/cards/signals.py - CORRECTED
 """
 cards/signals.py - CORRECTED VERSION (FIXED)
 """
