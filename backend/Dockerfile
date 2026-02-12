@@ -14,8 +14,8 @@ WORKDIR /app/backend
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Make start script executable - FIXED PATH!
+# Make start script executable
 RUN chmod +x start.sh
 
-# Use start.sh - FIXED! Now using relative path
+# Use start.sh
 CMD ["./start.sh"]
