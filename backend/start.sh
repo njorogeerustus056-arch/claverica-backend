@@ -8,7 +8,7 @@ cd /app/backend
 echo "Changed to: $(pwd)"
 
 export PYTHONPATH=/app:/app/backend
-export DJANGO_SETTINGS_MODULE=backend.settings_railway
+export DJANGO_SETTINGS_MODULE=backend.settings
 
 # RUN MIGRATIONS
 echo "Running database migrations..."
