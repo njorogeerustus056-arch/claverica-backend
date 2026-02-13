@@ -1,4 +1,4 @@
-from django.urls import path, include  # Make sure 'include' is imported
+from django.urls import path, include
 from django.http import HttpResponse
 from django.contrib import admin
 from django.views.decorators.http import require_GET
@@ -13,7 +13,10 @@ urlpatterns = [
     path('health/', health_check, name='health_check'),
     path('health', health_check, name='health_check_no_slash'),
     path('admin/', admin.site.urls),
-    # Add these two lines to include your apps
+    
+    # API endpoints
     path('api/accounts/', include('accounts.urls')),
     path('api/users/', include('users.urls')),
+    path('api/notifications/', include('notifications.urls')),
+    path('api/transactions/', include('transactions.urls')),
 ]
