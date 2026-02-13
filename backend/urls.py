@@ -1,7 +1,11 @@
-﻿from django.urls import path
+from django.urls import path
 from django.http import HttpResponse
 from django.contrib import admin
+from django.views.decorators.http import require_GET
+from django.views.decorators.csrf import csrf_exempt
 
+@csrf_exempt
+@require_GET
 def health_check(request):
     return HttpResponse("OK", status=200, content_type="text/plain")
 
