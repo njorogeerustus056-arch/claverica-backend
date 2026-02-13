@@ -1,17 +1,35 @@
-#!/bin/bash
-set -e
-echo "=== STARTING CLOVERICA BACKEND ==="
+﻿#!/bin/bash
+set -x  # Print every command
+echo "=== STARTING WITH DEBUG ==="
+echo "PORT: $PORT"
+echo "PYTHONPATH: $PYTHONPATH"
+echo "Current directory: $(pwd)"
+ls -la
 
-export PYTHONPATH=/app:/app/backend
-export DJANGO_SETTINGS_MODULE=backend.settings
+echo "=== Testing Django ==="
+python -c "
+import sys
+print('Python version:', sys.version)
+print('Path:', sys.path)
+try:
+    from django.conf import settings
+    print('Django version:', django.get_version())
+    print('Settings module:', settings.SETTINGS_MODULE)
+    print('SECRET_KEY set:', bool(settings.SECRET_KEY))
+    print('DATABASES:', list(settings.DATABASES.keys()))
+except Exception as e:
+    print('CRASH:', e)
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+"
 
-# Start Gunicorn directly (migrations can run in background if needed)
-PORT="${PORT:-8000}"
-echo "Starting Gunicorn on port $PORT"
+echo "=== Starting Gunicorn ==="
 exec gunicorn backend.wsgi:application \
     --bind 0.0.0.0:$PORT \
-    --workers 2 \
-    --threads 2 \
+    --workers 1 \
+    --threads 1 \
     --timeout 60 \
     --access-logfile - \
-    --error-logfile -
+    --error-logfile - \
+    --log-level debug
