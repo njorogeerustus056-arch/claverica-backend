@@ -1,8 +1,8 @@
-#!/bin/bash
+﻿#!/bin/bash
 echo "=== STARTING CLOVERICA BACKEND ==="
 echo "Current directory: D:\Erustus\claverica-backend\backend"
-echo "PORT: "
-echo "RAILWAY: "
+echo "PORT: \"
+echo "RAILWAY: \"
 
 # CRITICAL: Set Python path correctly
 export PYTHONPATH=/app:/app/backend
@@ -10,7 +10,7 @@ export DJANGO_SETTINGS_MODULE=backend.settings
 
 # Print Python path for debugging
 echo "=== PYTHON PATH ==="
-python -c "import sys; print('\\n'.join(sys.path))"
+python -c "import sys; print('\n'.join(sys.path))"
 
 echo "=== INSTALLED PACKAGES ==="
 pip list
