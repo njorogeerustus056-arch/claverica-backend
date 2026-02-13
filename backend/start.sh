@@ -1,8 +1,8 @@
 #!/bin/bash
 set -x
 echo "STARTING"
-echo "Current directory: D:\Erustus\claverica-backend\backend"
-echo "PORT: "
+echo "Current directory: $(pwd)"
+echo "PORT: $PORT"
 
 # Set Python path explicitly
 export PYTHONPATH=/app:/app/backend
@@ -10,14 +10,14 @@ export PYTHONPATH=/app:/app/backend
 # Change to the backend directory
 cd /app/backend
 
-# Run Django check
-python manage.py check --deploy
-CHECK_RESULT=True
+# Run Django check and capture ONLY the exit code (not the output)
+python manage.py check --deploy > /dev/null 2>&1
+CHECK_RESULT=$?
 
-if [  -eq 0 ]; then
+if [ $CHECK_RESULT -eq 0 ]; then
     echo "Django check passed, starting Gunicorn"
     exec gunicorn backend.wsgi:application \
-        --bind 0.0.0.0: \
+        --bind 0.0.0.0:$PORT \
         --workers 1 \
         --threads 1 \
         --timeout 60 \
@@ -26,6 +26,6 @@ if [  -eq 0 ]; then
         --pythonpath /app \
         --pythonpath /app/backend
 else
-    echo "Django check failed with code "
+    echo "Django check failed with code $CHECK_RESULT"
     exit 1
 fi
