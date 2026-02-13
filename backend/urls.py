@@ -14,5 +14,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', health_check, name='health_check'),
     # Add your API URLs here
-    # path('api/', include('api.urls')),
+    # path('api/', include('accounts.urls')),
+    # path('api/', include('transactions.urls')),
 ]
