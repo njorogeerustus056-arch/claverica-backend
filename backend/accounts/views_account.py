@@ -1,5 +1,7 @@
 ﻿import logging
 from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.core.mail import send_mail
 from django.conf import settings
@@ -25,14 +27,11 @@ logger = logging.getLogger(__name__)
 
 # ========== EXISTING VIEWS ==========
 
-class RegisterView:
+class RegisterView(APIView):
     """Register new account and send activation code"""
-    
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        # Import inside method
-        from rest_framework.views import APIView
-        from rest_framework.permissions import AllowAny
-        
         serializer = AccountRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             account = serializer.save()
@@ -85,15 +84,13 @@ The Claverica Team
         except Exception as e:
             logger.warning(f"Email sending failed (but registration succeeded): {e}")
 
-class ActivateView:
+class ActivateView(APIView):
     """Activate account with code"""
-    
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        # Import inside method
-        from rest_framework.views import APIView
-        from rest_framework.permissions import AllowAny
         from rest_framework_simplejwt.tokens import RefreshToken
-        
+
         serializer = ActivationSerializer(data=request.data)
         if serializer.is_valid():
             account = serializer.validated_data['account']
@@ -131,14 +128,11 @@ class ActivateView:
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ResendActivationView:
+class ResendActivationView(APIView):
     """Resend activation code"""
-    
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        # Import inside method
-        from rest_framework.views import APIView
-        from rest_framework.permissions import AllowAny
-        
         serializer = ResendActivationSerializer(data=request.data)
         if serializer.is_valid():
             account = serializer.validated_data['email']
@@ -186,15 +180,13 @@ The Claverica Team
             logger.warning(f"Email sending failed (but resend succeeded): {e}")
 
 
-class LoginView:
+class LoginView(APIView):
     """Login with email and password"""
-    
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        # Import inside method
-        from rest_framework.views import APIView
-        from rest_framework.permissions import AllowAny
         from rest_framework_simplejwt.tokens import RefreshToken
-        
+
         email = request.data.get('email', '').strip().lower()
         password = request.data.get('password', '')
 
@@ -265,14 +257,11 @@ class LoginView:
 
 # ========== NEW PASSWORD VIEWS ==========
 
-class PasswordResetView:
+class PasswordResetView(APIView):
     """Request password reset email"""
-    
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        # Import inside method
-        from rest_framework.views import APIView
-        from rest_framework.permissions import AllowAny
-        
         serializer = PasswordResetSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
@@ -311,14 +300,11 @@ class PasswordResetView:
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PasswordResetConfirmView:
+class PasswordResetConfirmView(APIView):
     """Confirm password reset with OTP and set new password"""
-    
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        # Import inside method
-        from rest_framework.views import APIView
-        from rest_framework.permissions import AllowAny
-        
         serializer = PasswordResetConfirmSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
@@ -372,14 +358,11 @@ class PasswordResetConfirmView:
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PasswordChangeView:
+class PasswordChangeView(APIView):
     """Change password for authenticated users"""
-    
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
-        # Import inside method
-        from rest_framework.views import APIView
-        from rest_framework.permissions import IsAuthenticated
-        
         serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
@@ -407,15 +390,13 @@ class PasswordChangeView:
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class LogoutView:
+class LogoutView(APIView):
     """Logout user by blacklisting refresh token"""
-    
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
-        # Import inside method
-        from rest_framework.views import APIView
-        from rest_framework.permissions import IsAuthenticated
         from rest_framework_simplejwt.tokens import RefreshToken
-        
+
         try:
             refresh_token = request.data.get("refresh")
             if refresh_token:
