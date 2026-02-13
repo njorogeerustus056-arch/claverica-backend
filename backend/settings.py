@@ -235,3 +235,17 @@ print(f"??? DEBUG: {DEBUG}")
 print(f"??? SECRET_KEY set: {'YES' if SECRET_KEY else 'NO'}")
 print(f"??? RAILWAY environment: {'YES' if os.environ.get('RAILWAY') else 'NO'}")
 print(f"??? DATABASE: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
+
+# ==============================================================================
+# DATABASE DEBUGGING - ADD THIS TEMPORARILY
+# ==============================================================================
+import os
+print(f"??? RAW DATABASE_URL from env: {os.environ.get('DATABASE_URL', 'NOT SET')}")
+
+# Force the correct host if needed
+if os.environ.get('DATABASE_URL'):
+    db_url = os.environ.get('DATABASE_URL')
+    if 'postgres.railway.internal' in db_url:
+        corrected_url = db_url.replace('postgres.railway.internal', 'postgres-aaoa.railway.internal')
+        print(f"??? CORRECTED DATABASE_URL from: {db_url} to: {corrected_url}")
+        os.environ['DATABASE_URL'] = corrected_url
