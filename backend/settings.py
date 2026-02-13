@@ -62,7 +62,7 @@ else:
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     # Exempt health check from SSL redirect
-    SECURE_REDIRECT_EXEMPT = [r'^health/?]
+    SECURE_REDIRECT_EXEMPT = [r'^health/?$']
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
