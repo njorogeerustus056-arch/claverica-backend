@@ -1,14 +1,12 @@
-﻿#!/bin/bash
+#!/bin/bash
 echo "=== STARTING CLOVERICA BACKEND ==="
-echo "Current directory: D:\Erustus\claverica-backend\backend"
-echo "PORT: \"
-echo "RAILWAY: \"
+echo "Current directory: $(pwd)"
+echo "PORT: ${PORT:-8000}"
+echo "RAILWAY: ${RAILWAY:-Not set}"
 
-# CRITICAL: Set Python path correctly
 export PYTHONPATH=/app:/app/backend
 export DJANGO_SETTINGS_MODULE=backend.settings
 
-# Print Python path for debugging
 echo "=== PYTHON PATH ==="
 python -c "import sys; print('\n'.join(sys.path))"
 
@@ -21,11 +19,11 @@ python manage.py migrate --noinput
 echo "=== COLLECTING STATIC FILES ==="
 python manage.py collectstatic --noinput
 
-PORT="\"
-echo "=== STARTING GUNICORN ON PORT \ ==="
+PORT="${PORT:-8000}"
+echo "=== STARTING GUNICORN ON PORT $PORT ==="
 
 exec gunicorn backend.wsgi:application \
-    --bind 0.0.0.0:\ \
+    --bind 0.0.0.0:$PORT \
     --workers 2 \
     --threads 2 \
     --timeout 60 \
