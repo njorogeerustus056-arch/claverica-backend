@@ -1,5 +1,5 @@
-﻿#!/bin/bash
-set -x  # Print every command
+#!/bin/bash
+set -x
 echo "=== STARTING WITH DEBUG ==="
 echo "PORT: $PORT"
 echo "PYTHONPATH: $PYTHONPATH"
