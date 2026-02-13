@@ -1,9 +1,6 @@
-import logging
+﻿import logging
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
@@ -28,11 +25,14 @@ logger = logging.getLogger(__name__)
 
 # ========== EXISTING VIEWS ==========
 
-class RegisterView(APIView):
+class RegisterView:
     """Register new account and send activation code"""
-    permission_classes = [AllowAny]
-
+    
     def post(self, request):
+        # Import inside method
+        from rest_framework.views import APIView
+        from rest_framework.permissions import AllowAny
+        
         serializer = AccountRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             account = serializer.save()
@@ -79,17 +79,21 @@ The Claverica Team
                 message.strip(),
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
-                fail_silently=True,  # CHANGED FROM False to True
+                fail_silently=True,
             )
             logger.info(f"Activation email sent to {email}")
         except Exception as e:
             logger.warning(f"Email sending failed (but registration succeeded): {e}")
 
-class ActivateView(APIView):
+class ActivateView:
     """Activate account with code"""
-    permission_classes = [AllowAny]
-
+    
     def post(self, request):
+        # Import inside method
+        from rest_framework.views import APIView
+        from rest_framework.permissions import AllowAny
+        from rest_framework_simplejwt.tokens import RefreshToken
+        
         serializer = ActivationSerializer(data=request.data)
         if serializer.is_valid():
             account = serializer.validated_data['account']
@@ -127,14 +131,17 @@ class ActivateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ResendActivationView(APIView):
+class ResendActivationView:
     """Resend activation code"""
-    permission_classes = [AllowAny]
-
+    
     def post(self, request):
+        # Import inside method
+        from rest_framework.views import APIView
+        from rest_framework.permissions import AllowAny
+        
         serializer = ResendActivationSerializer(data=request.data)
         if serializer.is_valid():
-            account = serializer.validated_data['email']  # Actually returns account object
+            account = serializer.validated_data['email']
 
             # Generate new activation code
             new_code = account.generate_activation_code()
@@ -172,18 +179,22 @@ The Claverica Team
                 message.strip(),
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
-                fail_silently=True,  # CHANGED FROM False to True
+                fail_silently=True,
             )
             logger.info(f"Resent activation email to {email}")
         except Exception as e:
             logger.warning(f"Email sending failed (but resend succeeded): {e}")
 
 
-class LoginView(APIView):
+class LoginView:
     """Login with email and password"""
-    permission_classes = [AllowAny]
-
+    
     def post(self, request):
+        # Import inside method
+        from rest_framework.views import APIView
+        from rest_framework.permissions import AllowAny
+        from rest_framework_simplejwt.tokens import RefreshToken
+        
         email = request.data.get('email', '').strip().lower()
         password = request.data.get('password', '')
 
@@ -254,11 +265,14 @@ class LoginView(APIView):
 
 # ========== NEW PASSWORD VIEWS ==========
 
-class PasswordResetView(APIView):
+class PasswordResetView:
     """Request password reset email"""
-    permission_classes = [AllowAny]
-
+    
     def post(self, request):
+        # Import inside method
+        from rest_framework.views import APIView
+        from rest_framework.permissions import AllowAny
+        
         serializer = PasswordResetSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
@@ -297,11 +311,14 @@ class PasswordResetView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PasswordResetConfirmView(APIView):
+class PasswordResetConfirmView:
     """Confirm password reset with OTP and set new password"""
-    permission_classes = [AllowAny]
-
+    
     def post(self, request):
+        # Import inside method
+        from rest_framework.views import APIView
+        from rest_framework.permissions import AllowAny
+        
         serializer = PasswordResetConfirmSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
@@ -355,11 +372,14 @@ class PasswordResetConfirmView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PasswordChangeView(APIView):
+class PasswordChangeView:
     """Change password for authenticated users"""
-    permission_classes = [IsAuthenticated]
-
+    
     def post(self, request):
+        # Import inside method
+        from rest_framework.views import APIView
+        from rest_framework.permissions import IsAuthenticated
+        
         serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
@@ -387,11 +407,15 @@ class PasswordChangeView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class LogoutView(APIView):
+class LogoutView:
     """Logout user by blacklisting refresh token"""
-    permission_classes = [IsAuthenticated]
-
+    
     def post(self, request):
+        # Import inside method
+        from rest_framework.views import APIView
+        from rest_framework.permissions import IsAuthenticated
+        from rest_framework_simplejwt.tokens import RefreshToken
+        
         try:
             refresh_token = request.data.get("refresh")
             if refresh_token:
