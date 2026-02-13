@@ -1,64 +1,54 @@
-﻿\"\"\"
+"""
 Django settings for Claverica backend project
 Production-ready configuration for Railway deployment
-\"\"\"
+"""
 
 import os
 import sys
 from pathlib import Path
 from datetime import timedelta
-from dotenv import load_dotenv
 
 # ==============================================================================
 # CRITICAL: PYTHON PATH SETUP
 # ==============================================================================
 BASE_DIR = Path(__file__).resolve().parent.parent
+BACKEND_DIR = BASE_DIR / "backend"
 
-# Load .env ONLY in development, NEVER in Railway
-if not os.environ.get('RAILWAY'):
-    load_dotenv(BASE_DIR.parent / '.env')
-    print("??? Local: Loaded .env file")
-else:
-    print("??? Railway: Using environment variables")
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
-# ==============================================================================
-# CRITICAL: SECRET_KEY MUST BE SET IN RAILWAY
-# ==============================================================================
-SECRET_KEY = os.environ.get('SECRET_KEY')
-
-if not SECRET_KEY:
-    if os.environ.get('RAILWAY'):
-        raise ValueError(
-            "CRITICAL: SECRET_KEY environment variable is not set in Railway. "
-            "Please add it in Railway Dashboard > Variables."
-        )
-    else:
-        SECRET_KEY = 'django-insecure-development-key-change-in-production'
-        print("⚠️  WARNING: Using development SECRET_KEY - DO NOT USE IN PRODUCTION")
+from dotenv import load_dotenv
+load_dotenv()
 
 # ==============================================================================
-# DEBUG & HOSTS SETTINGS
+# SECURITY SETTINGS
 # ==============================================================================
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY',
+    'django-insecure-development-key-change-in-production'
+)
+
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+
+# SIMPLE FIX: ALLOW ALL HOSTS IN RAILWAY, RESTRICTED IN DEVELOPMENT
 if os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT'):
-    ALLOWED_HOSTS = ['*', '.up.railway.app']
+    ALLOWED_HOSTS = ['*', '.up.railway.app', 'claverica-backend-production.up.railway.app']
+    print("?? Railway: ALLOWED_HOSTS set to '*' for health checks")
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    # CSRF and Security Settings
     CSRF_TRUSTED_ORIGINS = [
         'https://*.railway.app',
         'https://claverica-fixed.vercel.app',
         'https://claverica-frontend-vercel.vercel.app',
-    ]
-    print(f"??? Railway: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
-else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-    CSRF_TRUSTED_ORIGINS = [
         'http://localhost:3000',
         'http://localhost:5173',
     ]
 
-# ==============================================================================
-# SECURITY SETTINGS - PRODUCTION ONLY
-# ==============================================================================
+# Security settings for production only
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -69,7 +59,6 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 else:
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = False
@@ -78,6 +67,7 @@ else:
 # ==============================================================================
 # APPLICATION DEFINITION
 # ==============================================================================
+
 INSTALLED_APPS = [
     # Django core apps
     'django.contrib.admin',
@@ -100,6 +90,7 @@ INSTALLED_APPS = [
     'kyc',
     'kyc_spec',
     'notifications',
+    'notifications_backup',
     'payments',
     'receipts',
     'tasks',
@@ -141,21 +132,20 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # ==============================================================================
-# DATABASE - RAILWAY POSTGRESQL
+# DATABASE
 # ==============================================================================
+
 import dj_database_url
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
             conn_max_age=600,
             conn_health_checks=True,
-            ssl_require=True if os.environ.get('RAILWAY') else False
         )
     }
-    print(f"??? Using PostgreSQL database")
 else:
     DATABASES = {
         'default': {
@@ -163,11 +153,11 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-    print("⚠️  Using SQLite database - not for production")
 
 # ==============================================================================
-# REST FRAMEWORK & JWT
+# REST FRAMEWORK
 # ==============================================================================
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -180,39 +170,20 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 # ==============================================================================
-# STATIC FILES - WHITENOISE
+# STATIC FILES
 # ==============================================================================
-STATIC_URL = '/static/'
+
+STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-] if os.path.exists(BASE_DIR / 'static') else []
-
-# ==============================================================================
-# CORS SETTINGS
-# ==============================================================================
-CORS_ALLOW_ALL_ORIGINS = DEBUG
-if not DEBUG:
-    CORS_ALLOWED_ORIGINS = [
-        'https://claverica-fixed.vercel.app',
-        'https://claverica-frontend-vercel.vercel.app',
-    ]
-CORS_ALLOW_CREDENTIALS = True
-
-# ==============================================================================
-# AUTHENTICATION
-# ==============================================================================
-AUTH_USER_MODEL = 'accounts.Account'
 
 # ==============================================================================
 # INTERNATIONALIZATION
 # ==============================================================================
+
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
@@ -221,17 +192,30 @@ USE_TZ = True
 # ==============================================================================
 # DEFAULT PRIMARY KEY FIELD TYPE
 # ==============================================================================
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ==============================================================================
 # CHANNELS (ASGI) CONFIGURATION
 # ==============================================================================
+
 ASGI_APPLICATION = 'backend.asgi.application'
 
 # ==============================================================================
-# PRINT CONFIG STATUS (Visible in Railway logs)
+# CORS SETTINGS
 # ==============================================================================
-print(f"??? DEBUG: {DEBUG}")
-print(f"??? SECRET_KEY set: {'YES' if SECRET_KEY else 'NO'}")
-print(f"??? RAILWAY environment: {'YES' if os.environ.get('RAILWAY') else 'NO'}")
-print(f"??? DATABASE: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
+
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+if not DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        'https://claverica-fixed.vercel.app',
+        'https://claverica-frontend-vercel.vercel.app',
+    ]
+
+CORS_ALLOW_CREDENTIALS = True
+
+# ==============================================================================
+# AUTHENTICATION
+# ==============================================================================
+
+AUTH_USER_MODEL = 'accounts.Account'

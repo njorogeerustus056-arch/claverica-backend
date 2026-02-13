@@ -1,34 +1,38 @@
 #!/bin/bash
 echo "=== STARTING CLOVERICA BACKEND ==="
-echo "Current directory: $(pwd)"
-echo "Script location: $0"
-echo "PORT: ${PORT:-8000}"
+echo "Current directory: D:\Erustus\claverica-backend\backend"
+echo "PORT: "
+echo "RAILWAY: "
 
-cd /app/backend
-echo "Changed to: $(pwd)"
-
+# Set Python path
 export PYTHONPATH=/app:/app/backend
 export DJANGO_SETTINGS_MODULE=backend.settings
-export SECRET_KEY="${SECRET_KEY}"
 
-echo "Running database migrations..."
+# Print configuration status
+echo "=== CONFIGURATION ==="
+python -c "
+import os
+from django.conf import settings
+print(f'SECRET_KEY set: {bool(settings.SECRET_KEY)}')
+print(f'DEBUG: {settings.DEBUG}')
+print(f'DATABASE: {settings.DATABASES[\"default\"][\"ENGINE\"]}')
+"
+
+# Run migrations
+echo "=== RUNNING MIGRATIONS ==="
 python manage.py migrate --noinput
 
-echo "Collecting static files..."
+# Collect static files
+echo "=== COLLECTING STATIC FILES ==="
 python manage.py collectstatic --noinput
 
-echo "Starting gunicorn on port ${PORT:-8000}..."
+# Start gunicorn
+echo "=== STARTING GUNICORN ON PORT  ==="
 exec gunicorn backend.wsgi:application \
-    --bind 0.0.0.0:${PORT:-8000} \
+    --bind 0.0.0.0: \
     --workers 2 \
-    --threads 1 \
-    --worker-class sync \
-    --timeout 120 \
-    --keep-alive 5 \
-    --max-requests 500 \
-    --max-requests-jitter 50 \
+    --threads 2 \
+    --timeout 60 \
     --access-logfile - \
     --error-logfile - \
-    --log-level info \
-    --limit-request-line 4094 \
-    --limit-request-fields 100
+    --log-level info
