@@ -6,12 +6,13 @@ def health_check(request):
     return JsonResponse({
         "status": "healthy",
         "service": "claverica-backend",
-        "database": "connected"
+        "database": "connected",
+        "timestamp": "2026-02-13"
     })
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', health_check, name='health_check'),
-    # Add your other URLs here
+    # Add your API URLs here
     # path('api/', include('api.urls')),
 ]
