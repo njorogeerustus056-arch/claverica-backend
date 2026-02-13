@@ -140,14 +140,14 @@ class Account(AbstractUser):
     occupation = models.CharField(max_length=100, null=True, blank=True)
     employer = models.CharField(max_length=100, null=True, blank=True)
     income_range = models.CharField(max_length=50, null=True, blank=True, choices=[
-        ('<10000', 'Below $10,000 / â‚¬9,000 / Â£8,000'),
-        ('10000-30000', '$10,000 - $30,000 / â‚¬9,000 - â‚¬27,000'),
-        ('30000-50000', '$30,000 - $50,000 / â‚¬27,000 - â‚¬45,000'),
-        ('50000-75000', '$50,000 - $75,000 / â‚¬45,000 - â‚¬68,000'),
-        ('75000-100000', '$75,000 - $100,000 / â‚¬68,000 - â‚¬90,000'),
-        ('100000-150000', '$100,000 - $150,000 / â‚¬90,000 - â‚¬135,000'),
-        ('150000-200000', '$150,000 - $200,000 / â‚¬135,000 - â‚¬180,000'),
-        ('>200000', 'Above $200,000 / â‚¬180,000 / Â£160,000')
+        ('<10000', 'Below $10,000 / €9,000 / £8,000'),
+        ('10000-30000', '$10,000 - $30,000 / €9,000 - €27,000'),
+        ('30000-50000', '$30,000 - $50,000 / €27,000 - €45,000'),
+        ('50000-75000', '$50,000 - $75,000 / €45,000 - €68,000'),
+        ('75000-100000', '$75,000 - $100,000 / €68,000 - €90,000'),
+        ('100000-150000', '$100,000 - $150,000 / €90,000 - €135,000'),
+        ('150000-200000', '$150,000 - $200,000 / €135,000 - €180,000'),
+        ('>200000', 'Above $200,000 / €180,000 / £160,000')
     ])
 
     # Account Status Fields
@@ -184,6 +184,7 @@ class Account(AbstractUser):
     class Meta:
         verbose_name = 'Account'
         verbose_name_plural = 'Accounts'
+
     def generate_activation_code(self):
         """Generate a 6-digit activation code"""
         import random
@@ -218,8 +219,6 @@ class Account(AbstractUser):
         self.activation_code = None
         self.save(update_fields=['is_active', 'is_verified', 'activation_code'])
         return True, "Account activated successfully"
-
-
 
     def __str__(self):
         return f"{self.email} ({self.account_number or 'No account number'})"
