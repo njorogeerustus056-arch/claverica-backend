@@ -20,7 +20,10 @@ if [ $CHECK_RESULT -eq 0 ]; then
         --bind 0.0.0.0:$PORT \
         --workers 1 \
         --threads 1 \
-        --timeout 60 \
+        --timeout 120 \
+        --graceful-timeout 30 \
+        --max-requests 1000 \
+        --max-requests-jitter 100 \
         --access-logfile - \
         --error-logfile - \
         --pythonpath /app \
