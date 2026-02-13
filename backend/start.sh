@@ -12,6 +12,9 @@ export DJANGO_SETTINGS_MODULE=backend.settings
 echo "=== CONFIGURATION ==="
 python -c "
 import os
+import django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
+django.setup()
 from django.conf import settings
 print(f'SECRET_KEY set: {bool(settings.SECRET_KEY)}')
 print(f'DEBUG: {settings.DEBUG}')
@@ -26,8 +29,10 @@ python manage.py migrate --noinput
 echo "=== COLLECTING STATIC FILES ==="
 python manage.py collectstatic --noinput
 
-# Start gunicorn
+# Get port (Railway sets PORT environment variable)
+PORT=""
 echo "=== STARTING GUNICORN ON PORT  ==="
+
 exec gunicorn backend.wsgi:application \
     --bind 0.0.0.0: \
     --workers 2 \
