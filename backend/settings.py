@@ -1,7 +1,7 @@
-﻿\"\"\"
+"""
 Django settings for Claverica backend project
 Production-ready configuration for Railway deployment
-\"\"\"
+"""
 
 import os
 import sys
@@ -34,7 +34,7 @@ if not SECRET_KEY:
         )
     else:
         SECRET_KEY = 'django-insecure-development-key-change-in-production'
-        print("⚠️  WARNING: Using development SECRET_KEY - DO NOT USE IN PRODUCTION")
+        print("??  WARNING: Using development SECRET_KEY - DO NOT USE IN PRODUCTION")
 
 # ==============================================================================
 # DEBUG & HOSTS SETTINGS
@@ -163,7 +163,7 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-    print("⚠️  Using SQLite database - not for production")
+    print("??  Using SQLite database - not for production")
 
 # ==============================================================================
 # REST FRAMEWORK & JWT
