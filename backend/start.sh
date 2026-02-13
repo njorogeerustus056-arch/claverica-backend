@@ -4,37 +4,28 @@ echo "Current directory: D:\Erustus\claverica-backend\backend"
 echo "PORT: "
 echo "RAILWAY: "
 
-# Set Python path
+# CRITICAL: Set Python path correctly
 export PYTHONPATH=/app:/app/backend
 export DJANGO_SETTINGS_MODULE=backend.settings
 
-# Print configuration status
-echo "=== CONFIGURATION ==="
-python -c "
-import os
-import django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
-django.setup()
-from django.conf import settings
-print(f'SECRET_KEY set: {bool(settings.SECRET_KEY)}')
-print(f'DEBUG: {settings.DEBUG}')
-print(f'DATABASE: {settings.DATABASES[\"default\"][\"ENGINE\"]}')
-"
+# Print Python path for debugging
+echo "=== PYTHON PATH ==="
+python -c "import sys; print('\\n'.join(sys.path))"
 
-# Run migrations
+echo "=== INSTALLED PACKAGES ==="
+pip list
+
 echo "=== RUNNING MIGRATIONS ==="
 python manage.py migrate --noinput
 
-# Collect static files
 echo "=== COLLECTING STATIC FILES ==="
 python manage.py collectstatic --noinput
 
-# Get port (Railway sets PORT environment variable)
-PORT=""
-echo "=== STARTING GUNICORN ON PORT  ==="
+PORT="\"
+echo "=== STARTING GUNICORN ON PORT \ ==="
 
 exec gunicorn backend.wsgi:application \
-    --bind 0.0.0.0: \
+    --bind 0.0.0.0:\ \
     --workers 2 \
     --threads 2 \
     --timeout 60 \
