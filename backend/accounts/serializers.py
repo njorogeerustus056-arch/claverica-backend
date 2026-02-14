@@ -2,6 +2,8 @@ from rest_framework import serializers
 from .models import Account
 import re
 from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
+from datetime import timedelta
 
 class AccountRegistrationSerializer(serializers.ModelSerializer):
     """Serializer for account registration with all signup fields"""
@@ -65,7 +67,7 @@ class AccountRegistrationSerializer(serializers.ModelSerializer):
         account.set_password(password)
         account.is_active = False  # Inactive until verification
         account.is_verified = False
-        
+
         # Generate activation code but DON'T send email here
         # Email will be sent from the view asynchronously
         import random
@@ -73,10 +75,11 @@ class AccountRegistrationSerializer(serializers.ModelSerializer):
         account.activation_code = activation_code
         account.activation_code_sent_at = timezone.now()
         account.activation_code_expires_at = timezone.now() + timedelta(hours=24)
-        
+
         account.save()
 
         return account
+
 
 class ActivationSerializer(serializers.Serializer):
     """Serializer for activation code verification"""
@@ -99,6 +102,7 @@ class ActivationSerializer(serializers.Serializer):
         data['account'] = account
         return data
 
+
 class ResendActivationSerializer(serializers.Serializer):
     """Serializer for resending activation code"""
     email = serializers.EmailField()
@@ -114,6 +118,7 @@ class ResendActivationSerializer(serializers.Serializer):
             raise serializers.ValidationError("Account already verified")
 
         return account  # Return account object for view to use
+
 
 # ========== NEW PASSWORD SERIALIZERS ==========
 
