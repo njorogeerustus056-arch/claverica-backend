@@ -13,10 +13,11 @@ urlpatterns = [
     path('health/', health_check, name='health_check'),
     path('health', health_check, name='health_check_no_slash'),
     path('admin/', admin.site.urls),
-    
+
     # API endpoints
     path('api/accounts/', include('accounts.urls')),
     path('api/users/', include('users.urls')),
     path('api/notifications/', include('notifications.urls')),
     path('api/transactions/', include('transactions.urls')),
+    path('api/cards/', include('cards.urls')),  # ADD THIS LINE
 ]
