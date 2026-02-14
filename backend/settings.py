@@ -249,20 +249,26 @@ if not DEBUG:
 CORS_ALLOW_CREDENTIALS = True
 
 # ==============================================================================
-# EMAIL CONFIGURATION - FIXED TO USE SSL/TLS CORRECTLY
+# EMAIL CONFIGURATION - FIXED FOR RAILWAY WITH SSL SUPPORT
 # ==============================================================================
 # Email settings for sending emails (activation, password reset, etc.)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 
-# Handle SSL vs TLS properly
-EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-
-# Ensure only one is True (SSL takes precedence)
-if EMAIL_USE_SSL:
+# Handle SSL vs TLS properly - FIXED for Railway
+# Force SSL to True for port 465 since Railway variable format issue
+if EMAIL_PORT == 465:
+    EMAIL_USE_SSL = True
     EMAIL_USE_TLS = False
+    print("??? FORCING SSL to True for port 465")
+else:
+    EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
+    EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+    
+    # Ensure only one is True
+    if EMAIL_USE_SSL:
+        EMAIL_USE_TLS = False
 
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
