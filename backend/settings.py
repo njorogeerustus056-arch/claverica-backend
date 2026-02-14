@@ -115,6 +115,9 @@ INSTALLED_APPS = [
     'users',
 ]
 
+# ==============================================================================
+# MIDDLEWARE - ADDED DATABASE CONNECTION MIDDLEWARE TO PREVENT TIMEOUTS
+# ==============================================================================
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -125,6 +128,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'backend.db_utils.DatabaseConnectionMiddleware',  # Added to prevent connection leaks
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -170,12 +174,12 @@ if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
-            conn_max_age=600,
+            conn_max_age=60,  # Reduced from 600 to 60 seconds to prevent connection leaks
             conn_health_checks=True,
             ssl_require=True if os.environ.get('RAILWAY') else False
         )
     }
-    
+
     # Add these connection settings to prevent timeouts
     DATABASES['default']['OPTIONS'] = {
         'connect_timeout': 10,
@@ -184,7 +188,7 @@ if DATABASE_URL:
         'keepalives_interval': 10,
         'keepalives_count': 5,
     }
-    
+
     print(f"??? Using PostgreSQL database with optimized settings")
 else:
     DATABASES = {
@@ -275,18 +279,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 ASGI_APPLICATION = 'backend.asgi.application'
 
 # ==============================================================================
-# DATABASE CONNECTION MANAGEMENT - PREVENT TIMEOUTS
-# ==============================================================================
-# Close database connections after each request to prevent connection leaks
-DATABASES['default']['CONN_MAX_AGE'] = 60  # Reduce from 600 to 60 seconds
-
-# ==============================================================================
 # PRINT CONFIG STATUS (Visible in Railway logs)
 # ==============================================================================
 print(f"??? DEBUG: {DEBUG}")
 print(f"??? SECRET_KEY set: {'YES' if SECRET_KEY else 'NO'}")
 print(f"??? RAILWAY environment: {'YES' if os.environ.get('RAILWAY') else 'NO'}")
 print(f"??? DATABASE: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
+print(f"??? Database CONN_MAX_AGE: {DATABASES['default'].get('CONN_MAX_AGE', 'Not set')}")
 
 # ==============================================================================
 # DATABASE DEBUGGING - ADD THIS TEMPORARILY
