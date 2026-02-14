@@ -16,8 +16,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load .env ONLY in development, NEVER in Railway
 if not os.environ.get('RAILWAY'):
-    load_dotenv(BASE_DIR.parent / '.env')
-    print("??? Local: Loaded .env file")
+    # FIXED: Look in backend folder, not parent directory
+    env_path = BASE_DIR / '.env'
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"??? Local: Loaded .env file from {env_path}")
+    else:
+        print("??? Local: No .env file found at", env_path)
 else:
     print("??? Railway: Using environment variables")
 
@@ -124,11 +129,19 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'backend.urls'
 
+# ==============================================================================
+# TEMPLATES CONFIGURATION - FIXED FOR EMAIL TEMPLATES
+# ==============================================================================
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
+        'DIRS': [
+            # Add explicit template directories to ensure email templates are found
+            os.path.join(BASE_DIR, 'templates'),
+            os.path.join(BASE_DIR, 'accounts/templates'),
+            str(BASE_DIR / 'accounts' / 'templates'),
+        ],
+        'APP_DIRS': True,  # This will also find templates in app directories
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -136,9 +149,14 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
+            'debug': False,  # Disable template debug in production for performance
         },
     },
 ]
+
+# Add debug to see what paths are being used (visible in Railway logs)
+print(f"??? Template directories: {TEMPLATES[0]['DIRS']}")
+print(f"??? BASE_DIR: {BASE_DIR}")
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 

@@ -1,4 +1,5 @@
 ﻿import logging
+import threading
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -36,8 +37,13 @@ class RegisterView(APIView):
         if serializer.is_valid():
             account = serializer.save()
 
-            # Send activation email
-            self.send_activation_email(account.email, account.activation_code)
+            # Send activation email in background thread to prevent worker timeout
+            thread = threading.Thread(
+                target=self.send_activation_email,
+                args=(account.email, account.activation_code)
+            )
+            thread.daemon = True
+            thread.start()
 
             return Response({
                 'success': True,
@@ -56,7 +62,7 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def send_activation_email(self, email, activation_code):
-        """Send activation code email"""
+        """Send activation code email (runs in background thread)"""
         subject = 'Activate Your Account - Claverica'
         message = f"""
 Thank you for registering with Claverica!
@@ -83,6 +89,7 @@ The Claverica Team
             logger.info(f"Activation email sent to {email}")
         except Exception as e:
             logger.warning(f"Email sending failed (but registration succeeded): {e}")
+
 
 class ActivateView(APIView):
     """Activate account with code"""
@@ -140,8 +147,13 @@ class ResendActivationView(APIView):
             # Generate new activation code
             new_code = account.generate_activation_code()
 
-            # Send new activation email
-            self.send_activation_email(account.email, new_code)
+            # Send new activation email in background thread
+            thread = threading.Thread(
+                target=self.send_activation_email,
+                args=(account.email, new_code)
+            )
+            thread.daemon = True
+            thread.start()
 
             return Response({
                 'success': True,
@@ -153,7 +165,7 @@ class ResendActivationView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def send_activation_email(self, email, activation_code):
-        """Send activation code email"""
+        """Send activation code email (runs in background thread)"""
         subject = 'New Activation Code - Claverica'
         message = f"""
 You requested a new activation code.
@@ -276,12 +288,13 @@ class PasswordResetView(APIView):
                 account.activation_code_expires_at = timezone.now() + timezone.timedelta(minutes=10)
                 account.save(update_fields=['activation_code', 'activation_code_sent_at', 'activation_code_expires_at'])
 
-                # Send password reset email
-                EmailService.send_otp_email(
-                    to_email=email,
-                    otp=reset_otp,
-                    purpose='password_reset'
+                # Send password reset email in background thread
+                thread = threading.Thread(
+                    target=EmailService.send_otp_email,
+                    args=(email, reset_otp, 'password_reset')
                 )
+                thread.daemon = True
+                thread.start()
 
                 return Response({
                     'success': True,
@@ -338,11 +351,13 @@ class PasswordResetConfirmView(APIView):
                 account.activation_code = None  # Clear OTP after use
                 account.save(update_fields=['password', 'activation_code'])
 
-                # Send password changed notification
-                EmailService.send_password_changed_email(
-                    to_email=email,
-                    first_name=account.first_name
+                # Send password changed notification in background thread
+                thread = threading.Thread(
+                    target=EmailService.send_password_changed_email,
+                    args=(email, account.first_name)
                 )
+                thread.daemon = True
+                thread.start()
 
                 return Response({
                     'success': True,
@@ -376,11 +391,13 @@ class PasswordChangeView(APIView):
             # Keep user logged in after password change
             update_session_auth_hash(request, user)
 
-            # Send notification email
-            EmailService.send_password_changed_email(
-                to_email=user.email,
-                first_name=user.first_name
+            # Send notification email in background thread
+            thread = threading.Thread(
+                target=EmailService.send_password_changed_email,
+                args=(user.email, user.first_name)
             )
+            thread.daemon = True
+            thread.start()
 
             return Response({
                 'success': True,

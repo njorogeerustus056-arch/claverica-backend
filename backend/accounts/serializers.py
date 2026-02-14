@@ -65,11 +65,16 @@ class AccountRegistrationSerializer(serializers.ModelSerializer):
         account.set_password(password)
         account.is_active = False  # Inactive until verification
         account.is_verified = False
+        
+        # Generate activation code but DON'T send email here
+        # Email will be sent from the view asynchronously
+        import random
+        activation_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        account.activation_code = activation_code
+        account.activation_code_sent_at = timezone.now()
+        account.activation_code_expires_at = timezone.now() + timedelta(hours=24)
+        
         account.save()
-
-        # Generate and send activation code
-        activation_code = account.generate_activation_code()
-        account.send_activation_email()
 
         return account
 
@@ -135,7 +140,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 'confirm_password': 'Passwords do not match'
             })
-        
+
         # Validate password strength
         try:
             validate_password(data['new_password'])
@@ -143,9 +148,9 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 'new_password': list(e.messages) if hasattr(e, 'messages') else str(e)
             })
-        
+
         return data
-    
+
     def validate_otp(self, value):
         """Validate OTP format"""
         if not value.isdigit():
@@ -172,12 +177,12 @@ class PasswordChangeSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 'new_password': 'New password must be different from current password'
             })
-        
+
         if data['new_password'] != data['confirm_password']:
             raise serializers.ValidationError({
                 'confirm_password': 'Passwords do not match'
             })
-        
+
         # Validate password strength
         try:
             validate_password(data['new_password'])
@@ -185,5 +190,5 @@ class PasswordChangeSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 'new_password': list(e.messages) if hasattr(e, 'messages') else str(e)
             })
-        
+
         return data

@@ -196,10 +196,10 @@ class Account(AbstractUser):
         return code
 
     def send_activation_email(self):
-        """Send activation email (simplified for now)"""
-        # In production, you would send an actual email
-        print(f"Activation code for {self.email}: {self.activation_code}")
-        print(f"For testing, use code: {self.activation_code} or '123456'")
+        """This method is deprecated - email is now sent from views asynchronously"""
+        # Just log that this was called (should not happen in production)
+        logger = logging.getLogger(__name__)
+        logger.warning(f"send_activation_email called directly for {self.email} - should use async view method instead")
         return True
 
     def verify_activation_code(self, code):
