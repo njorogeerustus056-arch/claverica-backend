@@ -251,7 +251,7 @@ CORS_ALLOW_CREDENTIALS = True
 # ==============================================================================
 # EMAIL CONFIGURATION - RAILWAY NATIVE EMAIL (FINAL FIX)
 # ==============================================================================
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'email.railway.app')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 
