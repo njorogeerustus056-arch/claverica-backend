@@ -1,81 +1,65 @@
 """
-Transfer Signals - Automated actions for transfer events
+transactions/signals.py
+Signals for auto-creating wallet when Account is created
 """
 
-from django.db.models.signals import post_save, pre_save, pre_delete
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from django.utils import timezone
+from accounts.models import Account
+from .models import Wallet
+import logging
 
-from .models import Transfer, TAC, TransferLog
+logger = logging.getLogger(__name__)
 
-
-@receiver(pre_save, sender=Transfer)
-def track_transfer_changes(sender, instance, **kwargs):
-    """Track transfer changes for audit trail"""
-    if instance.pk:
-        try:
-            old_instance = Transfer.objects.get(pk=instance.pk)
-            instance._old_status = old_instance.status
-        except Transfer.DoesNotExist:
-            instance._old_status = None
-
-
-@receiver(post_save, sender=Transfer)
-def handle_transfer_status_change(sender, instance, created, **kwargs):
-    """Handle transfer status changes"""
+@receiver(post_save, sender=Account)
+def create_wallet_for_new_account(sender, instance, created, **kwargs):
+    """
+    Automatically create a Wallet when a new Account is created.
+    This serves as a backup to the signal in users/signals.py
+    """
     if created:
-        # New transfer created
-        TransferLog.objects.create(
-            transfer=instance,
-            log_type='created',
-            message=f'Transfer request created for ${instance.amount} to {instance.recipient_name}'
-        )
-
-    elif hasattr(instance, '_old_status') and instance._old_status != instance.status:
-        # Status changed
-        TransferLog.objects.create(
-            transfer=instance,
-            log_type='status_change',
-            message=f'Status changed from {instance._old_status} to {instance.status}'
-        )
-
-
-@receiver(pre_save, sender=TAC)
-def track_tac_changes(sender, instance, **kwargs):
-    """Track TAC changes"""
-    if instance.pk:
         try:
-            old_instance = TAC.objects.get(pk=instance.pk)
-            instance._old_status = old_instance.status
-        except TAC.DoesNotExist:
-            instance._old_status = None
+            print(f'\n[TRANSACTIONS SIGNAL] Creating wallet for {instance.email}')
+            print(f'   Account#: {instance.account_number}')
 
+            # Check if account number exists - if not, wait for it
+            if not instance.account_number:
+                print(f'   ⚠️  No account number yet - will retry automatically')
+                # The users/signals.py will generate account number and save again
+                # This signal will trigger again on the next save
+                return
 
-@receiver(post_save, sender=TAC)
-def handle_tac_status_change(sender, instance, created, **kwargs):
-    """Handle TAC status changes"""
-    if created:
-        # New TAC created
-        TransferLog.objects.create(
-            transfer=instance.transfer,
-            log_type='tac_sent',
-            message=f'TAC generated for transfer {instance.transfer.reference}'
-        )
+            # Check if wallet already exists
+            wallet_exists = Wallet.objects.filter(account=instance).exists()
+            if wallet_exists:
+                print(f'   ✅ Wallet already exists')
+                return
 
-    elif hasattr(instance, '_old_status') and instance._old_status != instance.status:
-        # TAC status changed
-        TransferLog.objects.create(
-            transfer=instance.transfer,
-            log_type='tac_status_change',
-            message=f'TAC status changed from {instance._old_status} to {instance.status}'
-        )
+            # Create wallet
+            wallet = Wallet.objects.create(
+                account=instance,
+                balance=0.00,
+                currency='USD'
+            )
+            print(f'   ✅ Wallet created: {wallet.id}')
+            print(f'   Balance: {wallet.balance} {wallet.currency}')
 
+        except Exception as e:
+            print(f'   ❌ Error creating wallet: {e}')
+            logger.error(f"Error creating wallet for {instance.email}: {e}")
+            import traceback
+            traceback.print_exc()
 
-@receiver(pre_delete, sender=Transfer)
-def log_transfer_deletion(sender, instance, **kwargs):
-    """Log transfer deletion"""
-    TransferLog.objects.create(
-        transfer=instance,
-        log_type='deleted',
-        message=f'Transfer {instance.reference} was deleted'
-    )
+@receiver(post_delete, sender=Account)
+def delete_wallet_when_account_deleted(sender, instance, **kwargs):
+    """
+    Delete wallet when Account is deleted
+    """
+    try:
+        Wallet.objects.filter(account=instance).delete()
+        print(f'[TRANSACTIONS SIGNAL] Wallet deleted for account {instance.account_number}')
+    except Wallet.DoesNotExist:
+        pass
+    except Exception as e:
+        print(f'[TRANSACTIONS SIGNAL] Error deleting wallet: {e}')
+        logger.error(f"Error deleting wallet for {instance.email}: {e}")

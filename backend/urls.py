@@ -3,8 +3,8 @@ from django.http import HttpResponse
 from django.contrib import admin
 from django.views.decorators.http import require_GET
 from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone  # Add this for timestamp
-import json  # Add this for JSON responses
+from django.utils import timezone
+import json
 
 # Simple health check for Railway
 @csrf_exempt
@@ -20,13 +20,13 @@ def detailed_health_check(request):
     """Enhanced health check that verifies database connection"""
     from django.db import connections
     from django.db.utils import OperationalError
-    
+
     health_status = {
         'status': 'healthy',
         'database': 'connected',
         'timestamp': str(timezone.now()),
     }
-    
+
     # Check database connection
     try:
         db_conn = connections['default']
@@ -35,14 +35,14 @@ def detailed_health_check(request):
         health_status['status'] = 'unhealthy'
         health_status['database'] = 'disconnected'
         return HttpResponse(
-            json.dumps(health_status), 
-            status=500, 
+            json.dumps(health_status),
+            status=500,
             content_type="application/json"
         )
-    
+
     return HttpResponse(
-        json.dumps(health_status), 
-        status=200, 
+        json.dumps(health_status),
+        status=200,
         content_type="application/json"
     )
 
@@ -51,7 +51,7 @@ urlpatterns = [
     path('health/', health_check, name='health_check'),
     path('health', health_check, name='health_check_no_slash'),
     path('health/detailed/', detailed_health_check, name='detailed_health'),
-    
+
     # Admin
     path('admin/', admin.site.urls),
 
@@ -61,4 +61,10 @@ urlpatterns = [
     path('api/notifications/', include('notifications.urls')),
     path('api/transactions/', include('transactions.urls')),
     path('api/cards/', include('cards.urls')),
+
+    # COMPLIANCE APP
+    path('api/compliance/', include('compliance.urls')),
+    
+    # 🔴 ADD THIS LINE - KYC APP IS MISSING!
+    path('api/kyc/', include('kyc.urls')),
 ]

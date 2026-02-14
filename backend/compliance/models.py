@@ -27,10 +27,10 @@ class TransferRequest(models.Model):
         ('crypto', 'Cryptocurrency'),
     ]
 
-    # ✅ FIXED: Using named function instead of lambda
+    # ✓ FIXED: Using named function instead of lambda
     reference = models.CharField(max_length=50, unique=True, default=generate_uuid_reference)
 
-    # ✅ CRITICAL FIX: Use AUTH_USER_MODEL which points to your Account model
+    # ✓ CRITICAL FIX: Use AUTH_USER_MODEL which points to your Account model
     account = models.ForeignKey(
         settings.AUTH_USER_MODEL,  # This points to your custom Account model
         on_delete=models.CASCADE,
@@ -95,7 +95,7 @@ class TransferRequest(models.Model):
                 try:
                     from kyc.models import KYCDocument
                     has_approved_kyc = KYCDocument.objects.filter(
-                        account=self.account,  # ✅ FIXED: Changed 'user' to 'account'
+                        account=self.account,  # ✓ FIXED: Changed 'user' to 'account'
                         status='approved'
                     ).exists()
 
