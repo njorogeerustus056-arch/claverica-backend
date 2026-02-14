@@ -6,6 +6,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 import json
 
+# ADD THESE JWT IMPORTS
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
 # Simple health check for Railway
 @csrf_exempt
 @require_GET
@@ -55,6 +58,10 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
 
+    # 🔐 JWT TOKEN ENDPOINTS - ADD THESE LINES
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
     # API endpoints
     path('api/accounts/', include('accounts.urls')),
     path('api/users/', include('users.urls')),
@@ -65,6 +72,6 @@ urlpatterns = [
     # COMPLIANCE APP
     path('api/compliance/', include('compliance.urls')),
     
-    # 🔴 ADD THIS LINE - KYC APP IS MISSING!
+    # KYC APP
     path('api/kyc/', include('kyc.urls')),
 ]
