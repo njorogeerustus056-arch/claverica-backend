@@ -1,9 +1,8 @@
 from django.apps import AppConfig
 
 class TransfersConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "transfers"
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'transfers'
     
     def ready(self):
-        """Import signals when app is ready"""
-        import transfers.signals
+        import transfers.signals  # Keep this - now it's correct!
