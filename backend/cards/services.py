@@ -8,6 +8,9 @@ from transactions.services import WalletService
 from decimal import Decimal
 import random
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CardService:
@@ -87,8 +90,13 @@ class CardService:
                 is_primary=is_primary
             )
 
-            print(f"?? Generated CVV for card ****{last_four}: {cvv}")
-            print(f"??  Show this to user ONCE, then discard!")
+            # Log card creation without exposing CVV
+            logger.info(f"Card created successfully for account {account.email} with last four {last_four}")
+            
+            # In development, you might want to show CVV in console for testing
+            if settings.DEBUG:
+                print(f"[DEV ONLY] CVV for card ****{last_four}: {cvv}")
+                print("[DEV ONLY] This should be shown to user only once and not stored!")
 
             return card
 
