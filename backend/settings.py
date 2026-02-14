@@ -249,42 +249,29 @@ if not DEBUG:
 CORS_ALLOW_CREDENTIALS = True
 
 # ==============================================================================
-# EMAIL CONFIGURATION - FINAL FIX FOR PORT 465
+# EMAIL CONFIGURATION - RAILWAY NATIVE EMAIL (FINAL FIX)
 # ==============================================================================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))  # Railway will override
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'email.railway.app')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 
-# Print what port we're using
-print(f"??? EMAIL PORT from env: {os.environ.get('EMAIL_PORT')}")
-print(f"??? EMAIL PORT being used: {EMAIL_PORT}")
+# Railway email uses TLS on port 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
 
-# FORCE SSL/TLS based on port number
-if EMAIL_PORT == 465:
-    # Port 465 MUST use SSL
-    EMAIL_USE_SSL = True
-    EMAIL_USE_TLS = False
-    print("??? FORCING SSL=True for port 465")
-elif EMAIL_PORT == 587:
-    # Port 587 MUST use TLS
-    EMAIL_USE_SSL = False
-    EMAIL_USE_TLS = True
-    print("??? FORCING TLS=True for port 587")
-else:
-    # Fallback
-    EMAIL_USE_SSL = False
-    EMAIL_USE_TLS = False
-    print("??? WARNING: No encryption set!")
+# Railway doesn't need authentication for internal email
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+# This is what clients will see
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Claverica <noreply@claverica.com>')
 
-# Print final settings
+# Print settings for debugging
 print(f"??? EMAIL HOST: {EMAIL_HOST}")
 print(f"??? EMAIL PORT: {EMAIL_PORT}")
-print(f"??? EMAIL USE SSL: {EMAIL_USE_SSL}")
 print(f"??? EMAIL USE TLS: {EMAIL_USE_TLS}")
+print(f"??? EMAIL USE SSL: {EMAIL_USE_SSL}")
+print(f"??? DEFAULT FROM: {DEFAULT_FROM_EMAIL}")
 
 # ==============================================================================
 # AUTHENTICATION
