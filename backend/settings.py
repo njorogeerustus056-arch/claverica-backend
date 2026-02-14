@@ -249,32 +249,32 @@ if not DEBUG:
 CORS_ALLOW_CREDENTIALS = True
 
 # ==============================================================================
-# EMAIL CONFIGURATION - COMPLETE FIX FOR BOTH PORTS
+# EMAIL CONFIGURATION - FINAL FIX FOR PORT 465
 # ==============================================================================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))  # Railway should override this
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))  # Railway will override
 
 # Print what port we're using
 print(f"??? EMAIL PORT from env: {os.environ.get('EMAIL_PORT')}")
 print(f"??? EMAIL PORT being used: {EMAIL_PORT}")
 
-# Set SSL/TLS based on port number
+# FORCE SSL/TLS based on port number
 if EMAIL_PORT == 465:
-    # Port 465 uses SSL
+    # Port 465 MUST use SSL
     EMAIL_USE_SSL = True
     EMAIL_USE_TLS = False
-    print("??? Using SSL for port 465")
+    print("??? FORCING SSL=True for port 465")
 elif EMAIL_PORT == 587:
-    # Port 587 uses TLS
+    # Port 587 MUST use TLS
     EMAIL_USE_SSL = False
     EMAIL_USE_TLS = True
-    print("??? Using TLS for port 587")
+    print("??? FORCING TLS=True for port 587")
 else:
-    # For any other port, read from environment
-    EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
-    EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-    print(f"??? Using env vars - SSL: {EMAIL_USE_SSL}, TLS: {EMAIL_USE_TLS}")
+    # Fallback
+    EMAIL_USE_SSL = False
+    EMAIL_USE_TLS = False
+    print("??? WARNING: No encryption set!")
 
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
