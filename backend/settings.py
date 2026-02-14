@@ -161,7 +161,7 @@ print(f"??? BASE_DIR: {BASE_DIR}")
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # ==============================================================================
-# DATABASE - RAILWAY POSTGRESQL
+# DATABASE - RAILWAY POSTGRESQL - FIXED CONNECTION HANDLING
 # ==============================================================================
 import dj_database_url
 
@@ -175,7 +175,17 @@ if DATABASE_URL:
             ssl_require=True if os.environ.get('RAILWAY') else False
         )
     }
-    print(f"??? Using PostgreSQL database")
+    
+    # Add these connection settings to prevent timeouts
+    DATABASES['default']['OPTIONS'] = {
+        'connect_timeout': 10,
+        'keepalives': 1,
+        'keepalives_idle': 30,
+        'keepalives_interval': 10,
+        'keepalives_count': 5,
+    }
+    
+    print(f"??? Using PostgreSQL database with optimized settings")
 else:
     DATABASES = {
         'default': {
@@ -263,6 +273,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CHANNELS (ASGI) CONFIGURATION
 # ==============================================================================
 ASGI_APPLICATION = 'backend.asgi.application'
+
+# ==============================================================================
+# DATABASE CONNECTION MANAGEMENT - PREVENT TIMEOUTS
+# ==============================================================================
+# Close database connections after each request to prevent connection leaks
+DATABASES['default']['CONN_MAX_AGE'] = 60  # Reduce from 600 to 60 seconds
 
 # ==============================================================================
 # PRINT CONFIG STATUS (Visible in Railway logs)

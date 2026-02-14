@@ -3,6 +3,7 @@ set -x
 echo "STARTING"
 echo "Current directory: $(pwd)"
 echo "PORT: $PORT"
+echo "Python version: $(python --version)"
 
 # Set Python path explicitly
 export PYTHONPATH=/app:/app/backend
@@ -11,7 +12,7 @@ export PYTHONPATH=/app:/app/backend
 cd /app/backend
 
 # Run Django check
-python manage.py check --deploy > /dev/null 2>&1
+python manage.py check --deploy
 CHECK_RESULT=$?
 
 # ==============================================================================
@@ -33,18 +34,21 @@ if [ $CHECK_RESULT -eq 0 ]; then
     echo "Waiting 5 seconds for Railway health check system..."
     sleep 5
 
+    # Optimized Gunicorn settings to prevent worker timeouts
     exec gunicorn backend.wsgi:application \
         --bind 0.0.0.0:$PORT \
-        --workers 1 \
-        --threads 1 \
-        --timeout 120 \
+        --workers 2 \
+        --threads 2 \
+        --timeout 60 \
         --graceful-timeout 30 \
-        --max-requests 1000 \
-        --max-requests-jitter 100 \
+        --max-requests 500 \
+        --max-requests-jitter 50 \
         --access-logfile - \
         --error-logfile - \
         --pythonpath /app \
-        --pythonpath /app/backend
+        --pythonpath /app/backend \
+        --preload \
+        --worker-class sync
 else
     echo "Django check failed with code $CHECK_RESULT"
     exit 1
