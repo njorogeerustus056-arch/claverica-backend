@@ -249,20 +249,31 @@ if not DEBUG:
 CORS_ALLOW_CREDENTIALS = True
 
 # ==============================================================================
-# EMAIL CONFIGURATION - FIXED TO USE ENVIRONMENT VARIABLES ONLY
+# EMAIL CONFIGURATION - FIXED TO USE SSL/TLS CORRECTLY
 # ==============================================================================
 # Email settings for sending emails (activation, password reset, etc.)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+
+# Handle SSL vs TLS properly
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+
+# Ensure only one is True (SSL takes precedence)
+if EMAIL_USE_SSL:
+    EMAIL_USE_TLS = False
+
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Claverica <noreply@claverica.com>')
 
 # Print what's actually being used (for debugging in Railway logs)
 print(f"??? EMAIL HOST: {EMAIL_HOST or 'NOT SET'}")
+print(f"??? EMAIL PORT: {EMAIL_PORT}")
 print(f"??? EMAIL USER: {EMAIL_HOST_USER or 'NOT SET'}")
+print(f"??? EMAIL USE SSL: {EMAIL_USE_SSL}")
+print(f"??? EMAIL USE TLS: {EMAIL_USE_TLS}")
 
 # ==============================================================================
 # AUTHENTICATION
