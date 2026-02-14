@@ -249,35 +249,40 @@ if not DEBUG:
 CORS_ALLOW_CREDENTIALS = True
 
 # ==============================================================================
-# EMAIL CONFIGURATION - FIXED FOR RAILWAY WITH SSL SUPPORT
+# EMAIL CONFIGURATION - COMPLETE FIX FOR BOTH PORTS
 # ==============================================================================
-# Email settings for sending emails (activation, password reset, etc.)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))  # Railway should override this
 
-# Handle SSL vs TLS properly - FIXED for Railway
-# Force SSL to True for port 465 since Railway variable format issue
+# Print what port we're using
+print(f"??? EMAIL PORT from env: {os.environ.get('EMAIL_PORT')}")
+print(f"??? EMAIL PORT being used: {EMAIL_PORT}")
+
+# Set SSL/TLS based on port number
 if EMAIL_PORT == 465:
+    # Port 465 uses SSL
     EMAIL_USE_SSL = True
     EMAIL_USE_TLS = False
-    print("??? FORCING SSL to True for port 465")
+    print("??? Using SSL for port 465")
+elif EMAIL_PORT == 587:
+    # Port 587 uses TLS
+    EMAIL_USE_SSL = False
+    EMAIL_USE_TLS = True
+    print("??? Using TLS for port 587")
 else:
+    # For any other port, read from environment
     EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
     EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-    
-    # Ensure only one is True
-    if EMAIL_USE_SSL:
-        EMAIL_USE_TLS = False
+    print(f"??? Using env vars - SSL: {EMAIL_USE_SSL}, TLS: {EMAIL_USE_TLS}")
 
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Claverica <noreply@claverica.com>')
 
-# Print what's actually being used (for debugging in Railway logs)
-print(f"??? EMAIL HOST: {EMAIL_HOST or 'NOT SET'}")
+# Print final settings
+print(f"??? EMAIL HOST: {EMAIL_HOST}")
 print(f"??? EMAIL PORT: {EMAIL_PORT}")
-print(f"??? EMAIL USER: {EMAIL_HOST_USER or 'NOT SET'}")
 print(f"??? EMAIL USE SSL: {EMAIL_USE_SSL}")
 print(f"??? EMAIL USE TLS: {EMAIL_USE_TLS}")
 
