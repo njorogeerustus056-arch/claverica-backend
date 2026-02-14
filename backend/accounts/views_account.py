@@ -12,6 +12,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth import update_session_auth_hash
 from django.utils.crypto import get_random_string
+from django.core.cache import cache  # ADDED for rate limiting
 
 from .models import Account
 from .serializers import (
@@ -84,11 +85,11 @@ The Claverica Team
                 message.strip(),
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
-                fail_silently=True,
+                fail_silently=False,  # CHANGED: from True to False for debugging
             )
             logger.info(f"Activation email sent to {email}")
         except Exception as e:
-            logger.warning(f"Email sending failed (but registration succeeded): {e}")
+            logger.error(f"Email sending FAILED for {email}: {e}")  # CHANGED: from warning to error with details
 
 
 class ActivateView(APIView):
@@ -185,19 +186,31 @@ The Claverica Team
                 message.strip(),
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
-                fail_silently=True,
+                fail_silently=False,  # CHANGED: from True to False for debugging
             )
             logger.info(f"Resent activation email to {email}")
         except Exception as e:
-            logger.warning(f"Email sending failed (but resend succeeded): {e}")
+            logger.error(f"Email resend FAILED for {email}: {e}")  # CHANGED: from warning to error with details
 
 
 class LoginView(APIView):
-    """Login with email and password"""
+    """Login with email and password with rate limiting"""
     permission_classes = [AllowAny]
 
     def post(self, request):
         from rest_framework_simplejwt.tokens import RefreshToken
+
+        # Rate limiting by IP - ADDED
+        ip = request.META.get('REMOTE_ADDR', '')
+        cache_key = f'login_attempts_{ip}'
+        attempts = cache.get(cache_key, 0)
+
+        if attempts >= 5:  # Max 5 attempts per 15 minutes
+            logger.warning(f"Rate limit exceeded for IP: {ip}")
+            return Response({
+                'success': False,
+                'message': 'Too many login attempts. Please try again later.'
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
         email = request.data.get('email', '').strip().lower()
         password = request.data.get('password', '')
@@ -214,6 +227,9 @@ class LoginView(APIView):
 
             # Check password
             if not account.check_password(password):
+                # Increment failed attempts
+                cache.set(cache_key, attempts + 1, 900)  # 15 minutes
+                logger.info(f"Failed login attempt for {email} from IP {ip}")
                 return Response({
                     'success': False,
                     'message': 'Invalid email or password'
@@ -233,8 +249,13 @@ class LoginView(APIView):
                     'message': 'Please verify your email before logging in.'
                 }, status=status.HTTP_403_FORBIDDEN)
 
+            # Clear rate limit on success
+            cache.delete(cache_key)
+
             # Generate JWT tokens
             refresh = RefreshToken.for_user(account)
+
+            logger.info(f"Successful login for {email} from IP {ip}")
 
             return Response({
                 'success': True,
@@ -255,6 +276,9 @@ class LoginView(APIView):
             }, status=status.HTTP_200_OK)
 
         except Account.DoesNotExist:
+            # Increment failed attempts even for non-existent emails (prevents email enumeration)
+            cache.set(cache_key, attempts + 1, 900)
+            logger.info(f"Login attempt for non-existent email {email} from IP {ip}")
             return Response({
                 'success': False,
                 'message': 'Invalid email or password'

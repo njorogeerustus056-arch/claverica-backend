@@ -200,7 +200,7 @@ else:
     print("??  Using SQLite database - not for production")
 
 # ==============================================================================
-# REST FRAMEWORK & JWT
+# REST FRAMEWORK & JWT - WITH RATE LIMITING
 # ==============================================================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -209,6 +209,15 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',
+        'user': '1000/day',
+        'login': '5/15min',  # 5 attempts per 15 minutes for login
+    }
 }
 
 SIMPLE_JWT = {
@@ -277,6 +286,35 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CHANNELS (ASGI) CONFIGURATION
 # ==============================================================================
 ASGI_APPLICATION = 'backend.asgi.application'
+
+# ==============================================================================
+# CACHE CONFIGURATION - FOR RATE LIMITING
+# ==============================================================================
+# Use in-memory cache for development, Railway will use default
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
+# For production on Railway, you can use Redis later
+if os.environ.get('REDIS_URL'):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': os.environ.get('REDIS_URL'),
+        }
+    }
+    print("??? Using Redis cache")
+else:
+    print("??? Using in-memory cache (ok for development)")
+
+# ==============================================================================
+# DATABASE CONNECTION MANAGEMENT - PREVENT TIMEOUTS
+# ==============================================================================
+# Close database connections after each request to prevent connection leaks
+# This is already set above with conn_max_age=60
 
 # ==============================================================================
 # PRINT CONFIG STATUS (Visible in Railway logs)
