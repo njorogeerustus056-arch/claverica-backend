@@ -16,6 +16,8 @@ CHECK_RESULT=$?
 
 if [ $CHECK_RESULT -eq 0 ]; then
     echo "Django check passed, starting Gunicorn"
+    # Add delay to ensure Railway health check doesn't timeout
+    sleep 5
     exec gunicorn backend.wsgi:application \
         --bind 0.0.0.0:$PORT \
         --workers 1 \
