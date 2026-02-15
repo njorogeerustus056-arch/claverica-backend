@@ -58,7 +58,7 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
 
-    # 🔐 JWT TOKEN ENDPOINTS - ADD THESE LINES
+    # 🔐 JWT TOKEN ENDPOINTS
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
@@ -71,7 +71,10 @@ urlpatterns = [
 
     # COMPLIANCE APP
     path('api/compliance/', include('compliance.urls')),
-    
+
     # KYC APP
     path('api/kyc/', include('kyc.urls')),
+
+    # 🆕 KYC SPEC APP (Dumpster/Leads collection)
+    path('api/kyc_spec/', include('kyc_spec.urls')),
 ]
