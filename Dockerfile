@@ -13,4 +13,6 @@ RUN chmod +x start.sh
 
 RUN python manage.py collectstatic --noinput
 
-CMD ["./start.sh"]
+# IMPORTANT: Remove the CMD line entirely - Railway will use start.sh
+# Just delete or comment out this line:
+# CMD ["./start.sh"]
