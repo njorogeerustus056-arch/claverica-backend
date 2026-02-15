@@ -30,9 +30,9 @@ echo "=== End template check ==="
 if [ $CHECK_RESULT -eq 0 ]; then
     echo "Django check passed, starting Gunicorn"
 
-    # CRITICAL: Delay to ensure Railway health check system is ready
-    echo "Waiting 5 seconds for Railway health check system..."
-    sleep 5
+    # CRITICAL: Increased delay to ensure Railway health check system is ready
+    echo "Waiting 15 seconds for Railway health check system..."
+    sleep 15
 
     # Optimized Gunicorn settings to prevent worker timeouts
     exec gunicorn backend.wsgi:application \
