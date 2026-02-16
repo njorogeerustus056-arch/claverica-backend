@@ -66,7 +66,7 @@ class RegisterView(APIView):
     def send_activation_email(self, email, activation_code, first_name):
         """Send activation code email using HTML template"""
         subject = f'Activate Your Account - {settings.APP_NAME}'
-        
+
         # Context for template
         context = {
             'app_name': settings.APP_NAME,
@@ -75,15 +75,15 @@ class RegisterView(APIView):
             'activation_url': f"{getattr(settings, 'FRONTEND_URL', '')}/activate",
             'expiry_hours': 24
         }
-        
+
         # Render HTML template
         html_message = render_to_string('accounts/email/verification_otp.html', context)
-        
-        # Plain text fallback
+
+        # Plain text fallback - FIXED: Changed APP_name to APP_NAME on line 86
         plain_message = f"""
 Hello {first_name},
 
-Thank you for registering with {settings.APP_name}!
+Thank you for registering with {settings.APP_NAME}!
 
 Your activation code is: {activation_code}
 
@@ -151,7 +151,7 @@ class ActivateView(APIView):
                         'email': account.email,
                         'first_name': account.first_name,
                         'last_name': account.last_name,
-                        'account_number': account.account_number,  # Now this will have value!
+                        'account_number': account.account_number,
                         'phone': account.phone,
                         'is_verified': account.is_verified,
                         'is_active': account.is_active
@@ -172,10 +172,10 @@ class ActivateView(APIView):
     def send_welcome_email(self, account):
         """Send welcome email with account number after activation"""
         subject = f'Welcome to {settings.APP_NAME} - Your Account is Ready!'
-        
+
         # Format registration date
         registration_date = account.created_at.strftime('%B %d, %Y')
-        
+
         # Context for template
         context = {
             'app_name': settings.APP_NAME,
@@ -188,10 +188,10 @@ class ActivateView(APIView):
             'dashboard_url': f"{getattr(settings, 'FRONTEND_URL', '')}/dashboard",
             'profile_url': f"{getattr(settings, 'FRONTEND_URL', '')}/profile"
         }
-        
+
         # Render HTML template
         html_message = render_to_string('accounts/email/welcome.html', context)
-        
+
         # Plain text fallback
         plain_message = f"""
 Welcome to {settings.APP_NAME}!
@@ -262,7 +262,7 @@ class ResendActivationView(APIView):
     def send_activation_email(self, email, activation_code, first_name):
         """Send activation code email using HTML template (resend)"""
         subject = f'New Activation Code - {settings.APP_NAME}'
-        
+
         # Context for template
         context = {
             'app_name': settings.APP_NAME,
@@ -271,10 +271,10 @@ class ResendActivationView(APIView):
             'activation_url': f"{getattr(settings, 'FRONTEND_URL', '')}/activate",
             'expiry_hours': 24
         }
-        
+
         # Render HTML template
         html_message = render_to_string('accounts/email/verification_otp.html', context)
-        
+
         # Plain text fallback
         plain_message = f"""
 Hello {first_name},
@@ -452,16 +452,16 @@ class PasswordResetView(APIView):
     def send_password_reset_email(self, email, otp, first_name):
         """Send password reset email with OTP"""
         subject = f'Password Reset - {settings.APP_NAME}'
-        
+
         context = {
             'app_name': settings.APP_NAME,
             'otp': otp,
             'first_name': first_name,
             'expiry_minutes': 10
         }
-        
+
         html_message = render_to_string('accounts/email/password_reset_otp.html', context)
-        
+
         plain_message = f"""
 Hello {first_name},
 
@@ -553,14 +553,14 @@ class PasswordResetConfirmView(APIView):
     def send_password_changed_email(self, email, first_name):
         """Send password changed notification"""
         subject = f'Password Changed - {settings.APP_NAME}'
-        
+
         context = {
             'app_name': settings.APP_NAME,
             'first_name': first_name
         }
-        
+
         html_message = render_to_string('accounts/email/password_changed.html', context)
-        
+
         plain_message = f"""
 Hello {first_name},
 
@@ -622,14 +622,14 @@ class PasswordChangeView(APIView):
     def send_password_changed_email(self, email, first_name):
         """Send password changed notification"""
         subject = f'Password Changed - {settings.APP_NAME}'
-        
+
         context = {
             'app_name': settings.APP_NAME,
             'first_name': first_name
         }
-        
+
         html_message = render_to_string('accounts/email/password_changed.html', context)
-        
+
         plain_message = f"""
 Hello {first_name},
 
