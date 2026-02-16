@@ -1,61 +1,269 @@
 ﻿<!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to {{ app_name }} - Account Activated</title>
     <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-        .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-        .account-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4F46E5; }
-        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-        .account-number { font-size: 24px; font-weight: bold; color: #4F46E5; text-align: center; margin: 20px 0; }
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #059669, #10b981);
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            color: white;
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 40px 30px;
+            background-color: #ffffff;
+        }
+        .content h2 {
+            color: #1F2937;
+            margin-top: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content p {
+            color: #4B5563;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+        .account-card {
+            background: linear-gradient(135deg, #EEF2FF, #E0E7FF);
+            border: 2px solid #4F46E5;
+            padding: 25px;
+            margin: 30px 0;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .account-label {
+            color: #4F46E5;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        .account-number {
+            font-size: 32px;
+            font-weight: 800;
+            color: #4F46E5;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+            margin: 10px 0;
+        }
+        .account-details {
+            background-color: #F9FAFB;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .detail-row {
+            display: flex;
+            padding: 10px 0;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        .detail-label {
+            flex: 1;
+            color: #6B7280;
+            font-weight: 500;
+        }
+        .detail-value {
+            flex: 2;
+            color: #1F2937;
+            font-weight: 600;
+        }
+        .info-box {
+            background-color: #FEF3C7;
+            border-left: 4px solid #F59E0B;
+            padding: 15px 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+        .info-box p {
+            margin: 0;
+            color: #92400E;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            background: #4F46E5;
+            color: white;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            margin: 10px 5px;
+        }
+        .button-secondary {
+            background: #6B7280;
+        }
+        .button:hover {
+            opacity: 0.9;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 25px 0;
+        }
+        .feature-item {
+            background-color: #F3F4F6;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .feature-item h4 {
+            margin: 10px 0 5px;
+            color: #1F2937;
+            font-size: 16px;
+        }
+        .feature-item p {
+            margin: 0;
+            color: #6B7280;
+            font-size: 13px;
+        }
+        .footer {
+            background-color: #F9FAFB;
+            padding: 25px 30px;
+            text-align: center;
+            border-top: 1px solid #E5E7EB;
+        }
+        .footer p {
+            margin: 5px 0;
+            color: #6B7280;
+            font-size: 13px;
+        }
+        @media only screen and (max-width: 600px) {
+            .container {
+                margin: 10px;
+                width: auto;
+            }
+            .content {
+                padding: 25px 20px;
+            }
+            .account-number {
+                font-size: 24px;
+            }
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Welcome to Claverica!</h1>
+            <h1>Welcome to {{ app_name }}! 🎉</h1>
         </div>
-        
+
         <div class="content">
-            <p>Dear {{ first_name }} {{ last_name }},</p>
+            <h2>Congratulations {{ first_name }}!</h2>
             
-            <p>Congratulations! Your account has been successfully created.</p>
-            
-            <div class="account-details">
-                <h3>Your Account Details:</h3>
+            <p>Your account has been successfully activated. We're excited to have you on board!</p>
+
+            <div class="account-card">
+                <div class="account-label">Your Unique Account Number</div>
                 <div class="account-number">{{ account_number }}</div>
-                
-                <p><strong>Full Name:</strong> {{ first_name }} {{ last_name }}</p>
-                <p><strong>Email:</strong> {{ email }}</p>
-                <p><strong>Phone:</strong> {{ phone }}</p>
-                <p><strong>Account Type:</strong> Personal Account</p>
-                <p><strong>Date Registered:</strong> {{ registration_date }}</p>
+                <p style="color: #4F46E5; margin: 10px 0 0; font-size: 14px;">Use this for all transactions and identification</p>
             </div>
-            
+
             <div class="account-details">
-                <h3>Your Contact Information:</h3>
-                <p><strong>Address:</strong> {{ street }}, {{ city }}, {{ state }} {{ zip_code }}</p>
-                {% if occupation %}<p><strong>Occupation:</strong> {{ occupation }}</p>{% endif %}
-                {% if employer %}<p><strong>Employer:</strong> {{ employer }}</p>{% endif %}
+                <h3 style="margin-top: 0; color: #1F2937;">Account Summary</h3>
+                
+                <div class="detail-row">
+                    <span class="detail-label">Full Name:</span>
+                    <span class="detail-value">{{ first_name }} {{ last_name }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Email Address:</span>
+                    <span class="detail-value">{{ email }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Phone Number:</span>
+                    <span class="detail-value">{{ phone }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Account Status:</span>
+                    <span class="detail-value">✅ Active & Verified</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Member Since:</span>
+                    <span class="detail-value">{{ registration_date }}</span>
+                </div>
             </div>
+
+            <div class="info-box">
+                <p><strong>🔑 Important:</strong> Your account number ({{ account_number }}) is your permanent identifier. You'll need it for:</p>
+                <ul style="color: #92400E; margin-bottom: 0;">
+                    <li>Receiving payments</li>
+                    <li>Making transfers</li>
+                    <li>Customer support verification</li>
+                    <li>Accessing all {{ app_name }} services</li>
+                </ul>
+            </div>
+
+            <h3 style="color: #1F2937;">What You Can Do Now:</h3>
             
-            <p><strong>Next Steps:</strong></p>
-            <ol>
-                <li>Verify your email using the OTP sent separately</li>
-                <li>Complete your profile setup</li>
-                <li>Explore our banking features</li>
-            </ol>
-            
-            <p>If you have any questions, please contact our support team.</p>
-            
-            <p>Welcome aboard!<br>
-            The Claverica Team</p>
+            <div class="features-grid">
+                <div class="feature-item">
+                    <div style="font-size: 24px;">💰</div>
+                    <h4>View Balance</h4>
+                    <p>Check your wallet balance anytime</p>
+                </div>
+                <div class="feature-item">
+                    <div style="font-size: 24px;">📤</div>
+                    <h4>Make Transfers</h4>
+                    <p>Send money to banks & wallets</p>
+                </div>
+                <div class="feature-item">
+                    <div style="font-size: 24px;">📋</div>
+                    <h4>Complete KYC</h4>
+                    <p>Submit verification documents</p>
+                </div>
+                <div class="feature-item">
+                    <div style="font-size: 24px;">💳</div>
+                    <h4>Card Services</h4>
+                    <p>Manage your virtual cards</p>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{ dashboard_url|default:'#' }}" class="button">Go to Dashboard</a>
+                <a href="{{ profile_url|default:'#' }}" class="button button-secondary">Complete Profile</a>
+            </div>
+
+            <p style="margin-top: 25px;">
+                Best regards,<br>
+                <strong>The {{ app_name }} Team</strong>
+            </p>
         </div>
-        
+
         <div class="footer">
-            <p>This is an automated message. Please do not reply to this email.</p>
-            <p>&copy; {% now "Y" %} Claverica. All rights reserved.</p>
+            <p>&copy; {% now "Y" %} {{ app_name }}. All rights reserved.</p>
+            <p>This is your official account notification.</p>
+            <p>Need help? Contact our support team.</p>
         </div>
     </div>
 </body>

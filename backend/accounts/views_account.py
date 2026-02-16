@@ -4,7 +4,8 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from django.core.mail import send_mail
+from django.core.mail import send_mail, EmailMultiAlternatives
+from django.template.loader import render_to_string
 from django.conf import settings
 from django.utils import timezone
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -12,7 +13,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth import update_session_auth_hash
 from django.utils.crypto import get_random_string
-from django.core.cache import cache  # ADDED for rate limiting
+from django.core.cache import cache
 
 from .models import Account
 from .serializers import (
@@ -27,7 +28,7 @@ from .utils.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
-# ========== EXISTING VIEWS ==========
+# ========== REGISTRATION & ACTIVATION VIEWS ==========
 
 class RegisterView(APIView):
     """Register new account and send activation code"""
@@ -38,10 +39,10 @@ class RegisterView(APIView):
         if serializer.is_valid():
             account = serializer.save()
 
-            # Send activation email in background thread to prevent worker timeout
+            # Send activation email in background thread
             thread = threading.Thread(
                 target=self.send_activation_email,
-                args=(account.email, account.activation_code)
+                args=(account.email, account.activation_code, account.first_name)
             )
             thread.daemon = True
             thread.start()
@@ -62,11 +63,27 @@ class RegisterView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def send_activation_email(self, email, activation_code):
-        """Send activation code email (runs in background thread)"""
-        subject = 'Activate Your Account - Claverica'
-        message = f"""
-Thank you for registering with Claverica!
+    def send_activation_email(self, email, activation_code, first_name):
+        """Send activation code email using HTML template"""
+        subject = f'Activate Your Account - {settings.APP_NAME}'
+        
+        # Context for template
+        context = {
+            'app_name': settings.APP_NAME,
+            'activation_code': activation_code,
+            'first_name': first_name,
+            'activation_url': f"{getattr(settings, 'FRONTEND_URL', '')}/activate",
+            'expiry_hours': 24
+        }
+        
+        # Render HTML template
+        html_message = render_to_string('accounts/email/verification_otp.html', context)
+        
+        # Plain text fallback
+        plain_message = f"""
+Hello {first_name},
+
+Thank you for registering with {settings.APP_name}!
 
 Your activation code is: {activation_code}
 
@@ -76,20 +93,22 @@ This code expires in 24 hours.
 If you didn't create an account, please ignore this email.
 
 Best regards,
-The Claverica Team
+The {settings.APP_NAME} Team
 """
 
         try:
-            send_mail(
+            # Create email with both HTML and plain text versions
+            email_msg = EmailMultiAlternatives(
                 subject,
-                message.strip(),
+                plain_message.strip(),
                 settings.DEFAULT_FROM_EMAIL,
-                [email],
-                fail_silently=False,  # CHANGED: from True to False for debugging
+                [email]
             )
+            email_msg.attach_alternative(html_message, "text/html")
+            email_msg.send(fail_silently=False)
             logger.info(f"Activation email sent to {email}")
         except Exception as e:
-            logger.error(f"Email sending FAILED for {email}: {e}")  # CHANGED: from warning to error with details
+            logger.error(f"Email sending FAILED for {email}: {e}")
 
 
 class ActivateView(APIView):
@@ -108,6 +127,20 @@ class ActivateView(APIView):
             success, message = account.verify_activation_code(activation_code)
 
             if success:
+                # CRITICAL: Generate account number if not exists
+                if not account.account_number:
+                    account.account_number = Account.objects.generate_account_number(account)
+                    account.save(update_fields=['account_number'])
+                    logger.info(f"Account number generated for {account.email}: {account.account_number}")
+
+                # Send welcome email with account number in background thread
+                thread = threading.Thread(
+                    target=self.send_welcome_email,
+                    args=(account,)
+                )
+                thread.daemon = True
+                thread.start()
+
                 # Generate JWT tokens
                 refresh = RefreshToken.for_user(account)
 
@@ -118,7 +151,8 @@ class ActivateView(APIView):
                         'email': account.email,
                         'first_name': account.first_name,
                         'last_name': account.last_name,
-                        'account_number': account.account_number,
+                        'account_number': account.account_number,  # Now this will have value!
+                        'phone': account.phone,
                         'is_verified': account.is_verified,
                         'is_active': account.is_active
                     },
@@ -135,6 +169,66 @@ class ActivateView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def send_welcome_email(self, account):
+        """Send welcome email with account number after activation"""
+        subject = f'Welcome to {settings.APP_NAME} - Your Account is Ready!'
+        
+        # Format registration date
+        registration_date = account.created_at.strftime('%B %d, %Y')
+        
+        # Context for template
+        context = {
+            'app_name': settings.APP_NAME,
+            'first_name': account.first_name,
+            'last_name': account.last_name,
+            'email': account.email,
+            'phone': account.phone,
+            'account_number': account.account_number,
+            'registration_date': registration_date,
+            'dashboard_url': f"{getattr(settings, 'FRONTEND_URL', '')}/dashboard",
+            'profile_url': f"{getattr(settings, 'FRONTEND_URL', '')}/profile"
+        }
+        
+        # Render HTML template
+        html_message = render_to_string('accounts/email/welcome.html', context)
+        
+        # Plain text fallback
+        plain_message = f"""
+Welcome to {settings.APP_NAME}!
+
+Dear {account.first_name},
+
+Congratulations! Your account has been successfully activated.
+
+Your unique account number is: {account.account_number}
+
+Please save this number as you will need it for all transactions and identification.
+
+You can now:
+- View your wallet balance
+- Make transfers
+- Complete your KYC verification
+- Access card services
+
+Thank you for choosing {settings.APP_NAME}.
+
+Best regards,
+The {settings.APP_NAME} Team
+"""
+
+        try:
+            email_msg = EmailMultiAlternatives(
+                subject,
+                plain_message.strip(),
+                settings.DEFAULT_FROM_EMAIL,
+                [account.email]
+            )
+            email_msg.attach_alternative(html_message, "text/html")
+            email_msg.send(fail_silently=False)
+            logger.info(f"Welcome email sent to {account.email} with account number {account.account_number}")
+        except Exception as e:
+            logger.error(f"Welcome email FAILED for {account.email}: {e}")
+
 
 class ResendActivationView(APIView):
     """Resend activation code"""
@@ -143,7 +237,7 @@ class ResendActivationView(APIView):
     def post(self, request):
         serializer = ResendActivationSerializer(data=request.data)
         if serializer.is_valid():
-            account = serializer.validated_data['email']
+            account = serializer.validated_data['email']  # This returns account object
 
             # Generate new activation code
             new_code = account.generate_activation_code()
@@ -151,7 +245,7 @@ class ResendActivationView(APIView):
             # Send new activation email in background thread
             thread = threading.Thread(
                 target=self.send_activation_email,
-                args=(account.email, new_code)
+                args=(account.email, new_code, account.first_name)
             )
             thread.daemon = True
             thread.start()
@@ -165,11 +259,27 @@ class ResendActivationView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def send_activation_email(self, email, activation_code):
-        """Send activation code email (runs in background thread)"""
-        subject = 'New Activation Code - Claverica'
-        message = f"""
-You requested a new activation code.
+    def send_activation_email(self, email, activation_code, first_name):
+        """Send activation code email using HTML template (resend)"""
+        subject = f'New Activation Code - {settings.APP_NAME}'
+        
+        # Context for template
+        context = {
+            'app_name': settings.APP_NAME,
+            'activation_code': activation_code,
+            'first_name': first_name,
+            'activation_url': f"{getattr(settings, 'FRONTEND_URL', '')}/activate",
+            'expiry_hours': 24
+        }
+        
+        # Render HTML template
+        html_message = render_to_string('accounts/email/verification_otp.html', context)
+        
+        # Plain text fallback
+        plain_message = f"""
+Hello {first_name},
+
+You requested a new activation code for {settings.APP_NAME}.
 
 Your new activation code is: {activation_code}
 
@@ -177,21 +287,24 @@ Enter this code on our website to activate your account.
 This code expires in 24 hours.
 
 Best regards,
-The Claverica Team
+The {settings.APP_NAME} Team
 """
 
         try:
-            send_mail(
+            email_msg = EmailMultiAlternatives(
                 subject,
-                message.strip(),
+                plain_message.strip(),
                 settings.DEFAULT_FROM_EMAIL,
-                [email],
-                fail_silently=False,  # CHANGED: from True to False for debugging
+                [email]
             )
+            email_msg.attach_alternative(html_message, "text/html")
+            email_msg.send(fail_silently=False)
             logger.info(f"Resent activation email to {email}")
         except Exception as e:
-            logger.error(f"Email resend FAILED for {email}: {e}")  # CHANGED: from warning to error with details
+            logger.error(f"Email resend FAILED for {email}: {e}")
 
+
+# ========== LOGIN VIEW ==========
 
 class LoginView(APIView):
     """Login with email and password with rate limiting"""
@@ -200,7 +313,7 @@ class LoginView(APIView):
     def post(self, request):
         from rest_framework_simplejwt.tokens import RefreshToken
 
-        # Rate limiting by IP - ADDED
+        # Rate limiting by IP
         ip = request.META.get('REMOTE_ADDR', '')
         cache_key = f'login_attempts_{ip}'
         attempts = cache.get(cache_key, 0)
@@ -276,7 +389,7 @@ class LoginView(APIView):
             }, status=status.HTTP_200_OK)
 
         except Account.DoesNotExist:
-            # Increment failed attempts even for non-existent emails (prevents email enumeration)
+            # Increment failed attempts even for non-existent emails
             cache.set(cache_key, attempts + 1, 900)
             logger.info(f"Login attempt for non-existent email {email} from IP {ip}")
             return Response({
@@ -291,7 +404,7 @@ class LoginView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# ========== NEW PASSWORD VIEWS ==========
+# ========== PASSWORD MANAGEMENT VIEWS ==========
 
 class PasswordResetView(APIView):
     """Request password reset email"""
@@ -314,8 +427,8 @@ class PasswordResetView(APIView):
 
                 # Send password reset email in background thread
                 thread = threading.Thread(
-                    target=EmailService.send_otp_email,
-                    args=(email, reset_otp, 'password_reset')
+                    target=self.send_password_reset_email,
+                    args=(email, reset_otp, account.first_name)
                 )
                 thread.daemon = True
                 thread.start()
@@ -335,6 +448,47 @@ class PasswordResetView(APIView):
                 }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def send_password_reset_email(self, email, otp, first_name):
+        """Send password reset email with OTP"""
+        subject = f'Password Reset - {settings.APP_NAME}'
+        
+        context = {
+            'app_name': settings.APP_NAME,
+            'otp': otp,
+            'first_name': first_name,
+            'expiry_minutes': 10
+        }
+        
+        html_message = render_to_string('accounts/email/password_reset_otp.html', context)
+        
+        plain_message = f"""
+Hello {first_name},
+
+You requested to reset your password.
+
+Your OTP code is: {otp}
+
+This code expires in 10 minutes.
+
+If you didn't request this, please ignore this email.
+
+Best regards,
+The {settings.APP_NAME} Team
+"""
+
+        try:
+            email_msg = EmailMultiAlternatives(
+                subject,
+                plain_message.strip(),
+                settings.DEFAULT_FROM_EMAIL,
+                [email]
+            )
+            email_msg.attach_alternative(html_message, "text/html")
+            email_msg.send(fail_silently=False)
+            logger.info(f"Password reset email sent to {email}")
+        except Exception as e:
+            logger.error(f"Password reset email FAILED for {email}: {e}")
 
 
 class PasswordResetConfirmView(APIView):
@@ -372,13 +526,13 @@ class PasswordResetConfirmView(APIView):
 
                 # Reset password
                 account.set_password(new_password)
-                account.activation_code = None  # Clear OTP after use
+                account.activation_code = None
                 account.save(update_fields=['password', 'activation_code'])
 
-                # Send password changed notification in background thread
+                # Send password changed notification
                 thread = threading.Thread(
-                    target=EmailService.send_password_changed_email,
-                    args=(email, account.first_name)
+                    target=self.send_password_changed_email,
+                    args=(account.email, account.first_name)
                 )
                 thread.daemon = True
                 thread.start()
@@ -395,6 +549,41 @@ class PasswordResetConfirmView(APIView):
                 }, status=status.HTTP_404_NOT_FOUND)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def send_password_changed_email(self, email, first_name):
+        """Send password changed notification"""
+        subject = f'Password Changed - {settings.APP_NAME}'
+        
+        context = {
+            'app_name': settings.APP_NAME,
+            'first_name': first_name
+        }
+        
+        html_message = render_to_string('accounts/email/password_changed.html', context)
+        
+        plain_message = f"""
+Hello {first_name},
+
+Your password has been changed successfully.
+
+If you did not make this change, please contact support immediately.
+
+Best regards,
+The {settings.APP_NAME} Team
+"""
+
+        try:
+            email_msg = EmailMultiAlternatives(
+                subject,
+                plain_message.strip(),
+                settings.DEFAULT_FROM_EMAIL,
+                [email]
+            )
+            email_msg.attach_alternative(html_message, "text/html")
+            email_msg.send(fail_silently=False)
+            logger.info(f"Password changed email sent to {email}")
+        except Exception as e:
+            logger.error(f"Password changed email FAILED for {email}: {e}")
 
 
 class PasswordChangeView(APIView):
@@ -415,9 +604,9 @@ class PasswordChangeView(APIView):
             # Keep user logged in after password change
             update_session_auth_hash(request, user)
 
-            # Send notification email in background thread
+            # Send notification email
             thread = threading.Thread(
-                target=EmailService.send_password_changed_email,
+                target=self.send_password_changed_email,
                 args=(user.email, user.first_name)
             )
             thread.daemon = True
@@ -429,6 +618,41 @@ class PasswordChangeView(APIView):
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def send_password_changed_email(self, email, first_name):
+        """Send password changed notification"""
+        subject = f'Password Changed - {settings.APP_NAME}'
+        
+        context = {
+            'app_name': settings.APP_NAME,
+            'first_name': first_name
+        }
+        
+        html_message = render_to_string('accounts/email/password_changed.html', context)
+        
+        plain_message = f"""
+Hello {first_name},
+
+Your password has been changed successfully.
+
+If you did not make this change, please contact support immediately.
+
+Best regards,
+The {settings.APP_NAME} Team
+"""
+
+        try:
+            email_msg = EmailMultiAlternatives(
+                subject,
+                plain_message.strip(),
+                settings.DEFAULT_FROM_EMAIL,
+                [email]
+            )
+            email_msg.attach_alternative(html_message, "text/html")
+            email_msg.send(fail_silently=False)
+            logger.info(f"Password changed email sent to {email}")
+        except Exception as e:
+            logger.error(f"Password changed email FAILED for {email}: {e}")
 
 
 class LogoutView(APIView):

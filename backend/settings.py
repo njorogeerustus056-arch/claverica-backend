@@ -20,11 +20,17 @@ if not os.environ.get('RAILWAY'):
     env_path = BASE_DIR / '.env'
     if env_path.exists():
         load_dotenv(env_path)
-        print(f"??? Local: Loaded .env file from {env_path}")
+        print(f"✅ Local: Loaded .env file from {env_path}")
     else:
-        print("??? Local: No .env file found at", env_path)
+        print("⚠️ Local: No .env file found at", env_path)
 else:
-    print("??? Railway: Using environment variables")
+    print("✅ Railway: Using environment variables")
+
+# ==============================================================================
+# APP CONFIGURATION
+# ==============================================================================
+APP_NAME = 'Claverica'
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://claverica-fixed.vercel.app')
 
 # ==============================================================================
 # CRITICAL: SECRET_KEY MUST BE SET IN RAILWAY
@@ -39,7 +45,7 @@ if not SECRET_KEY:
         )
     else:
         SECRET_KEY = 'django-insecure-development-key-change-in-production'
-        print("??  WARNING: Using development SECRET_KEY - DO NOT USE IN PRODUCTION")
+        print("⚠️ WARNING: Using development SECRET_KEY - DO NOT USE IN PRODUCTION")
 
 # ==============================================================================
 # DEBUG & HOSTS SETTINGS
@@ -53,7 +59,7 @@ if os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT'):
         'https://claverica-fixed.vercel.app',
         'https://claverica-frontend-vercel.vercel.app',
     ]
-    print(f"??? Railway: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
+    print(f"✅ Railway: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
 else:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
     CSRF_TRUSTED_ORIGINS = [
@@ -99,6 +105,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'django_extensions',
+    'sendgrid_backend',  # Added for SendGrid email
 
     # Your apps
     'accounts',
@@ -116,7 +123,7 @@ INSTALLED_APPS = [
 ]
 
 # ==============================================================================
-# MIDDLEWARE - ADDED DATABASE CONNECTION MIDDLEWARE TO PREVENT TIMEOUTS
+# MIDDLEWARE
 # ==============================================================================
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -134,18 +141,17 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'backend.urls'
 
 # ==============================================================================
-# TEMPLATES CONFIGURATION - FIXED FOR EMAIL TEMPLATES
+# TEMPLATES CONFIGURATION
 # ==============================================================================
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
-            # Add explicit template directories to ensure email templates are found
             os.path.join(BASE_DIR, 'templates'),
             os.path.join(BASE_DIR, 'accounts/templates'),
             str(BASE_DIR / 'accounts' / 'templates'),
         ],
-        'APP_DIRS': True,  # This will also find templates in app directories
+        'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -153,19 +159,18 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
-            'debug': False,  # Disable template debug in production for performance
+            'debug': False,
         },
     },
 ]
 
-# Add debug to see what paths are being used (visible in Railway logs)
-print(f"??? Template directories: {TEMPLATES[0]['DIRS']}")
-print(f"??? BASE_DIR: {BASE_DIR}")
+print(f"✅ Template directories: {TEMPLATES[0]['DIRS']}")
+print(f"✅ BASE_DIR: {BASE_DIR}")
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # ==============================================================================
-# DATABASE - RAILWAY POSTGRESQL - FIXED CONNECTION HANDLING
+# DATABASE - RAILWAY POSTGRESQL
 # ==============================================================================
 import dj_database_url
 
@@ -174,13 +179,12 @@ if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
-            conn_max_age=60,  # Reduced from 600 to 60 seconds to prevent connection leaks
+            conn_max_age=60,
             conn_health_checks=True,
             ssl_require=True if os.environ.get('RAILWAY') else False
         )
     }
 
-    # Add these connection settings to prevent timeouts
     DATABASES['default']['OPTIONS'] = {
         'connect_timeout': 10,
         'keepalives': 1,
@@ -189,7 +193,7 @@ if DATABASE_URL:
         'keepalives_count': 5,
     }
 
-    print(f"??? Using PostgreSQL database with optimized settings")
+    print(f"✅ Using PostgreSQL database with optimized settings")
 else:
     DATABASES = {
         'default': {
@@ -197,10 +201,10 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-    print("??  Using SQLite database - not for production")
+    print("⚠️ Using SQLite database - not for production")
 
 # ==============================================================================
-# REST FRAMEWORK & JWT - WITH RATE LIMITING
+# REST FRAMEWORK & JWT
 # ==============================================================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -216,7 +220,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/day',
         'user': '1000/day',
-        'login': '5/15min',  # 5 attempts per 15 minutes for login
+        'login': '5/15min',
     }
 }
 
@@ -228,7 +232,7 @@ SIMPLE_JWT = {
 }
 
 # ==============================================================================
-# STATIC FILES - WHITENOISE
+# STATIC FILES
 # ==============================================================================
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -249,29 +253,33 @@ if not DEBUG:
 CORS_ALLOW_CREDENTIALS = True
 
 # ==============================================================================
-# EMAIL CONFIGURATION - RAILWAY NATIVE EMAIL (FINAL FIX)
+# EMAIL CONFIGURATION - SENDGRID FOR RAILWAY
 # ==============================================================================
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'email.railway.app')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+if DEBUG:
+    # Development: use console for testing
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    print("✅ Development: Using console email backend")
+else:
+    # Production on Railway: Use SendGrid HTTP API
+    EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
+    SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
+    
+    # SendGrid specific settings
+    SENDGRID_SANDBOX_MODE_IN_DEBUG = False
+    SENDGRID_TRACK_EMAIL_OPENS = True
+    SENDGRID_TRACK_CLICKS_PLAIN = True
+    
+    if not SENDGRID_API_KEY:
+        print("⚠️ WARNING: SENDGRID_API_KEY not set in environment variables")
+    else:
+        print("✅ Production: Using SendGrid HTTP API")
 
-# Railway email uses TLS on port 587
-EMAIL_USE_TLS = True
-EMAIL_USE_SSL = False
-
-# Railway doesn't need authentication for internal email
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-
-# This is what clients will see
+# This is what clients will see - using your verified sender!
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Claverica <noreply@claverica.com>')
 
-# Print settings for debugging
-print(f"??? EMAIL HOST: {EMAIL_HOST}")
-print(f"??? EMAIL PORT: {EMAIL_PORT}")
-print(f"??? EMAIL USE TLS: {EMAIL_USE_TLS}")
-print(f"??? EMAIL USE SSL: {EMAIL_USE_SSL}")
-print(f"??? DEFAULT FROM: {DEFAULT_FROM_EMAIL}")
+print(f"✅ DEFAULT FROM: {DEFAULT_FROM_EMAIL}")
+print(f"✅ FRONTEND URL: {FRONTEND_URL}")
+print(f"✅ APP NAME: {APP_NAME}")
 
 # ==============================================================================
 # AUTHENTICATION
@@ -297,9 +305,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 ASGI_APPLICATION = 'backend.asgi.application'
 
 # ==============================================================================
-# CACHE CONFIGURATION - FOR RATE LIMITING
+# CACHE CONFIGURATION
 # ==============================================================================
-# Use in-memory cache for development, Railway will use default
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -307,7 +314,6 @@ CACHES = {
     }
 }
 
-# For production on Railway, you can use Redis later
 if os.environ.get('REDIS_URL'):
     CACHES = {
         'default': {
@@ -315,35 +321,29 @@ if os.environ.get('REDIS_URL'):
             'LOCATION': os.environ.get('REDIS_URL'),
         }
     }
-    print("??? Using Redis cache")
+    print("✅ Using Redis cache")
 else:
-    print("??? Using in-memory cache (ok for development)")
+    print("✅ Using in-memory cache (ok for development)")
 
 # ==============================================================================
-# DATABASE CONNECTION MANAGEMENT - PREVENT TIMEOUTS
+# PRINT CONFIG STATUS
 # ==============================================================================
-# Close database connections after each request to prevent connection leaks
-# This is already set above with conn_max_age=60
+print(f"✅ DEBUG: {DEBUG}")
+print(f"✅ SECRET_KEY set: {'YES' if SECRET_KEY else 'NO'}")
+print(f"✅ RAILWAY environment: {'YES' if os.environ.get('RAILWAY') else 'NO'}")
+print(f"✅ DATABASE: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
+print(f"✅ Database CONN_MAX_AGE: {DATABASES['default'].get('CONN_MAX_AGE', 'Not set')}")
 
 # ==============================================================================
-# PRINT CONFIG STATUS (Visible in Railway logs)
-# ==============================================================================
-print(f"??? DEBUG: {DEBUG}")
-print(f"??? SECRET_KEY set: {'YES' if SECRET_KEY else 'NO'}")
-print(f"??? RAILWAY environment: {'YES' if os.environ.get('RAILWAY') else 'NO'}")
-print(f"??? DATABASE: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
-print(f"??? Database CONN_MAX_AGE: {DATABASES['default'].get('CONN_MAX_AGE', 'Not set')}")
-
-# ==============================================================================
-# DATABASE DEBUGGING - ADD THIS TEMPORARILY
+# DATABASE DEBUGGING
 # ==============================================================================
 import os
-print(f"??? RAW DATABASE_URL from env: {os.environ.get('DATABASE_URL', 'NOT SET')}")
+print(f"✅ RAW DATABASE_URL from env: {os.environ.get('DATABASE_URL', 'NOT SET')}")
 
 # Force the correct host if needed
 if os.environ.get('DATABASE_URL'):
     db_url = os.environ.get('DATABASE_URL')
     if 'postgres.railway.internal' in db_url:
         corrected_url = db_url.replace('postgres.railway.internal', 'postgres-aaoa.railway.internal')
-        print(f"??? CORRECTED DATABASE_URL from: {db_url} to: {corrected_url}")
+        print(f"✅ CORRECTED DATABASE_URL from: {db_url} to: {corrected_url}")
         os.environ['DATABASE_URL'] = corrected_url
