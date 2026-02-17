@@ -1,4 +1,4 @@
-﻿from django.urls import path, include
+from django.urls import path, include
 from django.http import HttpResponse
 from django.contrib import admin
 from django.views.decorators.http import require_GET
@@ -6,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 import json
 
-from backend.views.pusher_auth import pusher_authentication
+from views.pusher_auth import pusher_authentication
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 @csrf_exempt
