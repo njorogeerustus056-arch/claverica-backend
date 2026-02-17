@@ -6,24 +6,17 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 import json
 
-# Import from backend.views.pusher_auth
 from backend.views.pusher_auth import pusher_authentication
-
-# JWT Imports
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-# Simple health check for Railway
 @csrf_exempt
 @require_GET
 def health_check(request):
-    """Basic health check endpoint"""
     return HttpResponse("OK", status=200, content_type="text/plain")
 
-# Enhanced health check with database verification
 @csrf_exempt
 @require_GET
 def detailed_health_check(request):
-    """Enhanced health check that verifies database connection"""
     from django.db import connections
     from django.db.utils import OperationalError
 
@@ -33,7 +26,6 @@ def detailed_health_check(request):
         'timestamp': str(timezone.now()),
     }
 
-    # Check database connection
     try:
         db_conn = connections['default']
         db_conn.cursor().execute('SELECT 1')
@@ -53,37 +45,20 @@ def detailed_health_check(request):
     )
 
 urlpatterns = [
-    # Health check endpoints
     path('health/', health_check, name='health_check'),
     path('health', health_check, name='health_check_no_slash'),
     path('health/detailed/', detailed_health_check, name='detailed_health'),
-
-    # Admin
     path('admin/', admin.site.urls),
-
-    # JWT TOKEN ENDPOINTS
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-
-    # PUSHER AUTH ENDPOINT
     path('pusher/auth/', pusher_authentication, name='pusher_auth'),
-
-    # API endpoints
     path('api/accounts/', include('accounts.urls')),
     path('api/users/', include('users.urls')),
     path('api/notifications/', include('notifications.urls')),
     path('api/transactions/', include('transactions.urls')),
     path('api/cards/', include('cards.urls')),
-
-    # COMPLIANCE APP
     path('api/compliance/', include('compliance.urls')),
-
-    # KYC APP
     path('api/kyc/', include('kyc.urls')),
-
-    # KYC SPEC APP
     path('api/kyc_spec/', include('kyc_spec.urls')),
-
-    # TRANSFERS APP
     path('api/transfers/', include('transfers.urls')),
 ]
