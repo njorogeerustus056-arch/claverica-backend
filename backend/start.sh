@@ -16,14 +16,28 @@ python manage.py check --deploy
 CHECK_RESULT=$?
 
 # ==============================================================================
-# TEMPLATE DEBUGGING - Check if email templates exist
+# TEMPLATE DEBUGGING - Check if email templates exist (SAFE VERSION)
 # ==============================================================================
 echo "=== Checking template directories ==="
 echo "Current directory: $(pwd)"
-echo "Listing accounts/templates/accounts/email/:"
-ls -la accounts/templates/accounts/email/ 2>/dev/null || echo "No templates found in accounts/templates/accounts/email/"
-echo "Listing all template paths:"
-find . -path "*/templates/*/email/*.html" -type f 2>/dev/null || echo "No template files found"
+echo "Looking for email templates..."
+
+# Try multiple possible paths
+for path in \
+    "accounts/templates/accounts/email" \
+    "../accounts/templates/accounts/email" \
+    "/app/accounts/templates/accounts/email" \
+    "/app/backend/accounts/templates/accounts/email"; do
+    if [ -d "$path" ]; then
+        echo "✅ Found templates at: $path"
+        ls -la "$path" 2>/dev/null || echo "   (empty directory)"
+    else
+        echo "❌ No templates at: $path"
+    fi
+done
+
+echo "Searching for all template files:"
+find . -path "*/templates/*/*.html" -type f 2>/dev/null | head -20 || echo "No template files found"
 echo "=== End template check ==="
 # ==============================================================================
 
