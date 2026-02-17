@@ -1,5 +1,5 @@
 """
-kyc/views.py - UPDATED VERSION (ADD DRF API VIEWS)
+kyc/views.py - UPDATED VERSION WITH PUSHER INTEGRATION
 """
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -17,6 +17,7 @@ from rest_framework import viewsets, generics, status, permissions
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from utils.pusher import trigger_notification  # ✅ ADDED
 import uuid
 
 # ========== FUNCTION-BASED VIEWS (HTML PAGES) ==========
@@ -30,11 +31,23 @@ def submit_documents(request):
             kyc_doc = form.save(commit=False)
             kyc_doc.user = request.user
             kyc_doc.save()
+            
+            # ✅ ADDED: Trigger Pusher event for KYC submission
+            trigger_notification(
+                account_number=request.user.account_number,
+                event_name='kyc.pending',
+                data={
+                    'submission_id': kyc_doc.id,
+                    'status': 'pending',
+                    'message': 'Your KYC documents are being reviewed'
+                }
+            )
+            
             messages.success(request, 'KYC documents submitted successfully! They will be reviewed within 24-48 hours.')
             return redirect('kyc_status')
     else:
         form = KYCDocumentForm()
-    
+
     return render(request, 'kyc/submit.html', {'form': form})
 
 @login_required
@@ -52,7 +65,7 @@ def kyc_status(request):
             'kyc_document': None,
             'has_kyc': False,
         }
-    
+
     return render(request, 'kyc/status.html', context)
 
 @login_required
@@ -61,17 +74,17 @@ def check_kyc_requirement(request):
     if request.method == 'POST':
         service_type = request.POST.get('service_type')
         amount = request.POST.get('amount', 0)
-        
+
         try:
             setting = KYCSetting.objects.get(service_type=service_type, is_active=True)
             requires_kyc = setting.requires_kyc and float(amount) > float(setting.threshold_amount)
-            
+
             # Check if user already has approved KYC
             has_approved_kyc = KYCDocument.objects.filter(
                 user=request.user,
                 status='approved'
             ).exists()
-            
+
             context = {
                 'requires_kyc': requires_kyc and not has_approved_kyc,
                 'threshold_amount': setting.threshold_amount,
@@ -85,9 +98,9 @@ def check_kyc_requirement(request):
                 'requires_kyc': False,
                 'error': 'Service not configured for KYC',
             }
-        
+
         return render(request, 'kyc/check_requirement_result.html', context)
-    
+
     return render(request, 'kyc/check_requirement.html')
 
 def test_api_page(request):
@@ -100,7 +113,7 @@ def admin_dashboard(request):
     """Admin dashboard for KYC review"""
     pending_docs = KYCDocument.objects.filter(status='pending').order_by('submitted_at')
     under_review = KYCDocument.objects.filter(status='under_review').order_by('submitted_at')
-    
+
     context = {
         'pending_docs': pending_docs,
         'under_review_docs': under_review,
@@ -112,33 +125,71 @@ def admin_dashboard(request):
 def admin_review_document(request, document_id):
     """Admin page to review a specific KYC document"""
     kyc_doc = get_object_or_404(KYCDocument, id=document_id)
-    
+
     if request.method == 'POST':
         action = request.POST.get('action')
         notes = request.POST.get('admin_notes', '')
-        
+
         if action == 'approve':
             kyc_doc.status = 'approved'
             kyc_doc.reviewed_by = request.user
             kyc_doc.reviewed_at = timezone.now()
+            
+            # ✅ ADDED: Trigger Pusher for KYC approval
+            trigger_notification(
+                account_number=kyc_doc.user.account_number,
+                event_name='kyc.approved',
+                data={
+                    'user_id': kyc_doc.user.id,
+                    'status': 'approved',
+                    'message': 'Your KYC has been approved!'
+                }
+            )
+            
             messages.success(request, f'KYC approved for {kyc_doc.user.email}')
-        
+
         elif action == 'reject':
             kyc_doc.status = 'rejected'
             kyc_doc.reviewed_by = request.user
             kyc_doc.reviewed_at = timezone.now()
             kyc_doc.rejection_reason = notes or 'Rejected by administrator'
+            
+            # ✅ ADDED: Trigger Pusher for KYC rejection
+            trigger_notification(
+                account_number=kyc_doc.user.account_number,
+                event_name='kyc.rejected',
+                data={
+                    'user_id': kyc_doc.user.id,
+                    'status': 'rejected',
+                    'reason': kyc_doc.rejection_reason,
+                    'message': f'KYC rejected: {kyc_doc.rejection_reason}'
+                }
+            )
+            
             messages.warning(request, f'KYC rejected for {kyc_doc.user.email}')
-        
+
         elif action == 'request_correction':
             kyc_doc.status = 'needs_correction'
             kyc_doc.rejection_reason = notes or 'Correction required'
+            
+            # ✅ ADDED: Trigger Pusher for KYC correction request
+            trigger_notification(
+                account_number=kyc_doc.user.account_number,
+                event_name='kyc.pending',
+                data={
+                    'user_id': kyc_doc.user.id,
+                    'status': 'needs_correction',
+                    'reason': kyc_doc.rejection_reason,
+                    'message': f'KYC needs correction: {kyc_doc.rejection_reason}'
+                }
+            )
+            
             messages.info(request, f'Correction requested for {kyc_doc.user.email}')
-        
+
         kyc_doc.admin_notes = notes
         kyc_doc.save()
         return redirect('admin_dashboard')
-    
+
     context = {
         'kyc_doc': kyc_doc,
         'user': kyc_doc.user,
@@ -159,13 +210,21 @@ class KYCDocumentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Save with current user and pending status"""
-        serializer.save(
+        kyc_doc = serializer.save(
             user=self.request.user,
             status='pending'
         )
-
-        # Send confirmation email (you need to implement this function)
-        # send_kyc_submission_email(self.request.user, serializer.instance)
+        
+        # ✅ ADDED: Trigger Pusher for KYC submission
+        trigger_notification(
+            account_number=self.request.user.account_number,
+            event_name='kyc.pending',
+            data={
+                'submission_id': kyc_doc.id,
+                'status': 'pending',
+                'message': 'Your KYC documents are being reviewed'
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def status(self, request):
@@ -303,8 +362,16 @@ class AdminKYCViewSet(viewsets.ReadOnlyModelViewSet):
         kyc_doc.admin_notes = f"Approved by {request.user.email} via API"
         kyc_doc.save()
 
-        # Send approval email (you need to implement this function)
-        # send_kyc_approval_email(kyc_doc.user, kyc_doc)
+        # ✅ ADDED: Trigger Pusher for KYC approval
+        trigger_notification(
+            account_number=kyc_doc.user.account_number,
+            event_name='kyc.approved',
+            data={
+                'user_id': kyc_doc.user.id,
+                'status': 'approved',
+                'message': 'Your KYC has been approved!'
+            }
+        )
 
         return Response({
             'success': True,

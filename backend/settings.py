@@ -325,6 +325,18 @@ if os.environ.get('REDIS_URL'):
 else:
     print("✅ Using in-memory cache (ok for development)")
 
+
+# ==============================================================================
+# PUSHER CONFIGURATION FOR REAL-TIME NOTIFICATIONS
+# ==============================================================================
+PUSHER_APP_ID = os.environ.get('PUSHER_APP_ID', '2116646')
+PUSHER_KEY = os.environ.get('PUSHER_KEY', 'b1283987f8301fdc6e34')
+PUSHER_SECRET = os.environ.get('PUSHER_SECRET', 'cf8356970f233d885c49')
+PUSHER_CLUSTER = os.environ.get('PUSHER_CLUSTER', 'us3')
+PUSHER_SSL = True
+
+print(f"✅ Pusher configured with cluster: {PUSHER_CLUSTER}")
+
 # ==============================================================================
 # PRINT CONFIG STATUS
 # ==============================================================================

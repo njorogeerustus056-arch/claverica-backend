@@ -1,5 +1,5 @@
 """
-compliance/views.py - API endpoints for compliance
+compliance/views.py - API endpoints for compliance with Pusher integration
 """
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action, api_view, permission_classes
@@ -16,6 +16,7 @@ from .serializers import (
     TACVerificationSerializer, TransferStatusSerializer,
     TransferHistorySerializer, ComplianceSettingSerializer
 )
+from utils.pusher import trigger_notification  # ✅ ADDED
 
 class TransferViewSet(viewsets.ModelViewSet):
     """API endpoint for transfer requests (client facing)"""
@@ -42,6 +43,25 @@ class TransferViewSet(viewsets.ModelViewSet):
             raise ValidationError("User account is not fully set up - missing account number")
 
         data = serializer.validated_data
+        transfer = serializer.save(
+            account=user,
+            status='pending_tac'
+        )
+
+        # ✅ ADDED: Trigger Pusher event for transfer initiated
+        trigger_notification(
+            account_number=user.account_number,
+            event_name='transfer.initiated',
+            data={
+                'id': transfer.id,
+                'amount': float(transfer.amount),
+                'recipient': transfer.recipient_name,
+                'destination_type': transfer.destination_type,
+                'status': 'pending_tac',
+                'reference': transfer.reference,
+                'created_at': transfer.created_at.isoformat()
+            }
+        )
 
         # Check KYC requirement
         try:
@@ -52,23 +72,27 @@ class TransferViewSet(viewsets.ModelViewSet):
             ).exists()
 
             if data['amount'] >= 1500.00 and not has_kyc:
-                serializer.save(
-                    account=user,
-                    requires_kyc=True,
-                    status='kyc_required'
+                transfer.requires_kyc = True
+                transfer.status = 'kyc_required'
+                transfer.save()
+                
+                # ✅ ADDED: Trigger Pusher for KYC requirement
+                trigger_notification(
+                    account_number=user.account_number,
+                    event_name='kyc.pending',
+                    data={
+                        'transfer_id': transfer.id,
+                        'amount': float(transfer.amount),
+                        'message': 'KYC required for this transfer amount'
+                    }
                 )
-                return
 
         except ImportError:
             pass
 
-        serializer.save(
-            account=user,
-            status='pending_tac'
-        )
         return
 
-    # ⭐ FIX: Add url_path parameter for hyphenated URL
+    # ✅ FIX: Add url_path parameter for hyphenated URL
     @action(detail=True, methods=['post'], url_path='verify-tac')
     def verify_tac(self, request, pk=None):
         """Verify TAC code entered by client"""
@@ -89,6 +113,18 @@ class TransferViewSet(viewsets.ModelViewSet):
 
             # Verify TAC
             if transfer.verify_tac(tac_code):
+                # ✅ ADDED: Trigger Pusher for TAC verified
+                trigger_notification(
+                    account_number=transfer.account.account_number,
+                    event_name='transfer.tac_verified',
+                    data={
+                        'id': transfer.id,
+                        'amount': float(transfer.amount),
+                        'status': 'tac_verified',
+                        'message': 'TAC verified successfully'
+                    }
+                )
+
                 return Response({
                     'success': True,
                     'message': 'TAC verified successfully',
@@ -191,6 +227,19 @@ class AdminTransferViewSet(viewsets.ModelViewSet):
 
         try:
             tac_code = transfer.generate_tac(request.user)
+            
+            # ✅ ADDED: Trigger Pusher for TAC sent
+            trigger_notification(
+                account_number=transfer.account.account_number,
+                event_name='transfer.tac_sent',
+                data={
+                    'id': transfer.id,
+                    'amount': float(transfer.amount),
+                    'status': 'tac_sent',
+                    'message': 'TAC code has been generated. Contact live agent for the code.',
+                    'expires_at': transfer.tac_expires_at.isoformat() if transfer.tac_expires_at else None
+                }
+            )
 
             return Response({
                 'success': True,
@@ -223,6 +272,20 @@ class AdminTransferViewSet(viewsets.ModelViewSet):
             transfer.mark_for_settlement(request.user)
             transfer.mark_completed()
 
+            # ✅ ADDED: Trigger Pusher for transfer completed
+            trigger_notification(
+                account_number=transfer.account.account_number,
+                event_name='transfer.completed',
+                data={
+                    'id': transfer.id,
+                    'amount': float(transfer.amount),
+                    'recipient': transfer.recipient_name,
+                    'status': 'completed',
+                    'reference': transfer.reference,
+                    'message': 'Your transfer has been completed successfully'
+                }
+            )
+
             return Response({
                 'success': True,
                 'message': 'Transfer marked as completed',
@@ -231,6 +294,19 @@ class AdminTransferViewSet(viewsets.ModelViewSet):
             })
 
         except Exception as e:
+            # ✅ ADDED: Trigger Pusher for transfer failed
+            trigger_notification(
+                account_number=transfer.account.account_number,
+                event_name='transfer.failed',
+                data={
+                    'id': transfer.id,
+                    'amount': float(transfer.amount),
+                    'status': 'failed',
+                    'reason': str(e),
+                    'message': f'Transfer failed: {str(e)}'
+                }
+            )
+
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST

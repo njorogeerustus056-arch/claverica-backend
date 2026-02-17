@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from transactions.models import Wallet, Transaction
 from transactions.services import WalletService, InsufficientFundsError
+from utils.pusher import trigger_notification  # ✅ ADDED
 
 def index(request):
     return HttpResponse("Hello, this is the Transactions API endpoint.")
@@ -64,6 +65,19 @@ def credit_wallet(request):
             )
 
         new_balance = WalletService.credit_wallet(account_number, amount, reference, description)
+        
+        # ✅ ADDED: Trigger Pusher event for wallet credit
+        trigger_notification(
+            account_number=account_number,
+            event_name='wallet.credited',
+            data={
+                'amount': float(amount),
+                'new_balance': float(new_balance),
+                'reference': reference,
+                'description': description,
+                'timestamp': datetime.now().isoformat()
+            }
+        )
 
         return Response({
             'message': 'Wallet credited successfully',
@@ -104,6 +118,19 @@ def debit_wallet(request):
             )
 
         new_balance = WalletService.debit_wallet(account_number, amount, reference, description)
+        
+        # ✅ ADDED: Trigger Pusher event for wallet debit
+        trigger_notification(
+            account_number=account_number,
+            event_name='wallet.debited',
+            data={
+                'amount': float(amount),
+                'new_balance': float(new_balance),
+                'reference': reference,
+                'description': description,
+                'timestamp': datetime.now().isoformat()
+            }
+        )
 
         return Response({
             'message': 'Wallet debited successfully',
@@ -202,7 +229,7 @@ def get_wallet_balance_for_current_user(request):
         return Response({
             "balance": float(wallet.balance),
             "currency": wallet.currency,
-            "account_number": user.account_number  # FIXED: Direct attribute
+            "account_number": user.account_number
         })
     except Wallet.DoesNotExist:
         return Response({
@@ -232,11 +259,11 @@ def get_recent_transactions(request):
         transaction_list = []
         for tx in transactions:
             transaction_list.append({
-                "id": tx.id,  # Keep as number (not str)
-                "transaction_type": tx.transaction_type,  # FIXED: Changed from "type"
+                "id": tx.id,
+                "transaction_type": tx.transaction_type,
                 "amount": float(tx.amount),
                 "currency": wallet.currency,
-                "created_at": tx.timestamp.isoformat(),  # FIXED: Changed from "date"
+                "created_at": tx.timestamp.isoformat(),
                 "description": tx.description,
                 "status": "completed",
                 "reference": tx.reference or f"TX-{tx.id}",

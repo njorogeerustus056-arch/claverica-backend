@@ -1,6 +1,6 @@
-# notifications/views.py - PERMANENT FIX
+# notifications/views.py - PERMANENT FIX WITH PUSHER
 """
-🎯 NOTIFICATION VIEWS - API endpoints
+🎯 NOTIFICATION VIEWS - API endpoints with Pusher integration
 """
 
 from rest_framework import viewsets, status, permissions
@@ -18,6 +18,7 @@ from .serializers import (
     NotificationLogSerializer
 )
 from .services import NotificationService
+from utils.pusher import trigger_notification  # ✅ ADDED
 
 class IsAdminUser(permissions.BasePermission):
     """Check if user is admin"""
@@ -44,6 +45,24 @@ class NotificationViewSet(viewsets.ModelViewSet):
             return AdminNotificationSerializer
         return NotificationSerializer
 
+    def perform_create(self, serializer):
+        """Save notification and trigger Pusher event"""
+        notification = serializer.save()
+        
+        # ✅ ADDED: Trigger Pusher event for new notification
+        trigger_notification(
+            account_number=notification.recipient.account_number,
+            event_name='notification.created',
+            data={
+                'id': notification.id,
+                'title': notification.title,
+                'message': notification.message,
+                'type': notification.notification_type,
+                'priority': notification.priority,
+                'created_at': notification.created_at.isoformat()
+            }
+        )
+
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
         """Mark a notification as read"""
@@ -59,6 +78,15 @@ class NotificationViewSet(viewsets.ModelViewSet):
         success = NotificationService.mark_as_read(pk, request.user)
 
         if success:
+            # ✅ ADDED: Trigger Pusher event for notification update
+            trigger_notification(
+                account_number=notification.recipient.account_number,
+                event_name='notification.updated',
+                data={
+                    'id': notification.id,
+                    'status': 'READ'
+                }
+            )
             return Response({'status': 'marked as read'})
         else:
             return Response(
@@ -81,10 +109,10 @@ class UnreadCountView(APIView):
         """Return count of unread notifications for current user"""
         # ✅ FIXED: Direct queryset instead of calling NotificationService
         count = Notification.objects.filter(
-            recipient=request.user,  # Use the user object directly
+            recipient=request.user,
             status='UNREAD'
         ).count()
-        
+
         return Response({'unread_count': count})
 
 class MarkAsReadView(APIView):
@@ -95,6 +123,16 @@ class MarkAsReadView(APIView):
         success = NotificationService.mark_as_read(pk, request.user)
 
         if success:
+            notification = Notification.objects.get(id=pk)
+            # ✅ ADDED: Trigger Pusher event
+            trigger_notification(
+                account_number=notification.recipient.account_number,
+                event_name='notification.updated',
+                data={
+                    'id': notification.id,
+                    'status': 'READ'
+                }
+            )
             return Response({'status': 'marked as read'})
         else:
             return Response(
@@ -114,6 +152,17 @@ class MarkAllAsReadView(APIView):
 
         count = notifications.count()
         notifications.update(status='READ', read_at=timezone.now())
+
+        # ✅ ADDED: Trigger Pusher event for each notification
+        for notification in notifications:
+            trigger_notification(
+                account_number=notification.recipient.account_number,
+                event_name='notification.updated',
+                data={
+                    'id': notification.id,
+                    'status': 'READ'
+                }
+            )
 
         return Response({
             'status': f'marked {count} notifications as read'
