@@ -1,7 +1,8 @@
 {
   "build": {
     "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
+    "dockerfilePath": "Dockerfile",
+    "buildCache": false
   },
   "deploy": {
     "startCommand": "/app/backend/start.sh",
