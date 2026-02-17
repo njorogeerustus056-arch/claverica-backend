@@ -6,10 +6,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 import json
 
-# ✅ FIXED: Import from backend.views.pusher_auth
+# Import from backend.views.pusher_auth
 from backend.views.pusher_auth import pusher_authentication
 
-# ADD THESE JWT IMPORTS
+# JWT Imports
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 # Simple health check for Railway
@@ -61,11 +61,11 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
 
-    # 🔥 JWT TOKEN ENDPOINTS
+    # JWT TOKEN ENDPOINTS
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
-    # 🔥 PUSHER AUTH ENDPOINT
+    # PUSHER AUTH ENDPOINT
     path('pusher/auth/', pusher_authentication, name='pusher_auth'),
 
     # API endpoints
@@ -81,9 +81,9 @@ urlpatterns = [
     # KYC APP
     path('api/kyc/', include('kyc.urls')),
 
-    # 🆕 KYC SPEC APP
+    # KYC SPEC APP
     path('api/kyc_spec/', include('kyc_spec.urls')),
 
-    # 🆕 TRANSFERS APP (ADD THIS LINE)
+    # TRANSFERS APP
     path('api/transfers/', include('transfers.urls')),
 ]
