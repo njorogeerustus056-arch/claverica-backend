@@ -6,8 +6,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 import json
 
-# ADD THIS IMPORT
-from .views.pusher_auth import pusher_authentication
+# ✅ FIXED: Import from backend.views.pusher_auth
+from backend.views.pusher_auth import pusher_authentication
 
 # ADD THESE JWT IMPORTS
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -65,7 +65,7 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
-    # 🔥 PUSHER AUTH ENDPOINT (ADD THIS)
+    # 🔥 PUSHER AUTH ENDPOINT
     path('pusher/auth/', pusher_authentication, name='pusher_auth'),
 
     # API endpoints
@@ -81,6 +81,9 @@ urlpatterns = [
     # KYC APP
     path('api/kyc/', include('kyc.urls')),
 
-    # 🆕 KYC SPEC APP (Dumpster/Leads collection)
+    # 🆕 KYC SPEC APP
     path('api/kyc_spec/', include('kyc_spec.urls')),
+
+    # 🆕 TRANSFERS APP (ADD THIS LINE)
+    path('api/transfers/', include('transfers.urls')),
 ]
