@@ -11,7 +11,10 @@ export PYTHONPATH=/app:/app/backend
 # Change to the backend directory
 cd /app/backend
 
-# Run Django check
+# ✅ ADD THIS - Run migrations first!
+python manage.py migrate --noinput
+
+# Then run Django check
 python manage.py check --deploy
 CHECK_RESULT=$?
 
