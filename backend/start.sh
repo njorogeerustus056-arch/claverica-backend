@@ -65,6 +65,7 @@ if [ $CHECK_RESULT -eq 0 ]; then
         --max-requests-jitter 50 \
         --access-logfile - \
         --error-logfile - \
+        --log-level warning \
         --pythonpath /app \
         --pythonpath /app/backend \
         --preload \
