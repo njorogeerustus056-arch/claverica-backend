@@ -101,7 +101,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Third party apps
-    'sendgrid_backend',  # ✅ MOVED TO TOP for proper initialization
+    'backend.sendgrid_config.SendgridBackendConfig',  # ✅ Using custom AppConfig
     'rest_framework',
     'corsheaders',
     'channels',
