@@ -6,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 import json
 
-from views.pusher_auth import pusher_authentication
+from backend.views.pusher_auth import pusher_authentication  # ✅ FIXED: Added 'backend.' prefix
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 @csrf_exempt
