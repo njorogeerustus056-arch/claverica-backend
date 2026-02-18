@@ -51,7 +51,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('pusher/auth/', pusher_authentication, name='pusher_auth'),
+    path('api/pusher/auth/', pusher_authentication, name='pusher_auth'),  # ✅ FIXED: Added /api prefix
     path('api/accounts/', include('accounts.urls')),
     path('api/users/', include('users.urls')),
     path('api/notifications/', include('notifications.urls')),
