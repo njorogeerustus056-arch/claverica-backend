@@ -140,7 +140,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'backend.urls'
 
 # ==============================================================================
-# TEMPLATES CONFIGURATION
+# TEMPLATES CONFIGURATION - FIXED: Removed duplicate entry
 # ==============================================================================
 TEMPLATES = [
     {
@@ -148,7 +148,6 @@ TEMPLATES = [
         'DIRS': [
             os.path.join(BASE_DIR, 'templates'),
             os.path.join(BASE_DIR, 'accounts/templates'),
-            str(BASE_DIR / 'accounts' / 'templates'),
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -318,15 +317,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 ASGI_APPLICATION = 'backend.asgi.application'
 
 # ==============================================================================
-# CACHE CONFIGURATION
+# CACHE CONFIGURATION - UPDATED with Redis support
 # ==============================================================================
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
-    }
-}
-
 if os.environ.get('REDIS_URL'):
     CACHES = {
         'default': {
@@ -335,7 +327,17 @@ if os.environ.get('REDIS_URL'):
         }
     }
     print("[OK] Using Redis cache")
+    
+    # Use Redis for session storage (better performance)
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    SESSION_CACHE_ALIAS = 'default'
 else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'unique-snowflake',
+        }
+    }
     print("[OK] Using in-memory cache (ok for development)")
 
 # ==============================================================================

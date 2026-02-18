@@ -16,6 +16,7 @@ Django==5.2.7
 django-cors-headers==4.6.0
 django-extensions==4.1
 django-filter==23.2
+django-redis==5.4.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 gunicorn==23.0.0
@@ -37,6 +38,7 @@ pyOpenSSL==25.3.0
 python-dotenv==1.1.1
 redis==7.1.0
 requests==2.32.5
+sendgrid-backend-django
 service-identity==24.2.0
 setuptools==80.9.0
 six==1.17.0
@@ -49,4 +51,3 @@ ujson==5.11.0
 urllib3==2.5.0
 whitenoise==6.11.0
 zope.interface==8.1.1
-sendgrid-backend-django
