@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from transactions.models import Wallet, Transaction
 from transactions.services import WalletService, InsufficientFundsError
-from backend.utils.pusher import trigger_notification  #  ADDED
+from utils.pusher import trigger_notification  #  ADDED
 
 def index(request):
     return HttpResponse("Hello, this is the Transactions API endpoint.")
