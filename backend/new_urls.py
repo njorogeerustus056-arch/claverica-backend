@@ -6,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 import json
 
-from views.pusher_auth import pusher_authentication
+from .views.pusher_auth import pusher_authentication  # ✅ Fixed: Relative import
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 @csrf_exempt
@@ -51,7 +51,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/pusher/auth/', pusher_authentication, name='pusher_auth'),  # ✅ FIXED: Added /api prefix
+    path('api/pusher/auth/', pusher_authentication, name='pusher_auth'),
     path('api/accounts/', include('accounts.urls')),
     path('api/users/', include('users.urls')),
     path('api/notifications/', include('notifications.urls')),
