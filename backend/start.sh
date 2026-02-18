@@ -11,8 +11,11 @@ export PYTHONPATH=/app:/app/backend
 # Change to the backend directory
 cd /app/backend
 
-# ✅ ADD THIS - Run migrations first!
+# Run migrations first!
 python manage.py migrate --noinput
+
+# Collect static files for admin styling
+python manage.py collectstatic --noinput
 
 # Then run Django check
 python manage.py check --deploy
