@@ -6,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 import json
 
-from backend.views.pusher_auth import pusher_authentication  # ✅ Try absolute import
+from views.pusher_auth import pusher_authentication  # ✅ Fixed: Without 'backend.'
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 @csrf_exempt
