@@ -9,10 +9,16 @@ COPY backend/ ./backend/
 
 WORKDIR /app/backend
 
+# Set environment variables for Django
+ENV DJANGO_SETTINGS_MODULE=backend.settings
+ENV PYTHONPATH=/app:/app/backend
+ENV RAILWAY=true
+
+# Make start.sh executable
 RUN chmod +x start.sh
 
-RUN python manage.py collectstatic --noinput
+# Skip collectstatic during build - it will run in start.sh instead
+# This avoids the AppRegistryNotReady error
+RUN echo "Skipping collectstatic during build - will run at runtime"
 
-# IMPORTANT: Remove the CMD line entirely - Railway will use start.sh
-# Just delete or comment out this line:
-# CMD ["./start.sh"]
+# No CMD - Railway will use start.sh
