@@ -18,7 +18,7 @@ from .serializers import (
     NotificationLogSerializer
 )
 from .services import NotificationService
-from utils.pusher import trigger_notification  #  ADDED
+from backend.utils.pusher import trigger_notification  # ✅ Add backend.
 
 class IsAdminUser(permissions.BasePermission):
     """Check if user is admin"""

@@ -1,2 +1,2 @@
-﻿# Compliance app
+# Compliance app
 __version__ = '1.0.0'

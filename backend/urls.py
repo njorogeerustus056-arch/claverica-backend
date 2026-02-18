@@ -1,4 +1,4 @@
-﻿from django.urls import path, include
+from django.urls import path, include
 from django.http import HttpResponse
 from django.contrib import admin
 from django.views.decorators.http import require_GET

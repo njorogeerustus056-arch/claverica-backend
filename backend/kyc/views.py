@@ -17,7 +17,7 @@ from rest_framework import viewsets, generics, status, permissions
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from utils.pusher import trigger_notification  #  ADDED
+from backend.utils.pusher import trigger_notification  #  ADDED
 import uuid
 
 # ========== FUNCTION-BASED VIEWS (HTML PAGES) ==========
