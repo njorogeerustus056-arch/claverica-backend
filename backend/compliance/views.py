@@ -16,7 +16,7 @@ from .serializers import (
     TACVerificationSerializer, TransferStatusSerializer,
     TransferHistorySerializer, ComplianceSettingSerializer
 )
-from utils.pusher import trigger_notification  #  ADDED
+from backend.utils.pusher import trigger_notification  #  ADDED
 
 class TransferViewSet(viewsets.ModelViewSet):
     """API endpoint for transfer requests (client facing)"""
