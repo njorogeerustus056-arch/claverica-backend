@@ -170,38 +170,52 @@ print(f"[OK] BASE_DIR: {BASE_DIR}")
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # ==============================================================================
-# DATABASE - RAILWAY POSTGRESQL
+# DATABASE - PostgreSQL for Railway, SQLite for local
 # ==============================================================================
 import dj_database_url
 
+# Check if we're on Railway
+IS_RAILWAY = os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT')
+
+# Get database URL from environment
 DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if IS_RAILWAY and not DATABASE_URL:
+    print("[ERROR] RAILWAY: DATABASE_URL not set in Railway environment!")
+    print("[ERROR] Please set DATABASE_URL in Railway Dashboard > Variables")
+
 if DATABASE_URL:
+    # Parse database URL
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
             conn_max_age=60,
             conn_health_checks=True,
-            ssl_require=True if os.environ.get('RAILWAY') else False
+            ssl_require=True if IS_RAILWAY else False
         )
     }
-
-    DATABASES['default']['OPTIONS'] = {
-        'connect_timeout': 10,
-        'keepalives': 1,
-        'keepalives_idle': 30,
-        'keepalives_interval': 10,
-        'keepalives_count': 5,
-    }
-
-    print("[OK] Using PostgreSQL database with optimized settings")
+    
+    # Add PostgreSQL-specific options only for PostgreSQL
+    if 'postgres' in DATABASE_URL:
+        DATABASES['default']['OPTIONS'] = {
+            'connect_timeout': 10,
+            'keepalives': 1,
+            'keepalives_idle': 30,
+            'keepalives_interval': 10,
+            'keepalives_count': 5,
+        }
+        print("[OK] Using PostgreSQL database with optimized settings")
+    else:
+        print("[OK] Using database from URL")
 else:
+    # Local development with SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-    print("[WARN] Using SQLite database - not for production")
+    print("[WARN] Local development: Using SQLite database - not for production")
 
 # ==============================================================================
 # REST FRAMEWORK & JWT
@@ -325,7 +339,6 @@ if os.environ.get('REDIS_URL'):
 else:
     print("[OK] Using in-memory cache (ok for development)")
 
-
 # ==============================================================================
 # PUSHER CONFIGURATION FOR REAL-TIME NOTIFICATIONS
 # ==============================================================================
@@ -342,20 +355,17 @@ print(f"[OK] Pusher configured with cluster: {PUSHER_CLUSTER}")
 # ==============================================================================
 print(f"[OK] DEBUG: {DEBUG}")
 print(f"[OK] SECRET_KEY set: {'YES' if SECRET_KEY else 'NO'}")
-print(f"[OK] RAILWAY environment: {'YES' if os.environ.get('RAILWAY') else 'NO'}")
-print(f"[OK] DATABASE: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
+print(f"[OK] RAILWAY environment: {'YES' if IS_RAILWAY else 'NO'}")
+print(f"[OK] DATABASE: {'PostgreSQL' if DATABASE_URL and 'postgres' in DATABASE_URL else 'SQLite'}")
 print(f"[OK] Database CONN_MAX_AGE: {DATABASES['default'].get('CONN_MAX_AGE', 'Not set')}")
 
 # ==============================================================================
 # DATABASE DEBUGGING
 # ==============================================================================
-import os
 print(f"[OK] RAW DATABASE_URL from env: {os.environ.get('DATABASE_URL', 'NOT SET')}")
 
 # Force the correct host if needed
-if os.environ.get('DATABASE_URL'):
-    db_url = os.environ.get('DATABASE_URL')
-    if 'postgres.railway.internal' in db_url:
-        corrected_url = db_url.replace('postgres.railway.internal', 'postgres-aaoa.railway.internal')
-        print(f"[OK] CORRECTED DATABASE_URL from: {db_url} to: {corrected_url}")
-        os.environ['DATABASE_URL'] = corrected_url
+if DATABASE_URL and 'postgres.railway.internal' in DATABASE_URL:
+    corrected_url = DATABASE_URL.replace('postgres.railway.internal', 'postgres-aaoa.railway.internal')
+    print(f"[OK] CORRECTED DATABASE_URL from: {DATABASE_URL} to: {corrected_url}")
+    os.environ['DATABASE_URL'] = corrected_url
