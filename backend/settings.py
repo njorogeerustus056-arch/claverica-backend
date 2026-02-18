@@ -105,7 +105,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'django_extensions',
-    'sendgrid_backend',  # Added for SendGrid email
+    'sendgrid',  # ✅ FIXED: Changed from 'sendgrid_backend' to 'sendgrid'
 
     # Your apps
     'accounts',
@@ -194,7 +194,7 @@ if DATABASE_URL:
             ssl_require=True if IS_RAILWAY else False
         )
     }
-    
+
     # Add PostgreSQL-specific options only for PostgreSQL
     if 'postgres' in DATABASE_URL:
         DATABASES['default']['OPTIONS'] = {
