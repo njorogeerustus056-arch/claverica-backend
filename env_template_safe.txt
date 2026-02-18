@@ -1,4 +1,0 @@
-# SAFE ENVIRONMENT TEMPLATE
-SECRET_KEY=your-secure-key-here
-EMAIL_HOST_PASSWORD=your-sendgrid-api-key-here
-
