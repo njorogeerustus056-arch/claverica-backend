@@ -49,3 +49,4 @@ ujson==5.11.0
 urllib3==2.5.0
 whitenoise==6.11.0
 zope.interface==8.1.1
+sendgrid-backend-django
