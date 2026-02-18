@@ -105,7 +105,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'django_extensions',
-    'sendgrid',  # ✅ FIXED: Changed from 'sendgrid_backend' to 'sendgrid'
+    'sendgrid_backend',  # ✅ FIXED: Changed from 'sendgrid' to 'sendgrid_backend'
 
     # Your apps
     'accounts',
