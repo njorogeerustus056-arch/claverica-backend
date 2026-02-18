@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from transactions.models import Wallet, Transaction
 from transactions.services import WalletService, InsufficientFundsError
-from utils.pusher import trigger_notification  # ✅ ADDED
+from utils.pusher import trigger_notification  #  ADDED
 
 def index(request):
     return HttpResponse("Hello, this is the Transactions API endpoint.")
@@ -66,7 +66,7 @@ def credit_wallet(request):
 
         new_balance = WalletService.credit_wallet(account_number, amount, reference, description)
         
-        # ✅ ADDED: Trigger Pusher event for wallet credit
+        #  ADDED: Trigger Pusher event for wallet credit
         trigger_notification(
             account_number=account_number,
             event_name='wallet.credited',
@@ -119,7 +119,7 @@ def debit_wallet(request):
 
         new_balance = WalletService.debit_wallet(account_number, amount, reference, description)
         
-        # ✅ ADDED: Trigger Pusher event for wallet debit
+        #  ADDED: Trigger Pusher event for wallet debit
         trigger_notification(
             account_number=account_number,
             event_name='wallet.debited',

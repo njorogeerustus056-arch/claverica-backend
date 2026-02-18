@@ -1,4 +1,4 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from .models import Notification, NotificationPreference, NotificationLog
 
 class NotificationSerializer(serializers.ModelSerializer):

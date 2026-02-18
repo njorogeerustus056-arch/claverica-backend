@@ -1,5 +1,5 @@
-﻿"""
-🎉 NOTIFICATION SERVICE - Financial System Integration
+"""
+ NOTIFICATION SERVICE - Financial System Integration
 The communication spine for your digital banking ecosystem
 """
 
@@ -41,7 +41,7 @@ class NotificationService:
         """
         try:
             notification = Notification.objects.create(
-                recipient=recipient,  # ✅ CRITICAL: Using 'recipient' not 'account'
+                recipient=recipient,  #  CRITICAL: Using 'recipient' not 'account'
                 notification_type=notification_type,
                 title=title,
                 message=message,
@@ -63,7 +63,7 @@ class NotificationService:
             return notification
 
         except Exception as e:
-            logger.error(f"❌ Error creating notification: {str(e)}")
+            logger.error(f" Error creating notification: {str(e)}")
             return None
 
     @staticmethod
@@ -73,12 +73,12 @@ class NotificationService:
         """
         try:
             # Get account from payment instance
-            account = payment_instance.account  # ✅ This is Account object
+            account = payment_instance.account  #  This is Account object
 
             notification = NotificationService.create_notification(
-                recipient=account,  # ✅ FIXED: Changed from 'recipient' to 'account'
+                recipient=account,  #  FIXED: Changed from 'recipient' to 'account'
                 notification_type='PAYMENT_RECEIVED',
-                title='💰 Payment Received',
+                title=' Payment Received',
                 message=f'You received ${payment_instance.amount:.2f} from {payment_instance.sender}',
                 priority='HIGH',
                 metadata={
@@ -95,11 +95,11 @@ class NotificationService:
             # Also send admin notification
             NotificationService.send_admin_payment_notification(payment_instance)
 
-            logger.info(f"✅ Payment notification created for {account.account_number}: ${payment_instance.amount}")
+            logger.info(f" Payment notification created for {account.account_number}: ${payment_instance.amount}")
             return notification
 
         except Exception as e:
-            logger.error(f"❌ Error sending payment notification: {str(e)}")
+            logger.error(f" Error sending payment notification: {str(e)}")
             return None
 
     @staticmethod
@@ -107,14 +107,14 @@ class NotificationService:
         """Send admin notification for payment processing"""
         try:
             # Find an admin account (first account with is_staff=True)
-            admin_accounts = Account.objects.filter(is_staff=True)  # ✅ FIXED: Changed from 'recipient' to 'Account'
+            admin_accounts = Account.objects.filter(is_staff=True)  #  FIXED: Changed from 'recipient' to 'Account'
             if admin_accounts.exists():
                 admin_account = admin_accounts.first()
 
                 NotificationService.create_notification(
                     recipient=admin_account,
                     notification_type='ADMIN_PAYMENT_PROCESSED',
-                    title='📋 Payment Processed',
+                    title=' Payment Processed',
                     message=f'Payment of ${payment_instance.amount:.2f} processed for {payment_instance.account.account_number}',
                     priority='MEDIUM',
                     metadata={
@@ -129,7 +129,7 @@ class NotificationService:
                 )
 
         except Exception as e:
-            logger.error(f"⚠️ Error sending admin payment notification: {str(e)}")
+            logger.error(f" Error sending admin payment notification: {str(e)}")
 
     @staticmethod
     def send_transfer_notification(transfer_instance):
@@ -137,19 +137,19 @@ class NotificationService:
         Send notification for transfer events
         """
         try:
-            account = transfer_instance.account  # ✅ This should be Account object
+            account = transfer_instance.account  #  This should be Account object
             notification_type = 'TRANSFER_INITIATED'
-            title = '🚀 Transfer Initiated'
+            title = ' Transfer Initiated'
 
             if hasattr(transfer_instance, 'status'):
                 if transfer_instance.status == 'completed':
                     notification_type = 'TRANSFER_COMPLETED'
-                    title = '✅ Transfer Completed'
+                    title = ' Transfer Completed'
                 elif transfer_instance.status == 'failed':
                     notification_type = 'TRANSFER_FAILED'
-                    title = '❌ Transfer Failed'
+                    title = ' Transfer Failed'
 
-            # ✅ FIXED: Use recipient_name instead of beneficiary_name
+            #  FIXED: Use recipient_name instead of beneficiary_name
             notification = NotificationService.create_notification(
                 recipient=account,
                 notification_type=notification_type,
@@ -158,7 +158,7 @@ class NotificationService:
                 priority='HIGH',
                 metadata={
                     'amount': str(transfer_instance.amount),
-                    'recipient_name': transfer_instance.recipient_name,  # ✅ FIXED
+                    'recipient_name': transfer_instance.recipient_name,  #  FIXED
                     'recipient_account': transfer_instance.beneficiary_account if hasattr(transfer_instance, 'beneficiary_account') else 'N/A',
                     'status': transfer_instance.status if hasattr(transfer_instance, 'status') else 'pending',
                     'reference': transfer_instance.reference if hasattr(transfer_instance, 'reference') else 'N/A',
@@ -169,7 +169,7 @@ class NotificationService:
             return notification
 
         except Exception as e:
-            logger.error(f"❌ Error sending transfer notification: {str(e)}")
+            logger.error(f" Error sending transfer notification: {str(e)}")
             return None
 
     @staticmethod
@@ -178,18 +178,18 @@ class NotificationService:
         Send TAC notification
         """
         try:
-            # ✅ FIXED: Get account from transfer, not from tac_instance directly
+            #  FIXED: Get account from transfer, not from tac_instance directly
             account = tac_instance.transfer.account
 
-            # ✅ FIXED: Use 'code' not 'tac_code'
+            #  FIXED: Use 'code' not 'tac_code'
             notification = NotificationService.create_notification(
                 recipient=account,
                 notification_type='TAC_SENT',
-                title='🔐 Your TAC Code',
+                title=' Your TAC Code',
                 message=f'Your TAC code is {tac_instance.code} for transfer authorization',
                 priority='HIGH',
                 metadata={
-                    'tac_code': tac_instance.code,  # ✅ FIXED: Use 'code'
+                    'tac_code': tac_instance.code,  #  FIXED: Use 'code'
                     'purpose': 'transfer verification',
                     'expires_at': tac_instance.expires_at.isoformat() if tac_instance.expires_at else None,
                     'security_warning': 'Do not share this code with anyone',
@@ -200,7 +200,7 @@ class NotificationService:
             return notification
 
         except Exception as e:
-            logger.error(f"❌ Error sending TAC notification: {str(e)}")
+            logger.error(f" Error sending TAC notification: {str(e)}")
             return None
 
     @staticmethod
@@ -209,7 +209,7 @@ class NotificationService:
         Send KYC notification
         """
         try:
-            # ✅ Get account from user (KYCDocument has 'user' not 'account')
+            #  Get account from user (KYCDocument has 'user' not 'account')
             # Try to get account from user
             user = kyc_instance.user
 
@@ -228,22 +228,22 @@ class NotificationService:
                         # Method 4: Try to get first account with matching email
                         account = Account.objects.filter(email=user.email).first()
                         if not account:
-                            logger.error(f"❌ Cannot find account for user {user.email}")
+                            logger.error(f" Cannot find account for user {user.email}")
                             return None
 
             notification_type = 'KYC_SUBMITTED'
-            title = '📤 KYC Submitted'
+            title = ' KYC Submitted'
 
             if hasattr(kyc_instance, 'status'):
                 if kyc_instance.status == 'approved':
                     notification_type = 'KYC_APPROVED'
-                    title = '✅ KYC Approved'
+                    title = ' KYC Approved'
                 elif kyc_instance.status == 'rejected':
                     notification_type = 'KYC_REJECTED'
-                    title = '❌ KYC Rejected'
+                    title = ' KYC Rejected'
                 elif kyc_instance.status == 'under_review':
                     notification_type = 'KYC_UNDER_REVIEW'
-                    title = '⏳ KYC Under Review'
+                    title = ' KYC Under Review'
 
             notification = NotificationService.create_notification(
                 recipient=account,
@@ -261,11 +261,11 @@ class NotificationService:
                 }
             )
 
-            logger.info(f"✅ KYC notification sent for account {account.account_number}")
+            logger.info(f" KYC notification sent for account {account.account_number}")
             return notification
 
         except Exception as e:
-            logger.error(f"❌ Error sending KYC notification: {str(e)}")
+            logger.error(f" Error sending KYC notification: {str(e)}")
             return None
 
     @staticmethod
@@ -334,7 +334,7 @@ class NotificationService:
                 details=f'Email sent to {notification.recipient.email}'
             )
 
-            logger.info(f"✅ Email sent for notification #{notification.id}")
+            logger.info(f" Email sent for notification #{notification.id}")
             return True
 
         except Exception as e:
@@ -345,7 +345,7 @@ class NotificationService:
                 channel='EMAIL',
                 details=f'Email failed: {str(e)}'
             )
-            logger.error(f"❌ Error sending email: {str(e)}")
+            logger.error(f" Error sending email: {str(e)}")
             return False
 
     @staticmethod
@@ -368,10 +368,10 @@ class NotificationService:
             return True
 
         except Notification.DoesNotExist:
-            logger.error(f"❌ Notification not found or not authorized: {notification_id}")
+            logger.error(f" Notification not found or not authorized: {notification_id}")
             return False
         except Exception as e:
-            logger.error(f"❌ Error marking as read: {str(e)}")
+            logger.error(f" Error marking as read: {str(e)}")
             return False
 
     @staticmethod
@@ -385,7 +385,7 @@ class NotificationService:
                 status='UNREAD'
             ).order_by('-created_at')
         except Exception as e:
-            logger.error(f"❌ Error getting notifications: {str(e)}")
+            logger.error(f" Error getting notifications: {str(e)}")
             return []
 
     @staticmethod
@@ -400,11 +400,11 @@ class NotificationService:
                 status='READ'
             ).delete()
 
-            logger.info(f"✅ Cleaned up {old_count} old notifications")
+            logger.info(f" Cleaned up {old_count} old notifications")
             return old_count
 
         except Exception as e:
-            logger.error(f"❌ Error cleaning up notifications: {str(e)}")
+            logger.error(f" Error cleaning up notifications: {str(e)}")
             return 0
 
     @staticmethod
@@ -421,5 +421,5 @@ class NotificationService:
                 status='UNREAD'
             ).count()
         except Exception as e:
-            logger.error(f"❌ Error getting unread count: {str(e)}")
+            logger.error(f" Error getting unread count: {str(e)}")
             return 0

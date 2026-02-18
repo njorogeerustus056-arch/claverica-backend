@@ -183,7 +183,7 @@ Thank you for using our service.
                 
                 # Log the email that would have been sent
                 print("\n" + "="*60)
-                print("📧 PAYMENT EMAIL NOTIFICATION (FALLBACK)")
+                print(" PAYMENT EMAIL NOTIFICATION (FALLBACK)")
                 print("="*60)
                 print(f"To: {recipient_email}")
                 print(f"Subject: {subject}")

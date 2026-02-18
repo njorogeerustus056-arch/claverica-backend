@@ -36,14 +36,14 @@ def deduct_wallet_on_verified_transfer(sender, instance, created, **kwargs):
                 description=f"Transfer to {instance.recipient_name}"
             )
             
-            print(f'   ✅ Funds deducted. New balance: ${new_balance}')
+            print(f'    Funds deducted. New balance: ${new_balance}')
             
             # Update transfer status to funds_deducted
             instance.status = 'funds_deducted'
             instance.save(update_fields=['status'])
             
         except Exception as e:
-            print(f'   ❌ Error deducting funds: {e}')
+            print(f'    Error deducting funds: {e}')
             logger.error(f"Failed to deduct wallet for transfer {instance.reference}: {e}")
 
 # Store original status on model init

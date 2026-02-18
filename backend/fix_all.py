@@ -13,7 +13,7 @@ urlpatterns = [
 
 with open('transactions/urls.py', 'w') as f:
     f.write(transactions_urls)
-print("✓ Created transactions/urls.py")
+print(" Created transactions/urls.py")
 
 # 2. Update users/views.py
 users_views = '''from rest_framework.decorators import api_view, permission_classes
@@ -55,7 +55,7 @@ def user_me(request):
 
 with open('users/views.py', 'w') as f:
     f.write(users_views)
-print("✓ Updated users/views.py")
+print(" Updated users/views.py")
 
 # 3. Update cards/urls.py
 cards_urls = '''from django.urls import path
@@ -68,9 +68,9 @@ urlpatterns = [
 
 with open('cards/urls.py', 'w') as f:
     f.write(cards_urls)
-print("✓ Updated cards/urls.py")
+print(" Updated cards/urls.py")
 
-print("\n✅ All files updated! Run:")
+print("\n All files updated! Run:")
 print("python manage.py makemigrations")
 print("python manage.py migrate")
 print("python manage.py runserver")

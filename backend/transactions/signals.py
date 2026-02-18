@@ -21,13 +21,13 @@ def create_wallet_for_new_account(sender, instance, created, **kwargs):
             
             # Ensure account number exists
             if not instance.account_number:
-                print(f'   ⚠️  No account number yet - skipping wallet creation')
+                print(f'     No account number yet - skipping wallet creation')
                 return
             
             # Check if wallet already exists
             wallet_exists = Wallet.objects.filter(account=instance).exists()
             if wallet_exists:
-                print(f'   ✓ Wallet already exists')
+                print(f'    Wallet already exists')
                 return
             
             # Create wallet
@@ -36,11 +36,11 @@ def create_wallet_for_new_account(sender, instance, created, **kwargs):
                 balance=0.00,
                 currency='USD'
             )
-            print(f'   ✓ Wallet created: {wallet.id}')
+            print(f'    Wallet created: {wallet.id}')
             print(f'   Balance: {wallet.balance} {wallet.currency}')
             
         except Exception as e:
-            print(f'   ✗ Error creating wallet: {e}')
+            print(f'    Error creating wallet: {e}')
             import traceback
             traceback.print_exc()
 

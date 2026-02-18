@@ -7,7 +7,7 @@ router = DefaultRouter()
 router.register(r'', views.NotificationViewSet, basename='notification')
 
 urlpatterns = [
-    # ✅✅✅ PUT SPECIFIC ENDPOINTS FIRST
+    #  PUT SPECIFIC ENDPOINTS FIRST
     path('unread-count/', views.UnreadCountView.as_view(), name='unread_count'),
     path('mark-read/<int:pk>/', views.MarkAsReadView.as_view(), name='mark_read'),
     path('mark-all-read/', views.MarkAllAsReadView.as_view(), name='mark_all_read'),

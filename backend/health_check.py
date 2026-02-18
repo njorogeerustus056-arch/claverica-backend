@@ -1,4 +1,4 @@
-﻿import time
+import time
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.db import connections

@@ -1,4 +1,4 @@
-﻿"""
+"""
 WSGI config for backend project.
 """
 

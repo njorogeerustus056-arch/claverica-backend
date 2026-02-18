@@ -39,14 +39,14 @@ class CoreFunctionalityTests(TestCase):
         except:
             pass  # Wallet might not exist yet
         
-        print(f"\n🔧 Test Account: {self.test_account.account_number}")
+        print(f"\n Test Account: {self.test_account.account_number}")
     
     def test_01_can_credit_wallet(self):
         """Test adding money to wallet"""
-        print("\n💰 Testing: Credit Wallet")
+        print("\n Testing: Credit Wallet")
         
         if not hasattr(self.test_account, 'wallet'):
-            print("⚠️  Skipping - Wallet not available")
+            print("  Skipping - Wallet not available")
             self.skipTest("Wallet not available")
         
         initial_balance = self.test_account.wallet.balance
@@ -70,14 +70,14 @@ class CoreFunctionalityTests(TestCase):
             "Balance should increase after credit"
         )
         
-        print("✅ Wallet credit test: PASSED")
+        print(" Wallet credit test: PASSED")
     
     def test_02_can_debit_wallet(self):
         """Test removing money from wallet"""
-        print("\n💸 Testing: Debit Wallet")
+        print("\n Testing: Debit Wallet")
         
         if not hasattr(self.test_account, 'wallet'):
-            print("⚠️  Skipping - Wallet not available")
+            print("  Skipping - Wallet not available")
             self.skipTest("Wallet not available")
         
         # First add some money
@@ -105,18 +105,18 @@ class CoreFunctionalityTests(TestCase):
                 "Balance should decrease after debit"
             )
             
-            print("✅ Wallet debit test: PASSED")
+            print(" Wallet debit test: PASSED")
         else:
-            print("⚠️  Insufficient funds for debit test")
+            print("  Insufficient funds for debit test")
     
     def test_03_check_transfer_models(self):
         """Check if transfer-related models exist"""
-        print("\n🔄 Testing: Transfer Models")
+        print("\n Testing: Transfer Models")
         
         # Check Transfer model
         try:
             from transfers.models import Transfer
-            print("✅ Transfer model: EXISTS")
+            print(" Transfer model: EXISTS")
             
             # Try to create a transfer record
             transfer = Transfer(
@@ -125,43 +125,43 @@ class CoreFunctionalityTests(TestCase):
                 recipient_name="Test Recipient",
                 destination_type="bank"
             )
-            print("✅ Transfer object can be created")
+            print(" Transfer object can be created")
             
         except ImportError:
-            print("⚠️  Transfer model: NOT FOUND")
+            print("  Transfer model: NOT FOUND")
         except Exception as e:
-            print(f"⚠️  Transfer model check: {e}")
+            print(f"  Transfer model check: {e}")
     
     def test_04_check_payment_models(self):
         """Check if payment-related models exist"""
-        print("\n💳 Testing: Payment Models")
+        print("\n Testing: Payment Models")
         
         # Check Payment model
         try:
             from payments.models import Payment
-            print("✅ Payment model: EXISTS")
+            print(" Payment model: EXISTS")
             
         except ImportError:
-            print("⚠️  Payment model: NOT FOUND")
+            print("  Payment model: NOT FOUND")
         except Exception as e:
-            print(f"⚠️  Payment model check: {e}")
+            print(f"  Payment model check: {e}")
     
     def test_05_check_card_models(self):
         """Check if card models exist"""
-        print("\n💳 Testing: Card Models")
+        print("\n Testing: Card Models")
         
         # Check Card model
         try:
             from cards.models import Card
-            print("✅ Card model: EXISTS")
+            print(" Card model: EXISTS")
             
             # Check for computed properties
             if hasattr(Card, 'balance'):
-                print("✅ Card has balance property")
+                print(" Card has balance property")
             else:
-                print("⚠️  Card missing balance property")
+                print("  Card missing balance property")
                 
         except ImportError:
-            print("⚠️  Card model: NOT FOUND")
+            print("  Card model: NOT FOUND")
         except Exception as e:
-            print(f"⚠️  Card model check: {e}")
+            print(f"  Card model check: {e}")

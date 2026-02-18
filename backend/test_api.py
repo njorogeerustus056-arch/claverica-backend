@@ -1,4 +1,4 @@
-﻿import requests
+import requests
 import json
 
 url = "https://claverica-backend-production.up.railway.app/api/accounts/register/"

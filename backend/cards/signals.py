@@ -1,4 +1,4 @@
-﻿# ========== FIXED: Use correct User model ==========
+# ========== FIXED: Use correct User model ==========
 # @receiver(post_save, sender=USER_MODEL)
 # def create_default_card(sender, instance, created, **kwargs):
 #     """Create a default virtual card for new users - FIXED"""

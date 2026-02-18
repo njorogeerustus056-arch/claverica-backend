@@ -1,4 +1,4 @@
-﻿# notifications/signals.py - COMPLETELY FIXED VERSION
+# notifications/signals.py - COMPLETELY FIXED VERSION
 import logging
 import json
 from django.db.models.signals import post_save

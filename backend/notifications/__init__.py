@@ -1,5 +1,5 @@
 """
-🎯 NOTIFICATIONS PACKAGE INIT
+ NOTIFICATIONS PACKAGE INIT
 Ensures signals are loaded when app starts
 """
 

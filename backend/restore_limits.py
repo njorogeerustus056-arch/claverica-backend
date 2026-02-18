@@ -19,6 +19,6 @@ for limit_data in default_limits:
         defaults={'amount': limit_data['amount']}
     )
 
-print('✅ TransferLimit data restored:')
+print(' TransferLimit data restored:')
 for limit in TransferLimit.objects.all():
     print(f'  {limit.limit_type}: ${limit.amount}')

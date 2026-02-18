@@ -73,7 +73,7 @@ def fix_account_payments(account_id):
                     )
                     print(f"  - Payment {payment.reference}: ${payment.amount} | Created transaction: {transaction.id}")
             
-            print(f"\n✅ Done! Wallet balance: ${wallet.balance}")
+            print(f"\n Done! Wallet balance: ${wallet.balance}")
         else:
             print("No completed payments found for this account.")
             

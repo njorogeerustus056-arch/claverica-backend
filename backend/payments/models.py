@@ -39,7 +39,7 @@ class PaymentCode(models.Model):
         verbose_name_plural = "Payment Codes"
 
     def __str__(self):
-        return f"{self.code} â†’ {self.account.account_number}"
+        return f"{self.code}  {self.account.account_number}"
 
 
 class Payment(models.Model):

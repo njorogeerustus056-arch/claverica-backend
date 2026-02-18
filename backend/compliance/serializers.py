@@ -15,17 +15,17 @@ class TransferCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = TransferRequest
         fields = [
-            'id',           # ✅ ADDED
-            'reference',    # ✅ ADDED
+            'id',           #  ADDED
+            'reference',    #  ADDED
             'amount',
             'recipient_name',
             'destination_type',
             'destination_details',
             'narration',
-            'status',       # ✅ ADDED (helpful for frontend)
-            'requires_kyc'  # ✅ ADDED (helpful for frontend)
+            'status',       #  ADDED (helpful for frontend)
+            'requires_kyc'  #  ADDED (helpful for frontend)
         ]
-        read_only_fields = ['id', 'reference', 'status', 'requires_kyc']  # ✅ ADDED
+        read_only_fields = ['id', 'reference', 'status', 'requires_kyc']  #  ADDED
 
     def validate_amount(self, value):
         if value <= Decimal('0.00'):
@@ -73,7 +73,7 @@ class TransferSerializer(serializers.ModelSerializer):
     """Basic transfer serializer"""
 
     account_number = serializers.CharField(source='account.account_number', read_only=True)
-    account_email = serializers.CharField(source='account.email', read_only=True)  # ✅ FIXED: removed .user
+    account_email = serializers.CharField(source='account.email', read_only=True)  #  FIXED: removed .user
     destination_display = serializers.SerializerMethodField()
 
     class Meta:
@@ -150,7 +150,7 @@ class TACVerificationSerializer(serializers.Serializer):
 
 
 class TransferStatusSerializer(serializers.ModelSerializer):
-    """✅ FIXED: Serializer for transfer status"""
+    """ FIXED: Serializer for transfer status"""
 
     tac_generated = serializers.SerializerMethodField()
     next_steps = serializers.SerializerMethodField()

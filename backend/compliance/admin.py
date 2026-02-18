@@ -34,31 +34,31 @@ class TransferRequestAdmin(admin.ModelAdmin):
         if obj.status == 'tac_generated' and obj.tac_code:
             return format_html(
                 '<a class="button" href="{}" style="background-color: #4CAF50; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; margin-right: 10px;">'
-                '📧 Send TAC Email</a>'
+                ' Send TAC Email</a>'
                 '<a class="button" href="{}" style="background-color: #2196F3; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;">'
-                '📱 Send TAC SMS</a>',
+                ' Send TAC SMS</a>',
                 reverse('admin:send_tac_email', args=[obj.id]),
                 reverse('admin:send_tac_sms', args=[obj.id])
             )
         elif obj.tac_code:
-            return format_html('<span style="color: green;">✓ TAC Sent</span>')
+            return format_html('<span style="color: green;"> TAC Sent</span>')
         return "TAC not generated"
     send_tac_button.short_description = "Send TAC"
 
     def email_preview(self, obj):
         if obj.status == 'tac_generated' and obj.tac_code:
-            # ✅ FIXED: destination_details is already a dict, no json.loads needed
+            #  FIXED: destination_details is already a dict, no json.loads needed
             dest_details = obj.destination_details if obj.destination_details else {}
             bank_name = dest_details.get('bank_name', 'your bank')
             account_number = dest_details.get('account_number', 'XXXX-XXXX')
 
             preview = f"""
             <div style="background: #f5f5f5; padding: 15px; border: 1px solid #ddd; margin: 10px 0;">
-                <h4>📧 Email Preview (will be sent from noreply@claverica.com):</h4>
+                <h4> Email Preview (will be sent from noreply@claverica.com):</h4>
                 <div style="background: white; padding: 15px; border: 1px solid #ccc;">
                     <strong>Subject:</strong> Your Withdrawal Authorization Code - {obj.reference}<br><br>
-                    <strong>To:</strong> {obj.account.email}<br><br>  # ✅ FIXED: Changed obj.account.user.email to obj.account.email
-                    Dear {obj.account.first_name or 'Valued Client'},<br><br>  # ✅ FIXED: Changed obj.account.user.get_full_name() to obj.account.first_name
+                    <strong>To:</strong> {obj.account.email}<br><br>  #  FIXED: Changed obj.account.user.email to obj.account.email
+                    Dear {obj.account.first_name or 'Valued Client'},<br><br>  #  FIXED: Changed obj.account.user.get_full_name() to obj.account.first_name
                     Your withdrawal request has been approved.<br><br>
                     <strong>Amount:</strong> ${obj.amount:,.2f}<br>
                     <strong>Recipient:</strong> {obj.recipient_name}<br>
@@ -94,7 +94,7 @@ class TransferRequestAdmin(admin.ModelAdmin):
 
         if transfer.status == 'tac_generated' and transfer.tac_code:
             try:
-                # ✅ FIXED: destination_details is already a dict
+                #  FIXED: destination_details is already a dict
                 dest_details = transfer.destination_details if transfer.destination_details else {}
                 bank_name = dest_details.get('bank_name', 'your bank')
                 account_number = dest_details.get('account_number', 'XXXX-XXXX')
@@ -105,10 +105,10 @@ class TransferRequestAdmin(admin.ModelAdmin):
 Your withdrawal request has been approved and is ready for processing.
 
 TRANSACTION DETAILS:
-• Reference: {transfer.reference}
-• Amount: ${transfer.amount:,.2f}
-• Recipient: {transfer.recipient_name}
-• Destination: {bank_name} ({account_number})
+ Reference: {transfer.reference}
+ Amount: ${transfer.amount:,.2f}
+ Recipient: {transfer.recipient_name}
+ Destination: {bank_name} ({account_number})
 
 YOUR SECURITY CODE:
 {transfer.tac_code}
@@ -132,7 +132,7 @@ noreply@claverica.com"""
                     subject=subject,
                     message=message.strip(),
                     from_email='Claverica Security <noreply@claverica.com>',
-                    recipient_list=[transfer.account.email],  # ✅ FIXED: Changed transfer.account.user.email to transfer.account.email
+                    recipient_list=[transfer.account.email],  #  FIXED: Changed transfer.account.user.email to transfer.account.email
                     fail_silently=False,
                 )
 
@@ -140,11 +140,11 @@ noreply@claverica.com"""
 
                 messages.success(
                     request,
-                    f"✓ TAC {transfer.tac_code} sent from noreply@claverica.com to {transfer.account.email}"
+                    f" TAC {transfer.tac_code} sent from noreply@claverica.com to {transfer.account.email}"
                 )
 
             except Exception as e:
-                messages.error(request, f"✗ Failed to send email: {str(e)}")
+                messages.error(request, f" Failed to send email: {str(e)}")
 
         return HttpResponseRedirect(
             reverse('admin:compliance_transferrequest_change', args=[object_id])
@@ -161,7 +161,7 @@ noreply@claverica.com"""
                 sms_message = f"Claverica: Your auth code is {transfer.tac_code} for ${transfer.amount} transfer to {transfer.recipient_name}. Code valid 24h."
 
                 # For now, just log it (you'll integrate with SMS gateway later)
-                print(f"\n📱 SMS would be sent to {transfer.account.phone if hasattr(transfer.account, 'phone') else 'client'}:")
+                print(f"\n SMS would be sent to {transfer.account.phone if hasattr(transfer.account, 'phone') else 'client'}:")
                 print(sms_message)
                 print(f"From: noreply@claverica.com\n")
 
@@ -169,11 +169,11 @@ noreply@claverica.com"""
 
                 messages.success(
                     request,
-                    f"✓ TAC {transfer.tac_code} SMS prepared for {transfer.account.email}"
+                    f" TAC {transfer.tac_code} SMS prepared for {transfer.account.email}"
                 )
 
             except Exception as e:
-                messages.error(request, f"✗ Failed to prepare SMS: {str(e)}")
+                messages.error(request, f" Failed to prepare SMS: {str(e)}")
 
         return HttpResponseRedirect(
             reverse('admin:compliance_transferrequest_change', args=[object_id])

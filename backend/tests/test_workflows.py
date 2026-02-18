@@ -19,7 +19,7 @@ class WorkflowTests(TestCase):
     def test_01_simple_payment_workflow(self):
         """Test the simplest payment workflow"""
         print("\n" + "="*60)
-        print("💰 SIMPLE PAYMENT WORKFLOW TEST")
+        print(" SIMPLE PAYMENT WORKFLOW TEST")
         print("="*60)
         
         Account = get_user_model()
@@ -29,7 +29,7 @@ class WorkflowTests(TestCase):
             email="client@test.com",
             account_number="CLV-C001-010190-26-01"
         )
-        print(f"1. ✅ Client created: {client.account_number}")
+        print(f"1.  Client created: {client.account_number}")
         
         # 2. Check/Add wallet
         try:
@@ -40,11 +40,11 @@ class WorkflowTests(TestCase):
             )
             
             if created:
-                print(f"2. ✅ Wallet created: ${wallet.balance}")
+                print(f"2.  Wallet created: ${wallet.balance}")
             else:
-                print(f"2. ✅ Wallet exists: ${wallet.balance}")
+                print(f"2.  Wallet exists: ${wallet.balance}")
         except:
-            print("2. ⚠️  Could not create/access wallet")
+            print("2.   Could not create/access wallet")
             return
         
         # 3. Credit wallet (simulating payment)
@@ -54,42 +54,42 @@ class WorkflowTests(TestCase):
         wallet.balance += payment_amount
         wallet.save()
         
-        print(f"3. ✅ Wallet credited: +${payment_amount}")
+        print(f"3.  Wallet credited: +${payment_amount}")
         print(f"   Old balance: ${old_balance}")
         print(f"   New balance: ${wallet.balance}")
         
         # 4. Verify balance updated
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance, old_balance + payment_amount)
-        print(f"4. ✅ Balance verification: PASSED")
+        print(f"4.  Balance verification: PASSED")
         
-        print("\n🎉 SIMPLE PAYMENT WORKFLOW: COMPLETE")
+        print("\n SIMPLE PAYMENT WORKFLOW: COMPLETE")
     
     def test_02_transfer_workflow_components(self):
         """Test transfer workflow components"""
         print("\n" + "="*60)
-        print("🔄 TRANSFER WORKFLOW COMPONENTS TEST")
+        print(" TRANSFER WORKFLOW COMPONENTS TEST")
         print("="*60)
         
         # Check if transfer app exists
         try:
             from transfers.models import Transfer
-            print("✅ Transfer model: AVAILABLE")
+            print(" Transfer model: AVAILABLE")
         except ImportError:
-            print("⚠️  Transfer model: NOT AVAILABLE")
+            print("  Transfer model: NOT AVAILABLE")
             print("   (Transfer app may not be installed)")
             return
         
         # Check if TAC model exists
         try:
             from transfers.models import TAC
-            print("✅ TAC model: AVAILABLE")
+            print(" TAC model: AVAILABLE")
         except ImportError:
-            print("⚠️  TAC model: NOT AVAILABLE")
+            print("  TAC model: NOT AVAILABLE")
             print("   (Important for security)")
         
         # Describe the intended workflow
-        print("\n📋 INTENDED TRANSFER WORKFLOW:")
+        print("\n INTENDED TRANSFER WORKFLOW:")
         print("1. Client creates transfer request")
         print("2. System validates balance & limits")
         print("3. Admin generates TAC manually")
@@ -99,34 +99,34 @@ class WorkflowTests(TestCase):
         print("7. Admin manually processes external transfer")
         print("8. Transfer marked as completed")
         
-        print("\n🎯 Workflow components check: DONE")
+        print("\n Workflow components check: DONE")
     
     def test_03_kyc_workflow(self):
         """Test KYC workflow"""
         print("\n" + "="*60)
-        print("📄 KYC WORKFLOW TEST")
+        print(" KYC WORKFLOW TEST")
         print("="*60)
         
         # Check if KYC app exists
         try:
             from kyc.models import KYCDocument
-            print("✅ KYC Document model: AVAILABLE")
+            print(" KYC Document model: AVAILABLE")
             
             # Check required fields
             required_fields = ['id_front_image', 'status']
             for field in required_fields:
                 if hasattr(KYCDocument, field):
-                    print(f"   ✅ Has '{field}' field")
+                    print(f"    Has '{field}' field")
                 else:
-                    print(f"   ⚠️  Missing '{field}' field")
+                    print(f"     Missing '{field}' field")
                     
         except ImportError:
-            print("⚠️  KYC model: NOT AVAILABLE")
+            print("  KYC model: NOT AVAILABLE")
             print("   (KYC app may not be installed)")
             return
         
         # Describe KYC workflow
-        print("\n📋 INTENDED KYC WORKFLOW:")
+        print("\n INTENDED KYC WORKFLOW:")
         print("1. Client attempts transfer > $1,500")
         print("2. System blocks transfer, requires KYC")
         print("3. Client uploads ID documents")
@@ -134,4 +134,4 @@ class WorkflowTests(TestCase):
         print("5. Admin approves/rejects KYC")
         print("6. Client can now make large transfers")
         
-        print("\n🎯 KYC workflow check: DONE")
+        print("\n KYC workflow check: DONE")

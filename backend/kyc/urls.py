@@ -13,9 +13,9 @@ from .views import (
 
 # Create DRF router
 router = DefaultRouter()
-# ✅ FIXED: Removed 'api/' prefix to avoid double 'api/' in URL
-router.register(r'documents', KYCDocumentViewSet, basename='kyc-document')           # ⭐ CHANGED
-router.register(r'admin/documents', AdminKYCViewSet, basename='admin-kyc-document')  # ⭐ CHANGED
+#  FIXED: Removed 'api/' prefix to avoid double 'api/' in URL
+router.register(r'documents', KYCDocumentViewSet, basename='kyc-document')           #  CHANGED
+router.register(r'admin/documents', AdminKYCViewSet, basename='admin-kyc-document')  #  CHANGED
 
 urlpatterns = [
     # HTML Pages (keep existing)
@@ -28,8 +28,8 @@ urlpatterns = [
     path('admin/dashboard/', admin_dashboard, name='admin_dashboard'),
     path('admin/review/<uuid:document_id>/', admin_review_document, name='admin_review_document'),
 
-    # ✅ API Endpoints - NOW WITH CORRECT URL PATHS
+    #  API Endpoints - NOW WITH CORRECT URL PATHS
     path('', include(router.urls)),
-    path('check-requirement/', KYCRequirementAPIView.as_view(), name='api_check_kyc_requirement'),  # ⭐ CHANGED
-    path('simple-status/', api_kyc_status, name='api_kyc_status'),                                   # ⭐ CHANGED
+    path('check-requirement/', KYCRequirementAPIView.as_view(), name='api_check_kyc_requirement'),  #  CHANGED
+    path('simple-status/', api_kyc_status, name='api_kyc_status'),                                   #  CHANGED
 ]

@@ -46,7 +46,7 @@ if user:
         print(f"3. Could not create TransferRequest: {e}")
 
 print("\n=== CONCLUSION ===")
-print("✅ Your Transfer app tables EXIST and WORK")
-print("⚠️  The error is just about Django's internal permission tables")
-print("🚀 You can PROCEED with development!")
+print(" Your Transfer app tables EXIST and WORK")
+print("  The error is just about Django's internal permission tables")
+print(" You can PROCEED with development!")
 print("\nNext: Run the server and test the Transfer workflow")

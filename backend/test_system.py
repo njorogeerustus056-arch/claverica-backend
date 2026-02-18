@@ -21,9 +21,9 @@ try:
     # First, check if admin exists
     try:
         admin = Account.objects.get(email='erustusnyaga001@gmail.com')
-        print(f"✅ Admin exists: {admin.email} - {admin.account_number}")
+        print(f" Admin exists: {admin.email} - {admin.account_number}")
     except Account.DoesNotExist:
-        print("⚠️ Admin doesn't exist yet")
+        print(" Admin doesn't exist yet")
         # Create admin if doesn't exist
         admin = Account.objects.create_superuser(
             email='erustusnyaga001@gmail.com',
@@ -31,14 +31,14 @@ try:
             phone='0743419963',
             date_of_birth='1980-01-01'
         )
-        print(f"✅ Admin created: {admin.email} - {admin.account_number}")
+        print(f" Admin created: {admin.email} - {admin.account_number}")
     
     # Test authentication
     user = authenticate(email='erustusnyaga001@gmail.com', password='Admin123!')
     if user:
-        print(f"✅ Authentication successful: {user.email}")
+        print(f" Authentication successful: {user.email}")
     else:
-        print("❌ Authentication failed")
+        print(" Authentication failed")
     
     # Create regular user
     try:
@@ -52,13 +52,13 @@ try:
         phone='+254711223344',
         date_of_birth=date(1990, 5, 15)
     )
-    print(f"✅ User created: {user2.email} - {user2.account_number}")
+    print(f" User created: {user2.email} - {user2.account_number}")
     
     print(f"\\nTotal users: {Account.objects.count()}")
     
-    print("\\n✅ All tests passed! System is working correctly.")
+    print("\\n All tests passed! System is working correctly.")
     
 except Exception as e:
-    print(f"❌ Error: {e}")
+    print(f" Error: {e}")
     import traceback
     traceback.print_exc()

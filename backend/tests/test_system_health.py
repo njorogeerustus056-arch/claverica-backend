@@ -22,9 +22,9 @@ class SystemHealthTests(TestCase):
                 cursor.execute("SELECT 1")
                 result = cursor.fetchone()
             self.assertEqual(result, (1,))
-            print("✅ Database connection: ACTIVE")
+            print(" Database connection: ACTIVE")
         except Exception as e:
-            self.fail(f"❌ Database connection failed: {e}")
+            self.fail(f" Database connection failed: {e}")
     
     def test_02_core_apps_exist(self):
         """Check if core apps are installed"""
@@ -42,12 +42,12 @@ class SystemHealthTests(TestCase):
         
         installed_apps = [app.label for app in apps.get_app_configs()]
         
-        print("\n📦 Checking installed apps:")
+        print("\n Checking installed apps:")
         for app in required_apps:
             if app in installed_apps:
-                print(f"✅ {app}: INSTALLED")
+                print(f" {app}: INSTALLED")
             else:
-                print(f"❌ {app}: MISSING")
+                print(f" {app}: MISSING")
                 
         # At least accounts and transactions should exist
         self.assertIn('accounts', installed_apps, "Accounts app is required")
@@ -62,11 +62,11 @@ class SystemHealthTests(TestCase):
             # Check for custom fields
             self.assertTrue(hasattr(Account, 'account_number'), 
                           "Account should have account_number field")
-            print(f"✅ Account model: FOUND")
-            print(f"✅ Has account_number field: YES")
+            print(f" Account model: FOUND")
+            print(f" Has account_number field: YES")
             
         except Exception as e:
-            self.fail(f"❌ Account model check failed: {e}")
+            self.fail(f" Account model check failed: {e}")
     
     def test_04_wallet_model_exists(self):
         """Check if Wallet model exists"""
@@ -79,15 +79,15 @@ class SystemHealthTests(TestCase):
             self.assertTrue(hasattr(Wallet, 'account'), 
                           "Wallet should have account relationship")
             
-            print(f"✅ Wallet model: FOUND")
-            print(f"✅ Has balance field: YES")
-            print(f"✅ Has account relationship: YES")
+            print(f" Wallet model: FOUND")
+            print(f" Has balance field: YES")
+            print(f" Has account relationship: YES")
             
         except ImportError:
-            print("⚠️  Wallet model: NOT FOUND (transactions app may not be installed)")
+            print("  Wallet model: NOT FOUND (transactions app may not be installed)")
             self.skipTest("Wallet model not available")
         except Exception as e:
-            self.fail(f"❌ Wallet model check failed: {e}")
+            self.fail(f" Wallet model check failed: {e}")
     
     def test_05_models_can_be_created(self):
         """Test if basic models can be created"""
@@ -101,18 +101,18 @@ class SystemHealthTests(TestCase):
                 account_number="CLV-HC-010190-26-99"
             )
             
-            print(f"✅ Test account created: {test_account.account_number}")
+            print(f" Test account created: {test_account.account_number}")
             
             # Check if wallet exists
             if hasattr(test_account, 'wallet'):
-                print(f"✅ Wallet exists for account")
-                print(f"✅ Wallet balance: ${test_account.wallet.balance}")
+                print(f" Wallet exists for account")
+                print(f" Wallet balance: ${test_account.wallet.balance}")
             else:
-                print("⚠️  No wallet found for account (may need to create manually)")
+                print("  No wallet found for account (may need to create manually)")
                 
             # Clean up
             test_account.delete()
-            print("✅ Test account cleaned up")
+            print(" Test account cleaned up")
             
         except Exception as e:
-            self.fail(f"❌ Model creation test failed: {e}")
+            self.fail(f" Model creation test failed: {e}")

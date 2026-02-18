@@ -53,10 +53,10 @@ try:
             missing.append(field)
     
     for field in missing:
-        print(f"  ❌ {field}")
+        print(f"   {field}")
     
     if not missing:
-        print("  ✅ All frontend fields are in the model!")
+        print("   All frontend fields are in the model!")
         
 except ImportError as e:
     print(f"Cannot import Account model: {e}")

@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import threading
 from rest_framework import status
 from rest_framework.views import APIView

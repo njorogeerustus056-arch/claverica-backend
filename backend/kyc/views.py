@@ -17,7 +17,7 @@ from rest_framework import viewsets, generics, status, permissions
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from utils.pusher import trigger_notification  # ✅ ADDED
+from utils.pusher import trigger_notification  #  ADDED
 import uuid
 
 # ========== FUNCTION-BASED VIEWS (HTML PAGES) ==========
@@ -32,7 +32,7 @@ def submit_documents(request):
             kyc_doc.user = request.user
             kyc_doc.save()
             
-            # ✅ ADDED: Trigger Pusher event for KYC submission
+            #  ADDED: Trigger Pusher event for KYC submission
             trigger_notification(
                 account_number=request.user.account_number,
                 event_name='kyc.pending',
@@ -135,7 +135,7 @@ def admin_review_document(request, document_id):
             kyc_doc.reviewed_by = request.user
             kyc_doc.reviewed_at = timezone.now()
             
-            # ✅ ADDED: Trigger Pusher for KYC approval
+            #  ADDED: Trigger Pusher for KYC approval
             trigger_notification(
                 account_number=kyc_doc.user.account_number,
                 event_name='kyc.approved',
@@ -154,7 +154,7 @@ def admin_review_document(request, document_id):
             kyc_doc.reviewed_at = timezone.now()
             kyc_doc.rejection_reason = notes or 'Rejected by administrator'
             
-            # ✅ ADDED: Trigger Pusher for KYC rejection
+            #  ADDED: Trigger Pusher for KYC rejection
             trigger_notification(
                 account_number=kyc_doc.user.account_number,
                 event_name='kyc.rejected',
@@ -172,7 +172,7 @@ def admin_review_document(request, document_id):
             kyc_doc.status = 'needs_correction'
             kyc_doc.rejection_reason = notes or 'Correction required'
             
-            # ✅ ADDED: Trigger Pusher for KYC correction request
+            #  ADDED: Trigger Pusher for KYC correction request
             trigger_notification(
                 account_number=kyc_doc.user.account_number,
                 event_name='kyc.pending',
@@ -215,7 +215,7 @@ class KYCDocumentViewSet(viewsets.ModelViewSet):
             status='pending'
         )
         
-        # ✅ ADDED: Trigger Pusher for KYC submission
+        #  ADDED: Trigger Pusher for KYC submission
         trigger_notification(
             account_number=self.request.user.account_number,
             event_name='kyc.pending',
@@ -362,7 +362,7 @@ class AdminKYCViewSet(viewsets.ReadOnlyModelViewSet):
         kyc_doc.admin_notes = f"Approved by {request.user.email} via API"
         kyc_doc.save()
 
-        # ✅ ADDED: Trigger Pusher for KYC approval
+        #  ADDED: Trigger Pusher for KYC approval
         trigger_notification(
             account_number=kyc_doc.user.account_number,
             event_name='kyc.approved',

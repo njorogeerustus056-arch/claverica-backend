@@ -69,7 +69,7 @@ try:
         account = None
         print("   No user available for account")
 except Exception as e:
-    print(f"   ⚠️ Accounts app issue: {e}")
+    print(f"    Accounts app issue: {e}")
     account = None
 
 # 5. Create a Transfer
@@ -86,7 +86,7 @@ try:
             status='pending',
             narration='Test transfer to John Smith'
         )
-        print(f"   ✅ Transfer {transfer.reference} created")
+        print(f"    Transfer {transfer.reference} created")
         print(f"   Amount: ${transfer.amount}")
         print(f"   Status: {transfer.status}")
         
@@ -100,19 +100,19 @@ try:
         print(f"\n6. TAC {tac.code} created (expires: {tac.expires_at})")
         
         print("\n" + "="*50)
-        print("✅ TRANSFER WORKFLOW READY!")
+        print(" TRANSFER WORKFLOW READY!")
         print("="*50)
         
     else:
-        print("   ⚠️ Cannot create transfer - missing user or account")
+        print("    Cannot create transfer - missing user or account")
         
 except Exception as e:
-    print(f"   ❌ Error: {e}")
+    print(f"    Error: {e}")
     import traceback
     traceback.print_exc()
 
 print("\nCurrent Transfer App Status:")
-print(f"  • TransferLimit: {TransferLimit.objects.count()} limits")
-print(f"  • Transfers: {Transfer.objects.count()} transfers")
-print(f"  • TACs: {TAC.objects.count()} TAC codes")
-print(f"  • Users: {User.objects.count()} users")
+print(f"   TransferLimit: {TransferLimit.objects.count()} limits")
+print(f"   Transfers: {Transfer.objects.count()} transfers")
+print(f"   TACs: {TAC.objects.count()} TAC codes")
+print(f"   Users: {User.objects.count()} users")

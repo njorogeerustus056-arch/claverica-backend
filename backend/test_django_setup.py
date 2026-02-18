@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 
 # Simulate Railway environment
@@ -25,13 +25,13 @@ try:
     
     import django
     django.setup()
-    print("\n✅ Django setup successful!")
+    print("\n Django setup successful!")
     
     # Test settings
     from django.conf import settings
-    print(f"✅ Settings loaded: DEBUG={settings.DEBUG}")
-    print(f"✅ ALLOWED_HOSTS: {settings.ALLOWED_HOSTS}")
-    print(f"✅ DATABASES configured: {'default' in settings.DATABASES}")
+    print(f" Settings loaded: DEBUG={settings.DEBUG}")
+    print(f" ALLOWED_HOSTS: {settings.ALLOWED_HOSTS}")
+    print(f" DATABASES configured: {'default' in settings.DATABASES}")
     
     # Test the health endpoint from urls.py
     from django.test import RequestFactory
@@ -44,11 +44,11 @@ try:
         factory = RequestFactory()
         request = factory.get('/')
         response = backend.urls.railway_health(request)
-        print(f"✅ Health endpoint works: {response.status_code}")
+        print(f" Health endpoint works: {response.status_code}")
     else:
-        print("⚠️ railway_health function not found in urls.py")
+        print(" railway_health function not found in urls.py")
         
 except Exception as e:
-    print(f"\n❌ Error: {e}")
+    print(f"\n Error: {e}")
     import traceback
     traceback.print_exc()

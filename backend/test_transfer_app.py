@@ -29,7 +29,7 @@ for limit in TransferLimit.objects.all():
     print(f"   - {limit.limit_type}: ${limit.amount}")
 
 if limits_updated > 0:
-    print(f"   ✅ Updated {limits_updated} limit amounts")
+    print(f"    Updated {limits_updated} limit amounts")
 
 # 2. Create or get a test user
 print("\n2. Setting up test user:")
@@ -59,7 +59,7 @@ try:
         account = Account.objects.filter(user=user).first()
         print(f"   Using account: {account.account_number} (Balance: ${account.balance})")
 except Exception as e:
-    print(f"   ⚠️ Accounts app not available: {e}")
+    print(f"    Accounts app not available: {e}")
     account = None
 
 # 4. Create a Transfer (not TransferRequest)
@@ -76,7 +76,7 @@ try:
             status='pending',
             narration='Test transfer to John Smith'
         )
-        print(f"   ✅ SUCCESS! Transfer {transfer.reference} created")
+        print(f"    SUCCESS! Transfer {transfer.reference} created")
         print(f"   Amount: ${transfer.amount}")
         print(f"   Status: {transfer.status}")
         print(f"   Created: {transfer.created_at}")
@@ -93,29 +93,29 @@ try:
         
         # 6. Test the full workflow steps
         print("\n5. Workflow Status:")
-        print("   [✓] Step 1: Client submits transfer request (Transfer created)")
-        print("   [✓] Step 2: Admin generates TAC (TAC created)")
+        print("   [] Step 1: Client submits transfer request (Transfer created)")
+        print("   [] Step 2: Admin generates TAC (TAC created)")
         print("   [ ] Step 3: Client enters TAC for verification")
         print("   [ ] Step 4: System deducts funds internally")
         print("   [ ] Step 5: Admin manually settles with external bank")
         print("   [ ] Step 6: Transfer marked as completed")
         
     else:
-        print("   ⚠️ Cannot create transfer without account")
+        print("    Cannot create transfer without account")
         
 except Exception as e:
-    print(f"   ❌ Error creating transfer: {e}")
+    print(f"    Error creating transfer: {e}")
     import traceback
     traceback.print_exc()
 
 print("\n" + "="*50)
-print("✅ TRANSFER APP IS FULLY OPERATIONAL!")
+print(" TRANSFER APP IS FULLY OPERATIONAL!")
 print("="*50)
 print("\nYour Transfer App structure:")
-print("  • Transfer: Main transfer request model")
-print("  • TAC: Transaction Authorization Code (manual generation)")
-print("  • TransferLog: Audit trail for all actions")
-print("  • TransferLimit: Daily/weekly/monthly limits")
+print("   Transfer: Main transfer request model")
+print("   TAC: Transaction Authorization Code (manual generation)")
+print("   TransferLog: Audit trail for all actions")
+print("   TransferLimit: Daily/weekly/monthly limits")
 print("\nNext steps:")
 print("1. Run server: python manage.py runserver")
 print("2. Test API endpoints for Transfer workflow")

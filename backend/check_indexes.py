@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-🎯 CHECK DATABASE INDEXES
+ CHECK DATABASE INDEXES
 """
 
 import os
@@ -14,7 +14,7 @@ django.setup()
 
 from django.db import connection
 
-print("🔍 CHECKING DATABASE INDEXES")
+print(" CHECKING DATABASE INDEXES")
 print("=" * 60)
 
 with connection.cursor() as cursor:
@@ -22,7 +22,7 @@ with connection.cursor() as cursor:
     cursor.execute("SELECT name, tbl_name, sql FROM sqlite_master WHERE type='index'")
     indexes = cursor.fetchall()
     
-    print(f"\n📋 Found {len(indexes)} total indexes in database:")
+    print(f"\n Found {len(indexes)} total indexes in database:")
     
     # Filter for notification indexes
     notification_indexes = []
@@ -31,9 +31,9 @@ with connection.cursor() as cursor:
         if 'notification' in name.lower() or 'notifications_' in tbl_name:
             notification_indexes.append(idx)
     
-    print(f"\n🎯 {len(notification_indexes)} notification-related indexes:")
+    print(f"\n {len(notification_indexes)} notification-related indexes:")
     for name, tbl_name, sql in notification_indexes:
-        print(f"   📌 {name} (table: {tbl_name})")
+        print(f"    {name} (table: {tbl_name})")
         if sql:
             print(f"      SQL: {sql[:100]}...")
 
@@ -42,10 +42,10 @@ from django.db.migrations.recorder import MigrationRecorder
 migration_recorder = MigrationRecorder(connection)
 applied = migration_recorder.applied_migrations()
 
-print(f"\n📦 Applied migrations for 'notifications':")
+print(f"\n Applied migrations for 'notifications':")
 for app, name in applied:
     if app == 'notifications':
-        print(f"   ✅ {name}")
+        print(f"    {name}")
 
 print("\n" + "=" * 60)
-print("✅ INDEX CHECK COMPLETE")
+print(" INDEX CHECK COMPLETE")

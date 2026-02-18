@@ -25,7 +25,7 @@ for limit in TransferLimit.objects.all():
     else:
         print(f'  {limit.limit_type}: ${limit.amount}')
 
-print('\n✅ Transfer app is ready!')
+print('\n Transfer app is ready!')
 print('\nNow test the Transfer workflow:')
 print('1. Create TransferRequest')
 print('2. Generate TAC')

@@ -1,6 +1,6 @@
 import os
 
-print("🔍 CURRENT EMAIL CONFIGURATION")
+print(" CURRENT EMAIL CONFIGURATION")
 print("=" * 40)
 
 email_vars = [
@@ -21,7 +21,7 @@ for var in email_vars:
         value = '**** SET ****'
     print(f"{var}: {value}")
 
-print("\n📧 Testing email backend...")
+print("\n Testing email backend...")
 try:
     from django.core.mail import get_connection
     conn = get_connection()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-🔔 SIMPLE NOTIFICATION TEST
+ SIMPLE NOTIFICATION TEST
 Quick verification from command line
 """
 
@@ -23,13 +23,13 @@ from django.contrib.auth import get_user_model
 import json
 
 print("=" * 70)
-print("🔔 NOTIFICATION SYSTEM - QUICK TEST")
+print(" NOTIFICATION SYSTEM - QUICK TEST")
 print("=" * 70)
 
 def test_basic_notification():
     """Test basic notification creation"""
     try:
-        print("\n1️⃣ TEST: Basic Notification Creation")
+        print("\n1 TEST: Basic Notification Creation")
         print("-" * 40)
         
         # Create a simple notification
@@ -41,7 +41,7 @@ def test_basic_notification():
             status="PENDING"
         )
         
-        print(f"✅ Notification created: ID #{notification.id}")
+        print(f" Notification created: ID #{notification.id}")
         print(f"   Type: {notification.notification_type}")
         print(f"   Title: {notification.title}")
         print(f"   Status: {notification.status}")
@@ -49,13 +49,13 @@ def test_basic_notification():
         return notification
         
     except Exception as e:
-        print(f"❌ Failed to create notification: {str(e)}")
+        print(f" Failed to create notification: {str(e)}")
         return None
 
 def test_notification_logging(notification):
     """Test notification logging"""
     try:
-        print("\n2️⃣ TEST: Notification Logging")
+        print("\n2 TEST: Notification Logging")
         print("-" * 40)
         
         # Create log entry
@@ -67,7 +67,7 @@ def test_notification_logging(notification):
             details="Test notification sent successfully"
         )
         
-        print(f"✅ Log created: ID #{log.id}")
+        print(f" Log created: ID #{log.id}")
         print(f"   Method: {log.delivery_method}")
         print(f"   Status: {log.status}")
         print(f"   Recipient: {log.recipient_email}")
@@ -75,38 +75,38 @@ def test_notification_logging(notification):
         return log
         
     except Exception as e:
-        print(f"❌ Failed to create log: {str(e)}")
+        print(f" Failed to create log: {str(e)}")
         return None
 
 def test_financial_notifications():
     """Test financial workflow notifications"""
     try:
-        print("\n3️⃣ TEST: Financial Workflow Notifications")
+        print("\n3 TEST: Financial Workflow Notifications")
         print("-" * 40)
         
         # Test different notification types for your financial system
         notification_types = [
             {
                 "type": "PAYMENT_RECEIVED",
-                "title": "💰 Payment Received",
+                "title": " Payment Received",
                 "message": "You received $500.00 from John Doe",
                 "data": {"amount": "500.00", "sender": "John Doe", "reference": "PAY-001"}
             },
             {
                 "type": "TRANSFER_INITIATED", 
-                "title": "🚀 Transfer Initiated",
+                "title": " Transfer Initiated",
                 "message": "Transfer of $250.00 to Jane Doe has been initiated",
                 "data": {"amount": "250.00", "recipient": "Jane Doe", "status": "pending"}
             },
             {
                 "type": "TAC_GENERATED",
-                "title": "🔑 Your TAC Code",
+                "title": " Your TAC Code",
                 "message": "Your TAC code is 123456",
                 "data": {"tac_code": "123456", "purpose": "transfer", "expires": "24h"}
             },
             {
                 "type": "KYC_REQUIRED",
-                "title": "📋 KYC Verification Required",
+                "title": " KYC Verification Required",
                 "message": "Please complete KYC for large transfer",
                 "data": {"amount": "2000.00", "threshold": "1500.00", "action": "upload"}
             }
@@ -125,19 +125,19 @@ def test_financial_notifications():
             )
             
             created_notifications.append(notif)
-            print(f"✅ {nt['type']}: #{notif.id}")
+            print(f" {nt['type']}: #{notif.id}")
         
-        print(f"\n✅ Created {len(created_notifications)} financial notifications")
+        print(f"\n Created {len(created_notifications)} financial notifications")
         return created_notifications
         
     except Exception as e:
-        print(f"❌ Financial notifications failed: {str(e)}")
+        print(f" Financial notifications failed: {str(e)}")
         return []
 
 def test_preferences():
     """Test notification preferences"""
     try:
-        print("\n4️⃣ TEST: Notification Preferences")
+        print("\n4 TEST: Notification Preferences")
         print("-" * 40)
         
         # Create or get a test user
@@ -148,7 +148,7 @@ def test_preferences():
         )
         
         if created:
-            print(f"✅ Created test user: {test_user.email}")
+            print(f" Created test user: {test_user.email}")
         
         # Test preference creation
         pref_types = ["PAYMENT_RECEIVED", "TRANSFER_INITIATED", "TAC_GENERATED", "KYC_REQUIRED"]
@@ -164,23 +164,23 @@ def test_preferences():
             )
             
             action = "Created" if created else "Exists"
-            print(f"✅ {action} preference: {pref_type}")
+            print(f" {action} preference: {pref_type}")
         
         # Cleanup test user
         if created:
             test_user.delete()
-            print("✅ Test user cleaned up")
+            print(" Test user cleaned up")
         
         return True
         
     except Exception as e:
-        print(f"❌ Preferences test failed: {str(e)}")
+        print(f" Preferences test failed: {str(e)}")
         return False
 
 def cleanup_test_data():
     """Cleanup test data"""
     try:
-        print("\n5️⃣ TEST: Cleanup")
+        print("\n5 TEST: Cleanup")
         print("-" * 40)
         
         # Delete test notifications
@@ -196,18 +196,18 @@ def cleanup_test_data():
             details__contains="Test"
         ).delete()
         
-        print(f"✅ Deleted {deleted_count} test notifications")
-        print(f"✅ Deleted {log_deleted} test logs")
+        print(f" Deleted {deleted_count} test notifications")
+        print(f" Deleted {log_deleted} test logs")
         
         return True
         
     except Exception as e:
-        print(f"⚠️ Cleanup warning: {str(e)}")
+        print(f" Cleanup warning: {str(e)}")
         return True
 
 def main():
     """Run all tests"""
-    print("\n🎯 RUNNING NOTIFICATION TESTS...")
+    print("\n RUNNING NOTIFICATION TESTS...")
     
     # Run tests
     notification = test_basic_notification()
@@ -220,7 +220,7 @@ def main():
     cleanup_test_data()
     
     print("\n" + "=" * 70)
-    print("📊 NOTIFICATION TEST SUMMARY")
+    print(" NOTIFICATION TEST SUMMARY")
     print("=" * 70)
     
     # Count existing notifications
@@ -228,16 +228,16 @@ def main():
     total_logs = NotificationLog.objects.count()
     total_prefs = NotificationPreference.objects.count()
     
-    print(f"✅ Total notifications in DB: {total_notifs}")
-    print(f"✅ Total logs in DB: {total_logs}")
-    print(f"✅ Total preferences in DB: {total_prefs}")
+    print(f" Total notifications in DB: {total_notifs}")
+    print(f" Total logs in DB: {total_logs}")
+    print(f" Total preferences in DB: {total_prefs}")
     
-    print("\n🎉 NOTIFICATION SYSTEM IS WORKING!")
+    print("\n NOTIFICATION SYSTEM IS WORKING!")
     print("=" * 70)
     
     # Show notification types present
     notif_types = Notification.objects.values_list('notification_type', flat=True).distinct()
-    print(f"\n📋 Notification types in system: {list(notif_types)}")
+    print(f"\n Notification types in system: {list(notif_types)}")
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,7 @@ import smtplib
 import ssl
 import os
 
-print("🔧 Testing Hostinger SMTP connection...")
+print(" Testing Hostinger SMTP connection...")
 print("=" * 40)
 
 try:
@@ -18,15 +18,15 @@ try:
     context = ssl.create_default_context()
     
     with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
-        print("✅ SSL connection established")
+        print(" SSL connection established")
         
         try:
             server.login(sender_email, password)
-            print("✅ Login successful!")
-            print("✅ SMTP configuration is CORRECT")
-            print("\n🎉 Email should work!")
+            print(" Login successful!")
+            print(" SMTP configuration is CORRECT")
+            print("\n Email should work!")
         except Exception as login_error:
-            print(f"❌ Login failed: {login_error}")
+            print(f" Login failed: {login_error}")
             print("\nPossible issues:")
             print("1. Wrong password")
             print("2. Email not configured in Hostinger")
@@ -34,7 +34,7 @@ try:
             print("4. Two-factor authentication enabled")
             
 except Exception as e:
-    print(f"❌ Connection failed: {e}")
+    print(f" Connection failed: {e}")
     print("\nCheck:")
     print("1. Is Hostinger SMTP enabled?")
     print("2. Is port 465 open?")

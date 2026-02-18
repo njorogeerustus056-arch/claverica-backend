@@ -144,6 +144,6 @@ class PaymentAdmin(admin.ModelAdmin):
             try:
                 # Force save to trigger wallet update
                 obj.save()
-                messages.success(request, f"✅ Payment processed! Wallet updated.")
+                messages.success(request, f" Payment processed! Wallet updated.")
             except Exception as e:
-                messages.warning(request, f"⚠️ Payment saved but wallet update may have failed: {e}")
+                messages.warning(request, f" Payment saved but wallet update may have failed: {e}")

@@ -89,7 +89,7 @@ class TransferViewSet(viewsets.ModelViewSet):
 
         # Set the transfer instance for serializer
         serializer.instance = transfer
-        return transfer  # ✅ FIXED: Return the created transfer
+        return transfer  #  FIXED: Return the created transfer
 
     def create(self, request, *args, **kwargs):
         """Override create to ensure proper response with full transfer data"""
@@ -103,7 +103,7 @@ class TransferViewSet(viewsets.ModelViewSet):
             # Get the proper serializer for response
             response_serializer = TransferSerializer(transfer, context={'request': request})
             
-            # ✅ FIXED: Return the full transfer data with id, reference, etc.
+            #  FIXED: Return the full transfer data with id, reference, etc.
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
             
         except serializers.ValidationError as e:

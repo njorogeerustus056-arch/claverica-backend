@@ -8,7 +8,7 @@ with open('models.py', 'r') as f:
 # First, let's find the Account class
 account_start = content.find('class Account(')
 if account_start == -1:
-    print("❌ Could not find Account class")
+    print(" Could not find Account class")
     sys.exit(1)
 
 # Find the Meta class within the Account class
@@ -16,7 +16,7 @@ account_section = content[account_start:]
 meta_match = re.search(r'\n    class Meta:', account_section)
 
 if not meta_match:
-    print("❌ Could not find Meta class in Account class")
+    print(" Could not find Meta class in Account class")
     sys.exit(1)
 
 # Find the position just before the Meta class
@@ -51,6 +51,6 @@ updated_content = before_meta + new_fields + after_meta
 with open('models.py', 'w') as f:
     f.write(updated_content)
 
-print("✅ Successfully added missing fields to Account model")
+print(" Successfully added missing fields to Account model")
 print(f"Added fields: phone, doc_type, doc_number, street, city, state, zip_code,")
 print(f"              occupation, employer, income_range, account_number")

@@ -2,7 +2,7 @@
 compliance/services.py - Business logic for compliance
 """
 from django.utils import timezone
-from django.db import transaction, models  # ✅ ADD 'models' import
+from django.db import transaction, models  #  ADD 'models' import
 from django.core.exceptions import ValidationError
 from .models import TransferRequest, TransferLog, ComplianceSetting
 
@@ -73,7 +73,7 @@ class TransferService:
             'amount': transfer.amount,
             'recipient_name': transfer.recipient_name,
             'created_at': transfer.created_at,
-            'tac_generated': bool(transfer.tac_code),  # ✅ FIXED: Use tac_code not tac_generated
+            'tac_generated': bool(transfer.tac_code),  #  FIXED: Use tac_code not tac_generated
             'tac_expires_at': transfer.tac_expires_at,
             'requires_kyc': transfer.requires_kyc,
             'kyc_verified': transfer.kyc_verified,

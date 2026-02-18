@@ -17,7 +17,7 @@ router.register(r'transfers', TransferViewSet, basename='transfer')
 router.register(r'admin/transfers', AdminTransferViewSet, basename='admin-transfer')
 router.register(r'admin/settings', ComplianceSettingViewSet, basename='compliance-setting')
 
-# ⭐ ADD THIS: Root endpoint for /api/compliance/
+#  ADD THIS: Root endpoint for /api/compliance/
 @api_view(['GET'])
 def compliance_root(request):
     return Response({
@@ -32,11 +32,11 @@ def compliance_root(request):
     })
 
 urlpatterns = [
-    path('', compliance_root, name='api-root'),  # ⭐ ADD THIS LINE
+    path('', compliance_root, name='api-root'),  #  ADD THIS LINE
     path('', include(router.urls)),
     path('check-kyc/', check_kyc_requirement, name='check-kyc'),
     
-    # ⭐ ADD THIS: Custom route for verify-tac (hyphenated)
+    #  ADD THIS: Custom route for verify-tac (hyphenated)
     path('transfers/<int:pk>/verify-tac/', 
          TransferViewSet.as_view({'post': 'verify_tac'}), 
          name='transfer-verify-tac'),

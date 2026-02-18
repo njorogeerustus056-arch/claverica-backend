@@ -16,7 +16,7 @@ from .serializers import (
     TACVerificationSerializer, TransferStatusSerializer,
     TransferHistorySerializer, ComplianceSettingSerializer
 )
-from utils.pusher import trigger_notification  # ✅ ADDED
+from utils.pusher import trigger_notification  #  ADDED
 
 class TransferViewSet(viewsets.ModelViewSet):
     """API endpoint for transfer requests (client facing)"""
@@ -48,7 +48,7 @@ class TransferViewSet(viewsets.ModelViewSet):
             status='pending_tac'
         )
 
-        # ✅ ADDED: Trigger Pusher event for transfer initiated
+        #  ADDED: Trigger Pusher event for transfer initiated
         trigger_notification(
             account_number=user.account_number,
             event_name='transfer.initiated',
@@ -76,7 +76,7 @@ class TransferViewSet(viewsets.ModelViewSet):
                 transfer.status = 'kyc_required'
                 transfer.save()
                 
-                # ✅ ADDED: Trigger Pusher for KYC requirement
+                #  ADDED: Trigger Pusher for KYC requirement
                 trigger_notification(
                     account_number=user.account_number,
                     event_name='kyc.pending',
@@ -92,7 +92,7 @@ class TransferViewSet(viewsets.ModelViewSet):
 
         return
 
-    # ✅ FIX: Add url_path parameter for hyphenated URL
+    #  FIX: Add url_path parameter for hyphenated URL
     @action(detail=True, methods=['post'], url_path='verify-tac')
     def verify_tac(self, request, pk=None):
         """Verify TAC code entered by client"""
@@ -113,7 +113,7 @@ class TransferViewSet(viewsets.ModelViewSet):
 
             # Verify TAC
             if transfer.verify_tac(tac_code):
-                # ✅ ADDED: Trigger Pusher for TAC verified
+                #  ADDED: Trigger Pusher for TAC verified
                 trigger_notification(
                     account_number=transfer.account.account_number,
                     event_name='transfer.tac_verified',
@@ -228,7 +228,7 @@ class AdminTransferViewSet(viewsets.ModelViewSet):
         try:
             tac_code = transfer.generate_tac(request.user)
             
-            # ✅ ADDED: Trigger Pusher for TAC sent
+            #  ADDED: Trigger Pusher for TAC sent
             trigger_notification(
                 account_number=transfer.account.account_number,
                 event_name='transfer.tac_sent',
@@ -272,7 +272,7 @@ class AdminTransferViewSet(viewsets.ModelViewSet):
             transfer.mark_for_settlement(request.user)
             transfer.mark_completed()
 
-            # ✅ ADDED: Trigger Pusher for transfer completed
+            #  ADDED: Trigger Pusher for transfer completed
             trigger_notification(
                 account_number=transfer.account.account_number,
                 event_name='transfer.completed',
@@ -294,7 +294,7 @@ class AdminTransferViewSet(viewsets.ModelViewSet):
             })
 
         except Exception as e:
-            # ✅ ADDED: Trigger Pusher for transfer failed
+            #  ADDED: Trigger Pusher for transfer failed
             trigger_notification(
                 account_number=transfer.account.account_number,
                 event_name='transfer.failed',

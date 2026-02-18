@@ -42,7 +42,7 @@ for app, name in migrations:
     print(f'  Added: {app}.{name}')
 
 conn.commit()
-print('\n✅ Migration history reset in correct order!')
+print('\n Migration history reset in correct order!')
 print('\nNow run: python manage.py migrate --fake')
 
 conn.close()

@@ -60,7 +60,7 @@ for account in Account.objects.all():
     if account_fixed:
         print(f"  Fixed: {account.email}")
 
-print(f"\n✅ Created {fixed_components} missing components")
+print(f"\n Created {fixed_components} missing components")
 
 # Part 2: Verify all accounts
 print("\n2. Verifying all accounts...")
@@ -72,10 +72,10 @@ for account in Account.objects.all():
     has_wallet = Wallet.objects.filter(account=account).exists()
     
     if not (has_profile and has_settings and has_wallet):
-        print(f"  ❌ {account.email}: Profile={has_profile}, Settings={has_settings}, Wallet={has_wallet}")
+        print(f"   {account.email}: Profile={has_profile}, Settings={has_settings}, Wallet={has_wallet}")
         all_good = False
     else:
-        print(f"  ✅ {account.email}: Complete")
+        print(f"   {account.email}: Complete")
 
 # Part 3: Check Wallet foreign keys
 print("\n3. Checking Wallet relationships...")
@@ -83,15 +83,15 @@ for wallet in Wallet.objects.all():
     try:
         # Try to access the related account
         account = wallet.account
-        print(f"  ✅ Wallet {wallet.id}: Linked to {account.email}")
+        print(f"   Wallet {wallet.id}: Linked to {account.email}")
     except Exception as e:
-        print(f"  ❌ Wallet {wallet.id}: Error - {str(e)}")
+        print(f"   Wallet {wallet.id}: Error - {str(e)}")
 
 if all_good:
-    print("\n🎉 ALL ACCOUNTS ARE NOW COMPLETE!")
+    print("\n ALL ACCOUNTS ARE NOW COMPLETE!")
     print("   Every account has:")
     print("   - UserProfile")
     print("   - UserSettings") 
     print("   - Wallet")
 else:
-    print("\n⚠️  Some accounts still need attention")
+    print("\n  Some accounts still need attention")

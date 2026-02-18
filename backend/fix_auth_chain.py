@@ -43,7 +43,7 @@ CORE_APPS = [
 
 # 1. Clear ALL migration records
 cursor.execute("DELETE FROM django_migrations")
-print("✓ Cleared all migration history")
+print(" Cleared all migration history")
 
 # 2. Add contenttypes FIRST (auth depends on this)
 now = datetime.datetime.now().isoformat()
@@ -55,7 +55,7 @@ cursor.execute(
     "INSERT INTO django_migrations (app, name, applied) VALUES (?, ?, ?)",
     ('contenttypes', '0002_remove_content_type_name', now)
 )
-print("✓ Added contenttypes migrations")
+print(" Added contenttypes migrations")
 
 # 3. Add ALL auth migrations in sequence
 for migration in AUTH_MIGRATIONS:
@@ -63,7 +63,7 @@ for migration in AUTH_MIGRATIONS:
         "INSERT INTO django_migrations (app, name, applied) VALUES (?, ?, ?)",
         ('auth', migration, now)
     )
-print(f"✓ Added {len(AUTH_MIGRATIONS)} auth migrations")
+print(f" Added {len(AUTH_MIGRATIONS)} auth migrations")
 
 # 4. Add our core app migrations
 for app in CORE_APPS:
@@ -71,10 +71,10 @@ for app in CORE_APPS:
         "INSERT INTO django_migrations (app, name, applied) VALUES (?, ?, ?)",
         (app, '0001_initial', now)
     )
-print(f"✓ Added {len(CORE_APPS)} core app migrations")
+print(f" Added {len(CORE_APPS)} core app migrations")
 
 conn.commit()
 conn.close()
 
-print(f"\n✅ Added TOTAL: {2 + len(AUTH_MIGRATIONS) + len(CORE_APPS)} migration records")
+print(f"\n Added TOTAL: {2 + len(AUTH_MIGRATIONS) + len(CORE_APPS)} migration records")
 print("\nNOW RUN: python manage.py migrate --fake")

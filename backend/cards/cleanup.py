@@ -57,12 +57,12 @@ current_dir = os.getcwd()
 print(f"Current directory: {current_dir}")
 
 # Show files that will be deleted
-print("\n⚠️  Files that will be DELETED:")
+print("\n  Files that will be DELETED:")
 for f in DELETE_FILES:
     if os.path.exists(os.path.join(current_dir, f)):
         print(f"  - {f}")
 
-print("\n✅ Files that will be KEPT:")
+print("\n Files that will be KEPT:")
 for f in KEEP_FILES:
     if os.path.exists(os.path.join(current_dir, f)):
         print(f"  - {f}")
@@ -85,9 +85,9 @@ if response.lower() == 'yes':
             except Exception as e:
                 print(f"Error deleting {f}: {e}")
     
-    print(f"\n✅ Cleanup complete! Deleted {deleted_count} files.")
+    print(f"\n Cleanup complete! Deleted {deleted_count} files.")
     print("\nNow you have a clean directory with only essential files.")
     print("Run your tests with: python test_final.py")
 else:
-    print("\n⚠️  Cleanup cancelled. No files were deleted.")
+    print("\n  Cleanup cancelled. No files were deleted.")
     print("\nYou can still run the clean tests with: python test_final.py")

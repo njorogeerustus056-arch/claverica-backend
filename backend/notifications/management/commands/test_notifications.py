@@ -1,5 +1,5 @@
 """
-🎯 TEST COMMAND: Test notification system
+ TEST COMMAND: Test notification system
 """
 
 from django.core.management.base import BaseCommand
@@ -14,7 +14,7 @@ class Command(BaseCommand):
     help = 'Test the notification system'
     
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS('🔔 TESTING NOTIFICATION SYSTEM'))
+        self.stdout.write(self.style.SUCCESS(' TESTING NOTIFICATION SYSTEM'))
         
         # Create test account if needed
         test_email = "notification_test@claverica.com"
@@ -30,12 +30,12 @@ class Command(BaseCommand):
         )
         
         if created:
-            self.stdout.write(f"✅ Created test account: {account.account_number}")
+            self.stdout.write(f" Created test account: {account.account_number}")
         else:
-            self.stdout.write(f"⚠️ Using existing account: {account.account_number}")
+            self.stdout.write(f" Using existing account: {account.account_number}")
         
         # Test 1: Create simple notification
-        self.stdout.write("\n1️⃣ Testing basic notification creation...")
+        self.stdout.write("\n1 Testing basic notification creation...")
         notification = NotificationService.create_notification(
             account=account,
             notification_type='ACCOUNT_CREATED',
@@ -46,39 +46,39 @@ class Command(BaseCommand):
         )
         
         if notification:
-            self.stdout.write(f"✅ Created notification #{notification.id}")
+            self.stdout.write(f" Created notification #{notification.id}")
             self.stdout.write(f"   Title: {notification.title}")
             self.stdout.write(f"   Type: {notification.notification_type}")
             self.stdout.write(f"   Priority: {notification.priority}")
         else:
-            self.stdout.write("❌ Failed to create notification")
+            self.stdout.write(" Failed to create notification")
         
         # Test 2: Mark as read
-        self.stdout.write("\n2️⃣ Testing mark as read...")
+        self.stdout.write("\n2 Testing mark as read...")
         if notification:
             success = NotificationService.mark_as_read(notification.id, account)
             if success:
-                self.stdout.write("✅ Successfully marked as read")
+                self.stdout.write(" Successfully marked as read")
                 notification.refresh_from_db()
                 self.stdout.write(f"   New status: {notification.status}")
             else:
-                self.stdout.write("❌ Failed to mark as read")
+                self.stdout.write(" Failed to mark as read")
         
         # Test 3: Get unread count
-        self.stdout.write("\n3️⃣ Testing unread count...")
+        self.stdout.write("\n3 Testing unread count...")
         count = Notification.objects.filter(recipient=account, status='UNREAD').count()
-        self.stdout.write(f"✅ Unread notifications: {count}")
+        self.stdout.write(f" Unread notifications: {count}")
         
         # Test 4: Create all notification types
-        self.stdout.write("\n4️⃣ Testing all notification types...")
+        self.stdout.write("\n4 Testing all notification types...")
         
         notification_types = [
-            ('PAYMENT_RECEIVED', '💰 Payment Received', 'You received $500.00 from John Doe'),
-            ('TRANSFER_INITIATED', '🚀 Transfer Initiated', 'Transfer of $250.00 initiated'),
-            ('TAC_SENT', '🔑 TAC Sent', 'Your TAC code is 123456'),
-            ('TRANSFER_COMPLETED', '✅ Transfer Completed', 'Transfer completed successfully'),
-            ('KYC_SUBMITTED', '📄 KYC Submitted', 'KYC documents submitted for review'),
-            ('KYC_APPROVED', '✅ KYC Approved', 'Your KYC has been approved'),
+            ('PAYMENT_RECEIVED', ' Payment Received', 'You received $500.00 from John Doe'),
+            ('TRANSFER_INITIATED', ' Transfer Initiated', 'Transfer of $250.00 initiated'),
+            ('TAC_SENT', ' TAC Sent', 'Your TAC code is 123456'),
+            ('TRANSFER_COMPLETED', ' Transfer Completed', 'Transfer completed successfully'),
+            ('KYC_SUBMITTED', ' KYC Submitted', 'KYC documents submitted for review'),
+            ('KYC_APPROVED', ' KYC Approved', 'Your KYC has been approved'),
         ]
         
         created_count = 0
@@ -93,14 +93,14 @@ class Command(BaseCommand):
             
             if notif:
                 created_count += 1
-                self.stdout.write(f"✅ Created {nt_type}")
+                self.stdout.write(f" Created {nt_type}")
             else:
-                self.stdout.write(f"❌ Failed {nt_type}")
+                self.stdout.write(f" Failed {nt_type}")
         
-        self.stdout.write(f"\n✅ Created {created_count}/{len(notification_types)} notification types")
+        self.stdout.write(f"\n Created {created_count}/{len(notification_types)} notification types")
         
         # Test 5: Admin notifications
-        self.stdout.write("\n5️⃣ Testing admin notifications...")
+        self.stdout.write("\n5 Testing admin notifications...")
         admin_accounts = Account.objects.filter(is_staff=True)
         if admin_accounts.exists():
             admin_account = admin_accounts.first()
@@ -108,7 +108,7 @@ class Command(BaseCommand):
             admin_notif = NotificationService.create_notification(
                 account=admin_account,
                 notification_type='ADMIN_TAC_REQUIRED',
-                title='🔐 TAC Required (Admin)',
+                title=' TAC Required (Admin)',
                 message='Generate TAC for transfer CLV-TRF-001',
                 priority='HIGH',
                 metadata={
@@ -120,14 +120,14 @@ class Command(BaseCommand):
             )
             
             if admin_notif:
-                self.stdout.write(f"✅ Created admin notification for {admin_account.account_number}")
+                self.stdout.write(f" Created admin notification for {admin_account.account_number}")
             else:
-                self.stdout.write("❌ Failed to create admin notification")
+                self.stdout.write(" Failed to create admin notification")
         else:
-            self.stdout.write("⚠️ No admin account found")
+            self.stdout.write(" No admin account found")
         
         # Test 6: Cleanup old notifications
-        self.stdout.write("\n6️⃣ Testing cleanup...")
+        self.stdout.write("\n6 Testing cleanup...")
         
         # Create an old notification
         old_notif = Notification.objects.create(
@@ -140,18 +140,18 @@ class Command(BaseCommand):
             created_at=timezone.now() - timedelta(days=35)
         )
         
-        self.stdout.write(f"✅ Created old notification #{old_notif.id}")
+        self.stdout.write(f" Created old notification #{old_notif.id}")
         
         # Cleanup
         cleaned_count = NotificationService.cleanup_old_notifications(days=30)
-        self.stdout.write(f"✅ Cleaned up {cleaned_count} old notifications")
+        self.stdout.write(f" Cleaned up {cleaned_count} old notifications")
         
         # Final summary
         total_notifs = Notification.objects.count()
         total_unread = Notification.objects.filter(status='UNREAD').count()
         
         self.stdout.write("\n" + "="*50)
-        self.stdout.write("📊 FINAL NOTIFICATION SYSTEM STATUS:")
+        self.stdout.write(" FINAL NOTIFICATION SYSTEM STATUS:")
         self.stdout.write(f"   Total notifications: {total_notifs}")
         self.stdout.write(f"   Unread notifications: {total_unread}")
         self.stdout.write(f"   Test account: {account.account_number}")
@@ -161,4 +161,4 @@ class Command(BaseCommand):
         self.stdout.write(f"   Notification types in system: {', '.join(types)}")
         
         self.stdout.write("="*50)
-        self.stdout.write(self.style.SUCCESS('🎉 NOTIFICATION SYSTEM TEST COMPLETE'))
+        self.stdout.write(self.style.SUCCESS(' NOTIFICATION SYSTEM TEST COMPLETE'))

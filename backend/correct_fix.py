@@ -40,9 +40,9 @@ for account in Account.objects.all():
             UserProfile.objects.create(**profile_data)
             fixed_count += 1
             account_fixed = True
-            print(f"  ✅ Created UserProfile for {account.email}")
+            print(f"   Created UserProfile for {account.email}")
         except Exception as e:
-            print(f"  ❌ Error creating UserProfile for {account.email}: {str(e)}")
+            print(f"   Error creating UserProfile for {account.email}: {str(e)}")
     
     # Fix UserSettings
     if not hasattr(account, 'user_settings'):
@@ -50,9 +50,9 @@ for account in Account.objects.all():
             UserSettings.objects.create(account=account)
             fixed_count += 1
             account_fixed = True
-            print(f"  ✅ Created UserSettings for {account.email}")
+            print(f"   Created UserSettings for {account.email}")
         except Exception as e:
-            print(f"  ❌ Error creating UserSettings for {account.email}: {str(e)}")
+            print(f"   Error creating UserSettings for {account.email}: {str(e)}")
     
     # Fix Wallet (if missing)
     if not Wallet.objects.filter(account=account).exists():
@@ -64,11 +64,11 @@ for account in Account.objects.all():
             )
             fixed_count += 1
             account_fixed = True
-            print(f"  ✅ Created Wallet for {account.email}")
+            print(f"   Created Wallet for {account.email}")
         except Exception as e:
-            print(f"  ❌ Error creating Wallet for {account.email}: {str(e)}")
+            print(f"   Error creating Wallet for {account.email}: {str(e)}")
 
-print(f"\n✅ Created {fixed_count} missing components")
+print(f"\n Created {fixed_count} missing components")
 
 # Verify all accounts
 print("\n3. Verification:")
@@ -79,15 +79,15 @@ for account in Account.objects.all():
     has_wallet = Wallet.objects.filter(account=account).exists()
     
     if not (has_profile and has_settings and has_wallet):
-        print(f"  ❌ {account.email}: Profile={has_profile}, Settings={has_settings}, Wallet={has_wallet}")
+        print(f"   {account.email}: Profile={has_profile}, Settings={has_settings}, Wallet={has_wallet}")
         all_good = False
     else:
-        print(f"  ✅ {account.email}: Complete")
+        print(f"   {account.email}: Complete")
 
 if all_good:
-    print("\n🎉 ALL ACCOUNTS ARE NOW COMPLETE!")
+    print("\n ALL ACCOUNTS ARE NOW COMPLETE!")
 else:
-    print("\n⚠️  Some accounts still need attention")
+    print("\n  Some accounts still need attention")
 
 # Check counts
 print("\n4. Final Counts:")

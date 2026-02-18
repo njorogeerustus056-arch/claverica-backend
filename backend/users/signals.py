@@ -20,7 +20,7 @@ def create_user_profile_settings_and_wallet(sender, instance, created, **kwargs)
                 from accounts.models import Account as AccModel
                 instance.account_number = AccModel.objects.generate_account_number(instance)
                 instance.save(update_fields=['account_number'])
-                print(f'   ⚠️  Generated Account#: {instance.account_number}')
+                print(f'     Generated Account#: {instance.account_number}')
 
             # 1. Create UserProfile
             profile, p_created = UserProfile.objects.get_or_create(account=instance)

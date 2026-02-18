@@ -1,6 +1,6 @@
 # notifications/views.py - PERMANENT FIX WITH PUSHER
 """
-🎯 NOTIFICATION VIEWS - API endpoints with Pusher integration
+ NOTIFICATION VIEWS - API endpoints with Pusher integration
 """
 
 from rest_framework import viewsets, status, permissions
@@ -18,7 +18,7 @@ from .serializers import (
     NotificationLogSerializer
 )
 from .services import NotificationService
-from utils.pusher import trigger_notification  # ✅ ADDED
+from utils.pusher import trigger_notification  #  ADDED
 
 class IsAdminUser(permissions.BasePermission):
     """Check if user is admin"""
@@ -49,7 +49,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         """Save notification and trigger Pusher event"""
         notification = serializer.save()
         
-        # ✅ ADDED: Trigger Pusher event for new notification
+        #  ADDED: Trigger Pusher event for new notification
         trigger_notification(
             account_number=notification.recipient.account_number,
             event_name='notification.created',
@@ -78,7 +78,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         success = NotificationService.mark_as_read(pk, request.user)
 
         if success:
-            # ✅ ADDED: Trigger Pusher event for notification update
+            #  ADDED: Trigger Pusher event for notification update
             trigger_notification(
                 account_number=notification.recipient.account_number,
                 event_name='notification.updated',
@@ -107,7 +107,7 @@ class UnreadCountView(APIView):
 
     def get(self, request):
         """Return count of unread notifications for current user"""
-        # ✅ FIXED: Direct queryset instead of calling NotificationService
+        #  FIXED: Direct queryset instead of calling NotificationService
         count = Notification.objects.filter(
             recipient=request.user,
             status='UNREAD'
@@ -124,7 +124,7 @@ class MarkAsReadView(APIView):
 
         if success:
             notification = Notification.objects.get(id=pk)
-            # ✅ ADDED: Trigger Pusher event
+            #  ADDED: Trigger Pusher event
             trigger_notification(
                 account_number=notification.recipient.account_number,
                 event_name='notification.updated',
@@ -153,7 +153,7 @@ class MarkAllAsReadView(APIView):
         count = notifications.count()
         notifications.update(status='READ', read_at=timezone.now())
 
-        # ✅ ADDED: Trigger Pusher event for each notification
+        #  ADDED: Trigger Pusher event for each notification
         for notification in notifications:
             trigger_notification(
                 account_number=notification.recipient.account_number,

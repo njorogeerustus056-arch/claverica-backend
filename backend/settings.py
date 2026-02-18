@@ -20,11 +20,11 @@ if not os.environ.get('RAILWAY'):
     env_path = BASE_DIR / '.env'
     if env_path.exists():
         load_dotenv(env_path)
-        print(f"✅ Local: Loaded .env file from {env_path}")
+        print(f"[OK] Local: Loaded .env file from {env_path}")
     else:
-        print("⚠️ Local: No .env file found at", env_path)
+        print("[WARN] Local: No .env file found at", env_path)
 else:
-    print("✅ Railway: Using environment variables")
+    print("[OK] Railway: Using environment variables")
 
 # ==============================================================================
 # APP CONFIGURATION
@@ -45,7 +45,7 @@ if not SECRET_KEY:
         )
     else:
         SECRET_KEY = 'django-insecure-development-key-change-in-production'
-        print("⚠️ WARNING: Using development SECRET_KEY - DO NOT USE IN PRODUCTION")
+        print("[WARN] WARNING: Using development SECRET_KEY - DO NOT USE IN PRODUCTION")
 
 # ==============================================================================
 # DEBUG & HOSTS SETTINGS
@@ -59,7 +59,7 @@ if os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT'):
         'https://claverica-fixed.vercel.app',
         'https://claverica-frontend-vercel.vercel.app',
     ]
-    print(f"✅ Railway: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
+    print(f"[OK] Railway: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
 else:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
     CSRF_TRUSTED_ORIGINS = [
@@ -164,8 +164,8 @@ TEMPLATES = [
     },
 ]
 
-print(f"✅ Template directories: {TEMPLATES[0]['DIRS']}")
-print(f"✅ BASE_DIR: {BASE_DIR}")
+print(f"[OK] Template directories: {TEMPLATES[0]['DIRS']}")
+print(f"[OK] BASE_DIR: {BASE_DIR}")
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
@@ -193,7 +193,7 @@ if DATABASE_URL:
         'keepalives_count': 5,
     }
 
-    print(f"✅ Using PostgreSQL database with optimized settings")
+    print("[OK] Using PostgreSQL database with optimized settings")
 else:
     DATABASES = {
         'default': {
@@ -201,7 +201,7 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-    print("⚠️ Using SQLite database - not for production")
+    print("[WARN] Using SQLite database - not for production")
 
 # ==============================================================================
 # REST FRAMEWORK & JWT
@@ -258,28 +258,28 @@ CORS_ALLOW_CREDENTIALS = True
 if DEBUG:
     # Development: use console for testing
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    print("✅ Development: Using console email backend")
+    print("[OK] Development: Using console email backend")
 else:
     # Production on Railway: Use SendGrid HTTP API
     EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
     SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
-    
+
     # SendGrid specific settings
     SENDGRID_SANDBOX_MODE_IN_DEBUG = False
     SENDGRID_TRACK_EMAIL_OPENS = True
     SENDGRID_TRACK_CLICKS_PLAIN = True
-    
+
     if not SENDGRID_API_KEY:
-        print("⚠️ WARNING: SENDGRID_API_KEY not set in environment variables")
+        print("[WARN] WARNING: SENDGRID_API_KEY not set in environment variables")
     else:
-        print("✅ Production: Using SendGrid HTTP API")
+        print("[OK] Production: Using SendGrid HTTP API")
 
 # This is what clients will see - using your verified sender!
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Claverica <noreply@claverica.com>')
 
-print(f"✅ DEFAULT FROM: {DEFAULT_FROM_EMAIL}")
-print(f"✅ FRONTEND URL: {FRONTEND_URL}")
-print(f"✅ APP NAME: {APP_NAME}")
+print(f"[OK] DEFAULT FROM: {DEFAULT_FROM_EMAIL}")
+print(f"[OK] FRONTEND URL: {FRONTEND_URL}")
+print(f"[OK] APP NAME: {APP_NAME}")
 
 # ==============================================================================
 # AUTHENTICATION
@@ -321,9 +321,9 @@ if os.environ.get('REDIS_URL'):
             'LOCATION': os.environ.get('REDIS_URL'),
         }
     }
-    print("✅ Using Redis cache")
+    print("[OK] Using Redis cache")
 else:
-    print("✅ Using in-memory cache (ok for development)")
+    print("[OK] Using in-memory cache (ok for development)")
 
 
 # ==============================================================================
@@ -335,27 +335,27 @@ PUSHER_SECRET = os.environ.get('PUSHER_SECRET', 'cf8356970f233d885c49')
 PUSHER_CLUSTER = os.environ.get('PUSHER_CLUSTER', 'us3')
 PUSHER_SSL = True
 
-print(f"✅ Pusher configured with cluster: {PUSHER_CLUSTER}")
+print(f"[OK] Pusher configured with cluster: {PUSHER_CLUSTER}")
 
 # ==============================================================================
 # PRINT CONFIG STATUS
 # ==============================================================================
-print(f"✅ DEBUG: {DEBUG}")
-print(f"✅ SECRET_KEY set: {'YES' if SECRET_KEY else 'NO'}")
-print(f"✅ RAILWAY environment: {'YES' if os.environ.get('RAILWAY') else 'NO'}")
-print(f"✅ DATABASE: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
-print(f"✅ Database CONN_MAX_AGE: {DATABASES['default'].get('CONN_MAX_AGE', 'Not set')}")
+print(f"[OK] DEBUG: {DEBUG}")
+print(f"[OK] SECRET_KEY set: {'YES' if SECRET_KEY else 'NO'}")
+print(f"[OK] RAILWAY environment: {'YES' if os.environ.get('RAILWAY') else 'NO'}")
+print(f"[OK] DATABASE: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
+print(f"[OK] Database CONN_MAX_AGE: {DATABASES['default'].get('CONN_MAX_AGE', 'Not set')}")
 
 # ==============================================================================
 # DATABASE DEBUGGING
 # ==============================================================================
 import os
-print(f"✅ RAW DATABASE_URL from env: {os.environ.get('DATABASE_URL', 'NOT SET')}")
+print(f"[OK] RAW DATABASE_URL from env: {os.environ.get('DATABASE_URL', 'NOT SET')}")
 
 # Force the correct host if needed
 if os.environ.get('DATABASE_URL'):
     db_url = os.environ.get('DATABASE_URL')
     if 'postgres.railway.internal' in db_url:
         corrected_url = db_url.replace('postgres.railway.internal', 'postgres-aaoa.railway.internal')
-        print(f"✅ CORRECTED DATABASE_URL from: {db_url} to: {corrected_url}")
+        print(f"[OK] CORRECTED DATABASE_URL from: {db_url} to: {corrected_url}")
         os.environ['DATABASE_URL'] = corrected_url

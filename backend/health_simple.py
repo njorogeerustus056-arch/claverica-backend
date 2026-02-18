@@ -1,4 +1,4 @@
-﻿from django.http import HttpResponse
+from django.http import HttpResponse
 import os
 
 def health_check(request):
