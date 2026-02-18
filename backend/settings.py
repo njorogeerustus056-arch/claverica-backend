@@ -101,11 +101,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Third party apps
+    'sendgrid_backend',  # ✅ MOVED TO TOP for proper initialization
     'rest_framework',
     'corsheaders',
     'channels',
     'django_extensions',
-    'sendgrid_backend',  # ✅ FIXED: Changed from 'sendgrid' to 'sendgrid_backend'
 
     # Your apps
     'accounts',
@@ -121,7 +121,6 @@ INSTALLED_APPS = [
     'transfers',
     'users',
 ]
-
 # ==============================================================================
 # MIDDLEWARE
 # ==============================================================================
