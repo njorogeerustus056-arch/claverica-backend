@@ -48,7 +48,7 @@ if not SECRET_KEY:
         print("[WARN] WARNING: Using development SECRET_KEY - DO NOT USE IN PRODUCTION")
 
 # ==============================================================================
-# DEBUG & HOSTS SETTINGS
+# DEBUG & HOSTS SETTINGS - FIXED: Added localhost for testing
 # ==============================================================================
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
@@ -58,6 +58,9 @@ if os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT'):
         'https://*.railway.app',
         'https://claverica-fixed.vercel.app',
         'https://claverica-frontend-vercel.vercel.app',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5173',
     ]
     print(f"[OK] Railway: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
 else:
@@ -254,13 +257,16 @@ STATICFILES_DIRS = [
 ] if os.path.exists(BASE_DIR / 'static') else []
 
 # ==============================================================================
-# CORS SETTINGS
+# CORS SETTINGS - FIXED: Added localhost for testing
 # ==============================================================================
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 if not DEBUG:
     CORS_ALLOWED_ORIGINS = [
         'https://claverica-fixed.vercel.app',
         'https://claverica-frontend-vercel.vercel.app',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5173',
     ]
 CORS_ALLOW_CREDENTIALS = True
 
