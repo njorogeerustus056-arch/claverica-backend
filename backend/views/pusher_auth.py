@@ -1,23 +1,42 @@
 # backend/views/pusher_auth.py
 import json
+import pusher
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.conf import settings
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import AuthenticationFailed
 
 @csrf_exempt
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@require_POST
 def pusher_authentication(request):
     """
     Authenticate a user for a private Pusher channel
     """
     try:
-        # Import pusher here, inside the function
-        import pusher
+        # Manually authenticate the JWT token
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not auth_header.startswith('Bearer '):
+            return JsonResponse(
+                {'error': 'No token provided'},
+                status=401
+            )
         
-        # Initialize Pusher client here
+        token = auth_header.split(' ')[1]
+        
+        # Validate JWT token
+        jwt_auth = JWTAuthentication()
+        try:
+            validated_token = jwt_auth.get_validated_token(token)
+            user = jwt_auth.get_user(validated_token)
+        except AuthenticationFailed:
+            return JsonResponse(
+                {'error': 'Invalid token'},
+                status=401
+            )
+
+        # Initialize Pusher client
         pusher_client = pusher.Pusher(
             app_id=settings.PUSHER_APP_ID,
             key=settings.PUSHER_KEY,
@@ -25,14 +44,24 @@ def pusher_authentication(request):
             cluster=settings.PUSHER_CLUSTER,
             ssl=True
         )
-        
-        # Get the authenticated user from the JWT token
-        user = request.user
 
         # Parse request body
-        data = json.loads(request.body)
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse(
+                {'error': 'Invalid JSON'},
+                status=400
+            )
+
         channel_name = data.get('channel_name')
         socket_id = data.get('socket_id')
+
+        if not channel_name or not socket_id:
+            return JsonResponse(
+                {'error': 'Missing channel_name or socket_id'},
+                status=400
+            )
 
         # Validate that the user is trying to access their own channel
         expected_channel = f'private-user-{user.account_number}'
@@ -51,14 +80,15 @@ def pusher_authentication(request):
 
         return JsonResponse(auth)
 
-    except json.JSONDecodeError:
+    except pusher.PusherError as e:
+        print(f" Pusher error: {e}")
         return JsonResponse(
-            {'error': 'Invalid JSON'},
-            status=400
+            {'error': 'Pusher authentication failed'},
+            status=500
         )
     except Exception as e:
-        print(f" Pusher auth error: {e}")
+        print(f" Unexpected error: {e}")
         return JsonResponse(
-            {'error': str(e)},
+            {'error': 'Internal server error'},
             status=500
         )

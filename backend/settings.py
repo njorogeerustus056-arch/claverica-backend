@@ -125,13 +125,13 @@ INSTALLED_APPS = [
     'users',
 ]
 # ==============================================================================
-# MIDDLEWARE
+# MIDDLEWARE - FIXED ORDER
 # ==============================================================================
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # MUST be before CommonMiddleware and SessionMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -139,7 +139,6 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'backend.db_utils.DatabaseConnectionMiddleware',  # Added to prevent connection leaks
 ]
-
 ROOT_URLCONF = 'backend.urls'
 
 # ==============================================================================
