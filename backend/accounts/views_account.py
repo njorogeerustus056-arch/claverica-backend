@@ -79,7 +79,7 @@ class RegisterView(APIView):
         # Render HTML template
         html_message = render_to_string('accounts/email/verification_otp.html', context)
 
-        # Plain text fallback - FIXED: Changed APP_name to APP_NAME on line 86
+        # Plain text fallback
         plain_message = f"""
 Hello {first_name},
 
@@ -436,8 +436,7 @@ class PasswordResetView(APIView):
                 return Response({
                     'success': True,
                     'message': 'Password reset OTP sent to your email',
-                    'email': email,
-                    'note': f'For testing, your OTP is: {reset_otp}'
+                    'email': email
                 }, status=status.HTTP_200_OK)
 
             except Account.DoesNotExist:
