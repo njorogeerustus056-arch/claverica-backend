@@ -1,4 +1,4 @@
-# backend/views/pusher_auth.py - ADD DEBUGGING
+# backend/views/pusher_auth.py - FIXED VERSION (Handles both JSON and form data)
 import json
 import pusher
 from django.http import JsonResponse
@@ -17,12 +17,13 @@ def pusher_authentication(request):
     # 🔍 DEBUG: Log everything
     print("\n=== PUSHER AUTH DEBUG ===")
     print(f"Headers: {dict(request.headers)}")
-    
+    print(f"Content-Type: {request.content_type}")
+
     try:
         # Manually authenticate the JWT token
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         print(f"Auth Header: {auth_header[:30]}...")  # Truncate for security
-        
+
         if not auth_header.startswith('Bearer '):
             print("❌ No Bearer token found")
             return JsonResponse(
@@ -56,16 +57,22 @@ def pusher_authentication(request):
             ssl=True
         )
 
-        # Parse request body
-        try:
-            data = json.loads(request.body)
-            print(f"Request body: {data}")
-        except json.JSONDecodeError as e:
-            print(f"❌ Invalid JSON: {e}")
-            return JsonResponse(
-                {'error': 'Invalid JSON'},
-                status=400
-            )
+        # ✅ FIXED: Parse request body - handle both JSON and form data
+        if request.content_type == 'application/json':
+            # Handle JSON
+            try:
+                data = json.loads(request.body)
+                print(f"JSON data: {data}")
+            except json.JSONDecodeError as e:
+                print(f"❌ Invalid JSON: {e}")
+                return JsonResponse(
+                    {'error': 'Invalid JSON'},
+                    status=400
+                )
+        else:
+            # Handle form-urlencoded (Pusher-js default)
+            data = request.POST.dict()
+            print(f"Form data: {data}")
 
         channel_name = data.get('channel_name')
         socket_id = data.get('socket_id')
@@ -101,7 +108,7 @@ def pusher_authentication(request):
 
         print(f"✅ Auth response: {auth}")
         print("=== END PUSHER AUTH ===\n")
-        
+
         return JsonResponse(auth)
 
     except pusher.PusherError as e:
