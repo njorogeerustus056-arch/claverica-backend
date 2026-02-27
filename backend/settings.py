@@ -332,7 +332,7 @@ if os.environ.get('REDIS_URL'):
         }
     }
     print("[OK] Using Redis cache")
-    
+
     # Use Redis for session storage (better performance)
     SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
     SESSION_CACHE_ALIAS = 'default'
@@ -349,9 +349,9 @@ else:
 # PUSHER CONFIGURATION FOR REAL-TIME NOTIFICATIONS
 # ==============================================================================
 PUSHER_APP_ID = os.environ.get('PUSHER_APP_ID', '2116646')
-PUSHER_KEY = os.environ.get('PUSHER_KEY', 'b1283987f8301fdc6e34')
+PUSHER_KEY = os.environ.get('PUSHER_KEY', 'b1283987f8301fdce6e34')
 PUSHER_SECRET = os.environ.get('PUSHER_SECRET', 'cf8356970f233d885c49')
-PUSHER_CLUSTER = os.environ.get('PUSHER_CLUSTER', 'us3')
+PUSHER_CLUSTER = os.environ.get('PUSHER_CLUSTER', 'ap2')  # ✅ CHANGED FROM us3 TO ap2
 PUSHER_SSL = True
 
 print(f"[OK] Pusher configured with cluster: {PUSHER_CLUSTER}")
