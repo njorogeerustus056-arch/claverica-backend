@@ -346,12 +346,12 @@ else:
     print("[OK] Using in-memory cache (ok for development)")
 
 # ==============================================================================
-# PUSHER CONFIGURATION FOR REAL-TIME NOTIFICATIONS - FIXED
+# PUSHER CONFIGURATION FOR REAL-TIME NOTIFICATIONS - PRODUCTION READY
 # ==============================================================================
-PUSHER_APP_ID = os.environ.get('PUSHER_APP_ID', '2116646')
-PUSHER_KEY = os.environ.get('PUSHER_KEY', 'b1283987f8301fdce6e34')
-PUSHER_SECRET = os.environ.get('PUSHER_SECRET', 'cf8356970f233d885c49')
-PUSHER_CLUSTER = os.environ.get('PUSHER_CLUSTER', 'us3')  # ✅ CORRECT - us3
+PUSHER_APP_ID = os.environ.get('PUSHER_APP_ID', '2121124')  # ✅ NEW PRODUCTION APP ID
+PUSHER_KEY = os.environ.get('PUSHER_KEY', 'bca27bf95e4d459c2acd')  # ✅ NEW PRODUCTION KEY
+PUSHER_SECRET = os.environ.get('PUSHER_SECRET', 'bdbc98bc9d5ee389252c')  # ✅ NEW PRODUCTION SECRET
+PUSHER_CLUSTER = os.environ.get('PUSHER_CLUSTER', 'us3')
 PUSHER_SSL = True
 
 print(f"[OK] Pusher configured with cluster: {PUSHER_CLUSTER}")
