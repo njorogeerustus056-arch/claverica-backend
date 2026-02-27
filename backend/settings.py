@@ -30,7 +30,7 @@ else:
 # APP CONFIGURATION
 # ==============================================================================
 APP_NAME = 'Claverica'
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://claverica-fixed.vercel.app')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://claverica.com')
 
 # ==============================================================================
 # CRITICAL: SECRET_KEY MUST BE SET IN RAILWAY
@@ -56,6 +56,8 @@ if os.environ.get('RAILWAY') or os.environ.get('RAILWAY_ENVIRONMENT'):
     ALLOWED_HOSTS = ['*', '.up.railway.app']
     CSRF_TRUSTED_ORIGINS = [
         'https://*.railway.app',
+        'https://claverica.com',
+        'https://www.claverica.com',
         'https://claverica-fixed.vercel.app',
         'https://claverica-frontend-vercel.vercel.app',
         'http://localhost:3000',
@@ -256,11 +258,13 @@ STATICFILES_DIRS = [
 ] if os.path.exists(BASE_DIR / 'static') else []
 
 # ==============================================================================
-# CORS SETTINGS - FIXED: Added localhost for testing
+# CORS SETTINGS - UPDATED with custom domain
 # ==============================================================================
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 if not DEBUG:
     CORS_ALLOWED_ORIGINS = [
+        'https://claverica.com',
+        'https://www.claverica.com',
         'https://claverica-fixed.vercel.app',
         'https://claverica-frontend-vercel.vercel.app',
         'http://localhost:3000',
@@ -348,9 +352,9 @@ else:
 # ==============================================================================
 # PUSHER CONFIGURATION FOR REAL-TIME NOTIFICATIONS - PRODUCTION READY
 # ==============================================================================
-PUSHER_APP_ID = os.environ.get('PUSHER_APP_ID', '2121124')  # ✅ NEW PRODUCTION APP ID
-PUSHER_KEY = os.environ.get('PUSHER_KEY', 'bca27bf95e4d459c2acd')  # ✅ NEW PRODUCTION KEY
-PUSHER_SECRET = os.environ.get('PUSHER_SECRET', 'bdbc98bc9d5ee389252c')  # ✅ NEW PRODUCTION SECRET
+PUSHER_APP_ID = os.environ.get('PUSHER_APP_ID', '2121124')
+PUSHER_KEY = os.environ.get('PUSHER_KEY', 'bca27bf95e4d459c2acd')
+PUSHER_SECRET = os.environ.get('PUSHER_SECRET', 'bdbc98bc9d5ee389252c')
 PUSHER_CLUSTER = os.environ.get('PUSHER_CLUSTER', 'us3')
 PUSHER_SSL = True
 
