@@ -258,20 +258,76 @@ STATICFILES_DIRS = [
 ] if os.path.exists(BASE_DIR / 'static') else []
 
 # ==============================================================================
-# CORS SETTINGS - UPDATED with custom domain
+# CORS SETTINGS - FIXED VERSION
 # ==============================================================================
-CORS_ALLOW_ALL_ORIGINS = DEBUG
-if not DEBUG:
-    CORS_ALLOWED_ORIGINS = [
-        'https://claverica.com',
-        'https://www.claverica.com',
-        'https://claverica-fixed.vercel.app',
-        'https://claverica-frontend-vercel.vercel.app',
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'http://localhost:5173',
-    ]
+# Define allowed origins for production
+CORS_ALLOWED_ORIGINS = [
+    'https://claverica.com',
+    'https://www.claverica.com',
+    'https://claverica-fixed.vercel.app',
+    'https://claverica-frontend-vercel.vercel.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+]
+
+# If in development, allow all origins
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+
 CORS_ALLOW_CREDENTIALS = True
+
+# Add these for better CORS handling
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# ==============================================================================
+# MEDIA FILES (Uploaded KYC Documents) - ADD THIS SECTION
+# ==============================================================================
+# Media files configuration for uploaded documents
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Ensure media directory exists
+os.makedirs(MEDIA_ROOT, exist_ok=True)
+
+# File upload settings for KYC documents
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10MB
+FILE_UPLOAD_PERMISSIONS = 0o644
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
+
+# For Railway, ensure media directory is writable
+if IS_RAILWAY:
+    # Railway's filesystem is writable, but use /tmp for temporary files
+    import tempfile
+    MEDIA_ROOT = Path(tempfile.gettempdir()) / 'media'
+    os.makedirs(MEDIA_ROOT, exist_ok=True)
+    print(f"[OK] Railway: Using temp media root: {MEDIA_ROOT}")
+
+print(f"[OK] MEDIA_ROOT: {MEDIA_ROOT}")
+print(f"[OK] MEDIA_ROOT exists: {MEDIA_ROOT.exists()}")
+print(f"[OK] MEDIA_ROOT writable: {os.access(MEDIA_ROOT, os.W_OK)}")
 
 # ==============================================================================
 # EMAIL CONFIGURATION - SENDGRID FOR RAILWAY

@@ -4,6 +4,8 @@ from django.contrib import admin
 from django.views.decorators.http import require_GET
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
+from django.conf import settings
+from django.conf.urls.static import static
 import json
 
 from views.pusher_auth import pusher_authentication  # Remove the dot
@@ -62,3 +64,7 @@ urlpatterns = [
     path('api/kyc_spec/', include('kyc_spec.urls')),
     path('api/transfers/', include('transfers.urls')),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
