@@ -1,4 +1,4 @@
-# notifications/signals.py - COMPLETELY FIXED VERSION
+# notifications/signals.py - COMPLETELY FIXED VERSION WITH FULL DESTINATION DETAILS
 import logging
 import json
 from django.db.models.signals import post_save
@@ -28,59 +28,100 @@ def handle_compliance_notifications(sender, instance, created, **kwargs):
             if admin_accounts.exists():
                 admin_account = admin_accounts.first()
 
+                # Build comprehensive metadata with all destination details
+                metadata = {
+                    'admin_action_required': True,
+                    'transfer_reference': instance.reference,
+                    'amount': str(instance.amount),
+                    'recipient': instance.recipient_name,
+                    'action_url': f'/admin/compliance/transferrequest/{instance.id}/change/',
+                    'destination_type': instance.destination_type,
+                    'destination_details': instance.destination_details,  # Full JSON field
+                }
+                
+                # Add specific fields based on destination type for easier viewing
+                if instance.destination_type == 'mobile_wallet':
+                    metadata['provider'] = instance.destination_details.get('provider', 'N/A')
+                    metadata['phone_number'] = instance.destination_details.get('phone_number', 'N/A')
+                    metadata['send_to'] = f"{metadata['provider']} - {metadata['phone_number']}"
+                    
+                elif instance.destination_type == 'bank':
+                    metadata['bank_name'] = instance.destination_details.get('bank_name', 'N/A')
+                    metadata['account_number'] = instance.destination_details.get('account_number', 'N/A')
+                    metadata['account_type'] = instance.destination_details.get('account_type', 'N/A')
+                    metadata['branch'] = instance.destination_details.get('branch', 'N/A')
+                    metadata['send_to'] = f"{metadata['bank_name']} - {metadata['account_number']}"
+                    
+                elif instance.destination_type == 'crypto':
+                    metadata['crypto_type'] = instance.destination_details.get('crypto_type', 'N/A')
+                    metadata['crypto_address'] = instance.destination_details.get('crypto_address', 'N/A')
+                    # Truncate address for display
+                    address = metadata['crypto_address']
+                    short_address = f"{address[:8]}..." if len(address) > 8 else address
+                    metadata['send_to'] = f"{metadata['crypto_type']} - {short_address}"
+
                 NotificationService.create_notification(
                     recipient=admin_account,
                     notification_type='ADMIN_TAC_REQUIRED',
-                    title='New Transfer Requires TAC',
-                    message=f'Transfer {instance.reference} for  requires TAC generation',
+                    title=f'New Transfer Requires TAC - ${instance.amount} to {instance.recipient_name}',
+                    message=f'Transfer {instance.reference} requires TAC generation. Send to: {metadata.get("send_to", "Check details")}',
                     priority='HIGH',
-                    metadata={
-                        'admin_action_required': True,
-                        'transfer_reference': instance.reference,
-                        'amount': str(instance.amount),
-                        'recipient': instance.recipient_name,
-                        'action_url': f'/admin/compliance/transferrequest/{instance.id}/change/'
-                    }
+                    metadata=metadata
                 )
+                
+                logger.info(f"Admin notification created for transfer {instance.reference} to {instance.recipient_name}")
+                
         elif instance.status == 'tac_sent':
+            # Notification to client when TAC is sent
             NotificationService.create_notification(
                 recipient=instance.account,
                 notification_type='TAC_SENT',
                 title='TAC Sent to Your Email',
-                message=f'Authorization code sent for transfer {instance.reference}',
+                message=f'Authorization code sent for transfer {instance.reference} to {instance.recipient_name}',
                 priority='HIGH',
                 metadata={
                     'transfer_reference': instance.reference,
                     'amount': str(instance.amount),
-                    'expires_at': instance.tac_expires_at.isoformat() if instance.tac_expires_at else None
+                    'recipient': instance.recipient_name,
+                    'expires_at': instance.tac_expires_at.isoformat() if instance.tac_expires_at else None,
+                    'destination_type': instance.destination_type,
+                    'destination_details': instance.destination_details,
                 }
             )
+            
         elif instance.status == 'tac_verified':
+            # Notification when client verifies TAC
             NotificationService.create_notification(
                 recipient=instance.account,
                 notification_type='TAC_VERIFIED',
                 title='Transfer Authorized',
-                message=f'Transfer {instance.reference} authorized and ready for processing',
-                priority='MEDIUM',
-                metadata={
-                    'transfer_reference': instance.reference,
-                    'amount': str(instance.amount)
-                }
-            )
-        elif instance.status == 'completed':
-            NotificationService.create_notification(
-                recipient=instance.account,
-                notification_type='TRANSFER_COMPLETED',
-                title='Transfer Completed',
-                message=f'Transfer of  to {instance.recipient_name} completed',
+                message=f'Transfer ${instance.amount} to {instance.recipient_name} authorized and ready for processing',
                 priority='MEDIUM',
                 metadata={
                     'transfer_reference': instance.reference,
                     'amount': str(instance.amount),
                     'recipient': instance.recipient_name,
-                    'completion_date': timezone.now().isoformat()
+                    'destination_type': instance.destination_type,
                 }
             )
+            
+        elif instance.status == 'completed':
+            # Notification when transfer is completed
+            NotificationService.create_notification(
+                recipient=instance.account,
+                notification_type='TRANSFER_COMPLETED',
+                title='Transfer Completed',
+                message=f'Transfer of ${instance.amount} to {instance.recipient_name} completed successfully',
+                priority='MEDIUM',
+                metadata={
+                    'transfer_reference': instance.reference,
+                    'amount': str(instance.amount),
+                    'recipient': instance.recipient_name,
+                    'completion_date': timezone.now().isoformat(),
+                    'destination_type': instance.destination_type,
+                }
+            )
+            
     except Exception as e:
         logger.error(f"Error handling compliance notification: {e}")
 
@@ -90,7 +131,7 @@ def handle_account_notifications(sender, instance, created, **kwargs):
     '''Create notifications for account events'''
     try:
         if created:
-            # Create default preferences for new account - FIXED: 'account' not 'recipient'
+            # Create default preferences for new account
             NotificationPreference.objects.get_or_create(account=instance)
 
             NotificationService.create_notification(
@@ -147,5 +188,3 @@ def handle_kyc_notifications(sender, instance, created, **kwargs):
             NotificationService.send_kyc_notification(instance)
     except Exception as e:
         logger.error(f"Error handling KYC notification: {e}")
-
-
