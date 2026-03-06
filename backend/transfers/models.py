@@ -18,6 +18,7 @@ class Transfer(models.Model):
         ('bank', 'Bank Account'),
         ('mobile_wallet', 'Mobile Wallet'),
         ('crypto', 'Cryptocurrency'),
+        ('mobile_money', 'Mobile Money'),  # 👈 ADDED mobile money
     ]
 
     reference = models.CharField(max_length=50, unique=True)
