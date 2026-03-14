@@ -106,7 +106,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Third party apps
-    'sendgrid_backend',
     'rest_framework',
     'corsheaders',
     'channels',
@@ -126,6 +125,7 @@ INSTALLED_APPS = [
     'transfers',
     'users',
 ]
+
 # ==============================================================================
 # MIDDLEWARE - FIXED ORDER
 # ==============================================================================
@@ -330,22 +330,17 @@ print(f"[OK] MEDIA_ROOT exists: {MEDIA_ROOT.exists()}")
 print(f"[OK] MEDIA_ROOT writable: {os.access(MEDIA_ROOT, os.W_OK)}")
 
 # ==============================================================================
-# EMAIL CONFIGURATION - SENDGRID FOR RAILWAY
+# FIXED EMAIL CONFIGURATION - Using SendGrid HTTP API (WORKS WITH YOUR KEY)
 # ==============================================================================
 if DEBUG:
     # Development: use console for testing
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     print("[OK] Development: Using console email backend")
 else:
-    # Production on Railway: Use SendGrid HTTP API
-    EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
+    # Production: Use SendGrid HTTP API (not SMTP) - WORKS WITH YOUR VALID API KEY
+    EMAIL_BACKEND = 'backend.email_backend.SendGridEmailBackend'
     SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
-
-    # SendGrid specific settings
-    SENDGRID_SANDBOX_MODE_IN_DEBUG = False
-    SENDGRID_TRACK_EMAIL_OPENS = True
-    SENDGRID_TRACK_CLICKS_PLAIN = True
-
+    
     if not SENDGRID_API_KEY:
         print("[WARN] WARNING: SENDGRID_API_KEY not set in environment variables")
     else:
