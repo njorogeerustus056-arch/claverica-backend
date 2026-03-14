@@ -68,7 +68,6 @@ if [ $CHECK_RESULT -eq 0 ]; then
         --log-level warning \
         --pythonpath /app \
         --pythonpath /app/backend \
-        --preload \
         --worker-class sync
 else
     echo "Django check failed with code $CHECK_RESULT"
