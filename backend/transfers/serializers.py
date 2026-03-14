@@ -46,13 +46,25 @@ class TransferCreateSerializer(serializers.ModelSerializer):
                         f"Mobile wallet transfers require '{field}' field"
                     )
 
-        elif destination_type == 'mobile_money':  # 👈 ADDED
+        elif destination_type == 'mobile_money':
             required_fields = ['mobile_money_provider', 'mobile_money_number']
             for field in required_fields:
                 if field not in value:
                     raise serializers.ValidationError(
                         f"Mobile money transfers require '{field}' field"
                     )
+
+        # 👇 ADDED e_wallet validation
+        elif destination_type == 'e_wallet':
+            required_fields = ['provider', 'email']
+            for field in required_fields:
+                if field not in value:
+                    raise serializers.ValidationError(
+                        f"E-wallet transfers require '{field}' field"
+                    )
+            # Optional email validation
+            if 'email' in value and '@' not in value['email']:
+                raise serializers.ValidationError("Invalid email format")
 
         elif destination_type == 'crypto':
             required_fields = ['crypto_type', 'crypto_address']
@@ -110,8 +122,12 @@ class TransferSerializer(serializers.ModelSerializer):
         elif obj.destination_type == 'mobile_wallet':
             return f"{details.get('mobile_provider', 'Mobile')} - {details.get('mobile_number', '')}"
 
-        elif obj.destination_type == 'mobile_money':  # 👈 ADDED
+        elif obj.destination_type == 'mobile_money':
             return f"{details.get('mobile_money_provider', 'Mobile Money')} - {details.get('mobile_money_number', '')}"
+
+        # 👇 ADDED e_wallet display
+        elif obj.destination_type == 'e_wallet':
+            return f"{details.get('provider', 'E-Wallet')} - {details.get('email', '')}"
 
         elif obj.destination_type == 'crypto':
             address = details.get('crypto_address', '')
