@@ -25,6 +25,7 @@ class TransferRequest(models.Model):
         ('bank', 'Bank Account'),
         ('mobile_wallet', 'Mobile Wallet'),
         ('crypto', 'Cryptocurrency'),
+        ('e_wallet', 'E-Wallet'),  # 👈 ADDED E-WALLET
     ]
 
     #  FIXED: Using named function instead of lambda

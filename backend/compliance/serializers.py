@@ -60,6 +60,16 @@ class TransferCreateSerializer(serializers.ModelSerializer):
                 if field not in value:
                     raise serializers.ValidationError(f"Mobile wallet requires '{field}'")
 
+        # 👇 ADDED E-WALLET VALIDATION
+        elif destination_type == 'e_wallet':
+            required = ['provider', 'email']
+            for field in required:
+                if field not in value:
+                    raise serializers.ValidationError(f"E-wallet transfers require '{field}'")
+            # Optional email validation
+            if 'email' in value and '@' not in value['email']:
+                raise serializers.ValidationError("Invalid email format")
+
         elif destination_type == 'crypto':
             # ✅ FIXED: Changed from 'currency' and 'wallet_address' to match transfers app
             required = ['crypto_type', 'crypto_address']
@@ -116,6 +126,12 @@ class TransferSerializer(serializers.ModelSerializer):
             provider = details.get('provider', 'Mobile')
             phone = details.get('phone_number', '')
             return f"{provider} - {phone}"
+
+        # 👇 ADDED E-WALLET DISPLAY
+        elif obj.destination_type == 'e_wallet':
+            provider = details.get('provider', 'E-Wallet')
+            email = details.get('email', '')
+            return f"{provider} - {email}"
 
         elif obj.destination_type == 'crypto':
             # ✅ FIXED: Changed from 'currency' to 'crypto_type' and 'wallet_address' to 'crypto_address'
@@ -228,6 +244,11 @@ class TransferHistorySerializer(serializers.ModelSerializer):
 
         elif obj.destination_type == 'mobile_wallet':
             provider = details.get('provider', 'Mobile')
+            return f"{provider}"
+
+        # 👇 ADDED E-WALLET HISTORY DISPLAY
+        elif obj.destination_type == 'e_wallet':
+            provider = details.get('provider', 'E-Wallet')
             return f"{provider}"
 
         elif obj.destination_type == 'crypto':
