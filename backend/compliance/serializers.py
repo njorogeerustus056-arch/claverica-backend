@@ -61,7 +61,8 @@ class TransferCreateSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(f"Mobile wallet requires '{field}'")
 
         elif destination_type == 'crypto':
-            required = ['currency', 'wallet_address']
+            # ✅ FIXED: Changed from 'currency' and 'wallet_address' to match transfers app
+            required = ['crypto_type', 'crypto_address']
             for field in required:
                 if field not in value:
                     raise serializers.ValidationError(f"Crypto requires '{field}'")
@@ -117,9 +118,10 @@ class TransferSerializer(serializers.ModelSerializer):
             return f"{provider} - {phone}"
 
         elif obj.destination_type == 'crypto':
-            currency = details.get('currency', 'Crypto')
-            address = details.get('wallet_address', '')
-            return f"{currency} - {address[:8]}..."
+            # ✅ FIXED: Changed from 'currency' to 'crypto_type' and 'wallet_address' to 'crypto_address'
+            crypto_type = details.get('crypto_type', 'Crypto')
+            address = details.get('crypto_address', '')
+            return f"{crypto_type} - {address[:8]}..."
 
         return "Unknown"
 
@@ -229,8 +231,9 @@ class TransferHistorySerializer(serializers.ModelSerializer):
             return f"{provider}"
 
         elif obj.destination_type == 'crypto':
-            currency = details.get('currency', 'Crypto')
-            return f"{currency}"
+            # ✅ FIXED: Changed from 'currency' to 'crypto_type'
+            crypto_type = details.get('crypto_type', 'Crypto')
+            return f"{crypto_type}"
 
         return obj.destination_type
 
