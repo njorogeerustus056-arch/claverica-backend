@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # ==============================================================================
 # CRITICAL: PYTHON PATH SETUP
 # ==============================================================================
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().resolve().parent.parent
 
 # Load .env ONLY in development, NEVER in Railway
 if not os.environ.get('RAILWAY'):
@@ -302,11 +302,18 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # ==============================================================================
-# MEDIA FILES (Uploaded KYC Documents) - ADD THIS SECTION
+# MEDIA FILES (Uploaded KYC Documents) - FIXED FOR PRODUCTION
 # ==============================================================================
 # Media files configuration for uploaded documents
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+
+if IS_RAILWAY:
+    # Use persistent storage location on Railway
+    MEDIA_ROOT = '/app/media'
+    print(f"[OK] Railway: Using persistent media root: {MEDIA_ROOT}")
+else:
+    # Local development
+    MEDIA_ROOT = BASE_DIR / 'media'
 
 # Ensure media directory exists
 os.makedirs(MEDIA_ROOT, exist_ok=True)
@@ -317,16 +324,8 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10MB
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 
-# For Railway, ensure media directory is writable
-if IS_RAILWAY:
-    # Railway's filesystem is writable, but use /tmp for temporary files
-    import tempfile
-    MEDIA_ROOT = Path(tempfile.gettempdir()) / 'media'
-    os.makedirs(MEDIA_ROOT, exist_ok=True)
-    print(f"[OK] Railway: Using temp media root: {MEDIA_ROOT}")
-
 print(f"[OK] MEDIA_ROOT: {MEDIA_ROOT}")
-print(f"[OK] MEDIA_ROOT exists: {MEDIA_ROOT.exists()}")
+print(f"[OK] MEDIA_ROOT exists: {os.path.exists(MEDIA_ROOT)}")
 print(f"[OK] MEDIA_ROOT writable: {os.access(MEDIA_ROOT, os.W_OK)}")
 
 # ==============================================================================
@@ -340,7 +339,7 @@ else:
     # Production: Use SendGrid HTTP API (not SMTP) - WORKS WITH YOUR VALID API KEY
     EMAIL_BACKEND = 'backend.email_backend.SendGridEmailBackend'
     SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
-    
+
     if not SENDGRID_API_KEY:
         print("[WARN] WARNING: SENDGRID_API_KEY not set in environment variables")
     else:
