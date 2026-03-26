@@ -6,7 +6,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 class SendGridEmailBackend(BaseEmailBackend):
-    """SendGrid email backend using the working API syntax"""
+    """SendGrid email backend that properly sends BOTH HTML and plain text versions"""
     
     def __init__(self, fail_silently=False, **kwargs):
         super().__init__(fail_silently=fail_silently)
@@ -30,7 +30,33 @@ class SendGridEmailBackend(BaseEmailBackend):
             # Get recipient
             to_email = message.to[0] if isinstance(message.to, (list, tuple)) else message.to
             
-            # Build email data using the working format
+            # 🔥 FIX: Build content array to include BOTH plain text AND HTML
+            content = []
+            
+            # Add plain text version (always present)
+            if message.body:
+                content.append({
+                    "type": "text/plain",
+                    "value": message.body
+                })
+            
+            # Add HTML version if it exists in alternatives
+            if hasattr(message, 'alternatives') and message.alternatives:
+                for alt_content, alt_type in message.alternatives:
+                    if alt_type == 'text/html':
+                        content.append({
+                            "type": "text/html",
+                            "value": alt_content
+                        })
+            
+            # If no content found (fallback)
+            if not content:
+                content.append({
+                    "type": "text/plain",
+                    "value": "Please view this email in HTML format for the best experience."
+                })
+            
+            # Build email data with BOTH versions
             data = {
                 "personalizations": [
                     {
@@ -39,19 +65,14 @@ class SendGridEmailBackend(BaseEmailBackend):
                 ],
                 "from": {"email": message.from_email or settings.DEFAULT_FROM_EMAIL},
                 "subject": message.subject,
-                "content": [
-                    {
-                        "type": "text/html" if message.content_subtype == 'html' else "text/plain",
-                        "value": message.body
-                    }
-                ]
+                "content": content  # 🔥 NOW CONTAINS BOTH HTML AND PLAIN TEXT
             }
             
             # Send
             response = sg.client.mail.send.post(request_body=data)
             
             if response.status_code == 202:
-                logger.info(f"✅ Email sent to {to_email}")
+                logger.info(f"✅ Email sent to {to_email} with {len(content)} content type(s)")
                 return True
             else:
                 logger.error(f"❌ SendGrid error: {response.status_code}")
