@@ -64,6 +64,7 @@ urlpatterns = [
     path('api/kyc/', include('kyc.urls')),
     path('api/kyc_spec/', include('kyc_spec.urls')),
     path('api/transfers/', include('transfers.urls')),
+    path('api/receipts/', include('receipts.urls')),  # ← ADDED THIS LINE
 ]
 
 # Serve media files in development and production

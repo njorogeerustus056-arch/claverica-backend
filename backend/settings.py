@@ -110,6 +110,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'django_extensions',
+    'django_filters',  # ← ADDED THIS LINE
 
     # Your apps
     'accounts',
@@ -237,7 +238,10 @@ REST_FRAMEWORK = {
         'anon': '100/day',
         'user': '1000/day',
         'login': '5/15min',
-    }
+    },
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ],
 }
 
 SIMPLE_JWT = {
