@@ -76,7 +76,7 @@ else:
 # SECURITY SETTINGS - PRODUCTION ONLY
 # ==============================================================================
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = False  # ✅ CHANGED: Disabled to fix redirect issues
     # Exempt health check from SSL redirect
     SECURE_REDIRECT_EXEMPT = [r'^health/?$']
     SESSION_COOKIE_SECURE = True
@@ -110,7 +110,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'django_extensions',
-    'django_filters',  # ← ADDED THIS LINE
+    'django_filters',
 
     # Your apps
     'accounts',
@@ -133,14 +133,14 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # MUST be before CommonMiddleware and SessionMiddleware
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'backend.db_utils.DatabaseConnectionMiddleware',  # Added to prevent connection leaks
+    'backend.db_utils.DatabaseConnectionMiddleware',
 ]
 ROOT_URLCONF = 'backend.urls'
 
@@ -433,3 +433,8 @@ if DATABASE_URL and 'postgres.railway.internal' in DATABASE_URL:
     corrected_url = DATABASE_URL.replace('postgres.railway.internal', 'postgres-aaoa.railway.internal')
     print(f"[OK] CORRECTED DATABASE_URL from: {DATABASE_URL} to: {corrected_url}")
     os.environ['DATABASE_URL'] = corrected_url
+
+# ==============================================================================
+# ✅ ADDED: Disable trailing slash requirement
+# ==============================================================================
+APPEND_SLASH = False

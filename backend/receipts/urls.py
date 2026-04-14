@@ -1,5 +1,5 @@
 # receipts/urls.py
-from django.urls import path
+from django.urls import path, re_path
 
 from .views import (
     ReceiptCreateView,
@@ -12,8 +12,8 @@ from .views import (
 app_name = "receipts"
 
 urlpatterns = [
-    # List all receipts (paginated + filterable)
-    path("", ReceiptListView.as_view(), name="receipt-list"),
+    # List all receipts - matches both with and without trailing slash
+    re_path(r'^/?$', ReceiptListView.as_view(), name="receipt-list"),
 
     # Upload a new receipt (admin only)
     path("upload/", ReceiptCreateView.as_view(), name="receipt-upload"),
