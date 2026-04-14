@@ -11,6 +11,7 @@ class Receipt(models.Model):
 
     Stores metadata about the receipt along with the PDF file.
     Supports types: Invoice, Refund, and Credit Note.
+    Can be assigned to a specific registered user.
     """
 
     TYPE_CHOICES = [
@@ -51,6 +52,14 @@ class Receipt(models.Model):
         on_delete=models.SET_NULL,
         related_name="uploaded_receipts",
         help_text="Admin user who uploaded this receipt.",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="receipts",
+        null=True,
+        blank=True,
+        help_text="Registered user this receipt belongs to.",
     )
 
     class Meta:

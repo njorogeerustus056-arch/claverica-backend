@@ -8,9 +8,9 @@ from .models import Receipt
 class ReceiptAdmin(admin.ModelAdmin):
     """Admin configuration for the Receipt model."""
 
-    list_display = ["id", "type", "amount", "customer_name", "date", "uploaded_at", "uploaded_by"]
-    list_filter = ["type", "date", "uploaded_at"]
-    search_fields = ["customer_name", "type"]
+    list_display = ["id", "type", "amount", "customer_name", "date", "user", "uploaded_at", "uploaded_by"]
+    list_filter = ["type", "date", "uploaded_at", "user"]
+    search_fields = ["customer_name", "type", "user__email"]
     readonly_fields = ["uploaded_at", "uploaded_by"]
     ordering = ["-date", "-uploaded_at"]
 

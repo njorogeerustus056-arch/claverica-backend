@@ -1,5 +1,4 @@
 # receipts/views.py
-import mimetypes
 import os
 
 from django.http import FileResponse, Http404
@@ -14,7 +13,7 @@ from rest_framework.views import APIView
 from .filters import ReceiptFilter
 from .models import Receipt
 from .pagination import ReceiptPagination
-from .permissions import IsAdminOrReadOnly
+from .permissions import IsAdminOrReadOnly, IsOwnerOrAdmin
 from .serializers import ReceiptSerializer, ReceiptUploadSerializer
 
 
@@ -23,7 +22,10 @@ class ReceiptListView(generics.ListAPIView):
     GET /api/receipts/
 
     Returns a paginated, filterable list of receipts ordered
-    by date descending. Accessible by any authenticated user.
+    by date descending.
+
+    - Admin users: see ALL receipts
+    - Regular users: see ONLY their own receipts
 
     Query params:
       ?type=invoice|refund|credit_note
@@ -35,12 +37,20 @@ class ReceiptListView(generics.ListAPIView):
       ?page_size=<N>  (max 100)
     """
 
-    queryset = Receipt.objects.select_related("uploaded_by").all()
     serializer_class = ReceiptSerializer
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
     pagination_class = ReceiptPagination
     filterset_class = ReceiptFilter
     ordering = ["-date", "-uploaded_at"]
+
+    def get_queryset(self):
+        """Filter receipts based on user role."""
+        user = self.request.user
+        if user.is_staff:
+            # Admin sees all receipts
+            return Receipt.objects.select_related("uploaded_by", "user").all()
+        # Regular users see only their own receipts
+        return Receipt.objects.select_related("uploaded_by", "user").filter(user=user)
 
 
 class ReceiptCreateView(generics.CreateAPIView):
@@ -50,7 +60,7 @@ class ReceiptCreateView(generics.CreateAPIView):
     Allows admin users to upload a new PDF receipt with metadata.
     Accepts multipart/form-data.
 
-    Fields: type, amount, date, customer_name, pdf_file
+    Fields: type, amount, date, customer_name, pdf_file, user (optional)
     """
 
     queryset = Receipt.objects.all()
@@ -82,12 +92,12 @@ class ReceiptDetailView(generics.RetrieveAPIView):
     GET /api/receipts/{id}/
 
     Returns metadata for a single receipt.
-    Accessible by any authenticated user.
+    Accessible by the receipt owner or admin.
     """
 
-    queryset = Receipt.objects.select_related("uploaded_by").all()
+    queryset = Receipt.objects.select_related("uploaded_by", "user").all()
     serializer_class = ReceiptSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
 
 
 class ReceiptDownloadView(APIView):
@@ -95,7 +105,7 @@ class ReceiptDownloadView(APIView):
     GET /api/receipts/{id}/download/
 
     Streams the PDF file to the client as an attachment download.
-    Accessible by any authenticated user.
+    Accessible by the receipt owner or admin.
     """
 
     permission_classes = [IsAuthenticated]
@@ -106,6 +116,10 @@ class ReceiptDownloadView(APIView):
             receipt = Receipt.objects.get(pk=pk)
         except Receipt.DoesNotExist:
             raise Http404("Receipt not found.")
+
+        # Check permission: owner or admin
+        if not (request.user.is_staff or receipt.user == request.user):
+            raise PermissionDenied("You do not have permission to download this receipt.")
 
         file_path = receipt.pdf_file.path
         if not os.path.isfile(file_path):

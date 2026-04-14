@@ -1,7 +1,6 @@
 # receipts/serializers.py
 from datetime import date
 
-from django.utils.timezone import now
 from rest_framework import serializers
 
 from .models import Receipt
@@ -13,12 +12,14 @@ class ReceiptSerializer(serializers.ModelSerializer):
     """
     Read serializer for listing and retrieving receipts.
 
-    Includes human-readable type label, uploader email,
+    Includes human-readable type label, uploader email, user email,
     and a direct download URL for the PDF.
     """
 
     type_display = serializers.CharField(source="get_type_display", read_only=True)
     uploaded_by = serializers.SerializerMethodField()
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+    user_name = serializers.CharField(source="user.get_full_name", read_only=True)
     pdf_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -33,6 +34,9 @@ class ReceiptSerializer(serializers.ModelSerializer):
             "pdf_url",
             "uploaded_at",
             "uploaded_by",
+            "user",
+            "user_email",
+            "user_name",
         ]
         read_only_fields = fields
 
@@ -59,11 +63,12 @@ class ReceiptUploadSerializer(serializers.ModelSerializer):
       - pdf_file: must be PDF, max 10MB
       - amount: must be greater than 0
       - date: must not be in the future
+      - user: optional, can assign to registered user
     """
 
     class Meta:
         model = Receipt
-        fields = ["type", "amount", "date", "customer_name", "pdf_file"]
+        fields = ["type", "amount", "date", "customer_name", "pdf_file", "user"]
 
     def validate_pdf_file(self, value):
         """Ensure the uploaded file is a PDF and within size limit."""
