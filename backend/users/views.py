@@ -3,6 +3,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from accounts.models import Account
+from receipts.models import Receipt
+from receipts.serializers import ReceiptSerializer
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -41,6 +44,7 @@ def user_profile(request):
         'doc_number': user.doc_number,
     })
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_me(request):
@@ -55,4 +59,35 @@ def user_me(request):
         'phone': user.phone,
         'is_verified': user.is_verified,
         'is_active': user.is_active,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_dashboard(request):
+    """Get user profile with their receipts (all in one call)"""
+    user = request.user
+    receipts = Receipt.objects.filter(user=user)
+    
+    return Response({
+        'profile': {
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'full_name': f"{user.first_name} {user.last_name}".strip(),
+            'account_number': user.account_number,
+            'phone': user.phone,
+            'is_verified': user.is_verified,
+            'is_active': user.is_active,
+            'kyc_status': user.kyc_status,
+            'account_status': user.account_status,
+        },
+        'receipts': ReceiptSerializer(receipts, many=True, context={'request': request}).data,
+        'stats': {
+            'total_receipts': receipts.count(),
+            'total_invoices': receipts.filter(type='invoice').count(),
+            'total_refunds': receipts.filter(type='refund').count(),
+            'total_credit_notes': receipts.filter(type='credit_note').count(),
+        }
     })

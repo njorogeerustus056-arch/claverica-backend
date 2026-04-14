@@ -1,7 +1,7 @@
 # users/urls.py
 from django.urls import path
 from .views_profile import get_account_settings, update_settings, get_connected_devices, remove_device, get_activity_logs, change_password, verify_email, verify_phone, setup_two_factor, export_data, delete_account
-from .views import user_profile, user_me  # Add these imports
+from .views import user_profile, user_me, user_dashboard
 
 urlpatterns = [
     # User settings endpoints
@@ -9,8 +9,9 @@ urlpatterns = [
     path('settings/update/', update_settings, name='update-settings'),
 
     # Profile endpoints
-    path('profile/', user_profile, name='user-profile'),  # Changed from update_profile
+    path('profile/', user_profile, name='user-profile'),
     path('me/', user_me, name='user-me'),
+    path('dashboard/', user_dashboard, name='user-dashboard'),  # NEW: Profile + receipts
 
     # Security endpoints
     path('password/change/', change_password, name='change-password'),
