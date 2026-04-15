@@ -47,11 +47,15 @@ class ReceiptSerializer(serializers.ModelSerializer):
         return None
 
     def get_pdf_url(self, obj):
-        """Return the download endpoint URL for the PDF."""
+        """Return the download endpoint URL for the PDF without format parameter."""
         request = self.context.get("request")
         url = f"/api/receipts/{obj.id}/download/"
         if request:
-            return request.build_absolute_uri(url)
+            full_url = request.build_absolute_uri(url)
+            # Remove any ?format=api that DRF adds
+            if '?format=api' in full_url:
+                full_url = full_url.replace('?format=api', '')
+            return full_url
         return url
 
 
