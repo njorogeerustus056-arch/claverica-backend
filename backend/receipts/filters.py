@@ -17,8 +17,10 @@ class ReceiptFilter(django_filters.FilterSet):
       ?date_before=2025-12-31 - filter receipts on or before date
     """
 
-    type = django_filters.ChoiceFilter(
-        choices=Receipt.TYPE_CHOICES,
+    # ✅ FIXED: Use CharFilter instead of ChoiceFilter to avoid the _set_choices error
+    type = django_filters.CharFilter(
+        field_name="type",
+        lookup_expr="exact",
         help_text="Filter by receipt type (invoice, refund, credit_note).",
     )
     customer = django_filters.CharFilter(
