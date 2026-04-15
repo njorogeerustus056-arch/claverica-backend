@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 from .filters import ReceiptFilter
 from .models import Receipt
 from .pagination import ReceiptPagination
-from .permissions import IsAdminOrReadOnly, IsOwnerOrAdmin
+from .permissions import IsOwnerOrAdmin
 from .serializers import ReceiptSerializer, ReceiptUploadSerializer
 
 
@@ -38,7 +38,7 @@ class ReceiptListView(generics.ListAPIView):
     """
 
     serializer_class = ReceiptSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated]  # ✅ Only require authentication
     pagination_class = ReceiptPagination
     filterset_class = ReceiptFilter
     ordering = ["-date", "-uploaded_at"]
