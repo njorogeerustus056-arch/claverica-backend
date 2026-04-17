@@ -1,4 +1,5 @@
 import logging
+import os
 import sendgrid
 from django.core.mail.backends.base import BaseEmailBackend
 from django.conf import settings
@@ -10,7 +11,15 @@ class SendGridEmailBackend(BaseEmailBackend):
     
     def __init__(self, fail_silently=False, **kwargs):
         super().__init__(fail_silently=fail_silently)
-        self.api_key = settings.SENDGRID_API_KEY
+        # Try to get API key from environment first, then from settings
+        self.api_key = os.environ.get('SENDGRID_API_KEY')
+        if not self.api_key:
+            self.api_key = getattr(settings, 'SENDGRID_API_KEY', None)
+        
+        if self.api_key:
+            logger.info(f"SendGrid backend initialized. API Key present: {self.api_key[:8]}...")
+        else:
+            logger.error("CRITICAL: No SendGrid API key found!")
         
     def send_messages(self, email_messages):
         if not email_messages:
@@ -24,6 +33,10 @@ class SendGridEmailBackend(BaseEmailBackend):
     
     def _send(self, message):
         try:
+            if not self.api_key:
+                logger.error("Cannot send email: No API key available")
+                return False
+            
             # Create client
             sg = sendgrid.SendGridAPIClient(api_key=self.api_key)
             
